@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { ChevronRight } from 'lucide-react';
 
 interface BreadcrumbItem {
@@ -14,12 +14,11 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ title, description, breadcrumbs, actions }: PageHeaderProps) {
-  const navigate = useNavigate();
 
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="space-y-1">
-        {breadcrumbs && breadcrumbs.length > 0 && (
+        {breadcrumbs && breadcrumbs.length > 1 && (
           <nav className="flex items-center gap-1 text-xs text-muted-foreground">
             {breadcrumbs.map((crumb, i) => (
               <span key={i} className="flex items-center gap-1">
