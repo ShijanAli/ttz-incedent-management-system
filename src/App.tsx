@@ -18,6 +18,7 @@ const ActivityPage = lazy(() => import('@/pages/activity'));
 const NotificationsPage = lazy(() => import('@/pages/notifications'));
 const ReportsPage = lazy(() => import('@/pages/reports'));
 const RolesPage = lazy(() => import('@/pages/roles'));
+const RoleEditorPage = lazy(() => import('@/pages/role-editor'));
 const UsersPage = lazy(() => import('@/pages/users'));
 const SettingsPage = lazy(() => import('@/pages/settings'));
 const AccessDeniedPage = lazy(() => import('@/pages/unauthorized'));
@@ -51,6 +52,8 @@ export default function App() {
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/roles" element={<RolesPage />} />
+          <Route path="/roles/new" element={<RoleEditorPage />} />
+          <Route path="/roles/:id" element={<RoleEditorPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/unauthorized" element={<AccessDeniedPage />} />

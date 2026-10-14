@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router';
 import { useAuth } from '@/lib/auth-context';
-import { roleRepo, userRepo, activityRepo, getUserRoles } from '@/lib/repository';
-import { PERMISSION_MODULES, ALL_PERMISSIONS, getModulePermissions } from '@/lib/permissions';
+import { roleRepo, userRepo, activityRepo } from '@/lib/repository';
+import { PERMISSION_MODULES, ALL_PERMISSIONS } from '@/lib/permissions';
 import { PageHeader } from '@/components/shared/page-header';
-import { RoleFormDialog } from '@/components/roles/role-form-dialog';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,12 +22,11 @@ import { formatDate } from '@/lib/shared-utils';
 import type { Role } from '@/lib/types';
 
 export default function RolesPage() {
+  const navigate = useNavigate();
   const { session, hasPermission } = useAuth();
   const [roles, setRoles] = useState<Role[]>(roleRepo.all());
   const [users] = useState(userRepo.all());
   const [search, setSearch] = useState('');
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Role | null>(null);
 
   const refresh = () => setRoles(roleRepo.all());
@@ -40,15 +39,9 @@ export default function RolesPage() {
 
   const getUserCount = (roleId: string) => users.filter((u) => u.roleIds.includes(roleId)).length;
 
-  const handleCreate = () => {
-    setEditingRole(null);
-    setFormOpen(true);
-  };
+  const handleCreate = () => navigate('/roles/new');
 
-  const handleEdit = (role: Role) => {
-    setEditingRole(role);
-    setFormOpen(true);
-  };
+  const handleEdit = (role: Role) => navigate(`/roles/${role.id}`);
 
   const handleDelete = (role: Role) => {
     const userCount = getUserCount(role.id);
@@ -150,7 +143,11 @@ export default function RolesPage() {
                     const userCount = getUserCount(role.id);
                     const permCount = role.permissions.length;
                     return (
-                      <TableRow key={role.id}>
+                      <TableRow
+                        key={role.id}
+                        onClick={canUpdate ? () => handleEdit(role) : undefined}
+                        className={canUpdate ? 'cursor-pointer' : undefined}
+                      >
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${role.isSystem ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
@@ -178,7 +175,7 @@ export default function RolesPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{formatDate(role.updatedAt)}</TableCell>
-                        <TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           {(canUpdate || (canDelete && !role.isSystem)) && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -238,13 +235,6 @@ export default function RolesPage() {
           </div>
         </CardContent>
       </Card>
-
-      <RoleFormDialog
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        role={editingRole}
-        onSaved={refresh}
-      />
 
       <ConfirmDialog
         open={!!confirmDelete}
