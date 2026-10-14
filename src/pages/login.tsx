@@ -1,13 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { ShieldCheck, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { ShieldCheck, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { DEMO_CREDENTIALS } from '@/lib/seed-data';
+import { useLoginMutation } from '@/redux/features/auth/auth-api';
+import { loginSchema, type LoginFormValues } from '@/lib/validations/auth';
+import { parseApiError } from '@/lib/api-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { PasswordInput } from '@/components/auth/password-input';
 import { toast } from 'sonner';
 import loginBackground from '@/assets/images/login-background.jpg';
 
@@ -19,49 +23,44 @@ const glassForm =
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, session, loading } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const { session, loading, mustChangePassword } = useAuth();
+  const [login, { isLoading: submitting }] = useLoginMutation();
 
+  const {
+    register,
+    control,
+    handleSubmit,
+    setError,
+    clearErrors,
+    formState: { errors },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '', remember: true },
+  });
+
+  // Also handles the redirect right after a successful login
   useEffect(() => {
     if (!loading && session) {
-      navigate('/dashboard', { replace: true });
+      navigate(mustChangePassword ? '/change-password' : '/dashboard', { replace: true });
     }
-  }, [session, loading, navigate]);
+  }, [session, loading, mustChangePassword, navigate]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (!email.trim()) {
-      setError('Email is required.');
-      return;
-    }
-    if (!password) {
-      setError('Password is required.');
-      return;
-    }
-
-    setSubmitting(true);
-    const result = login(email.trim(), password);
-    setSubmitting(false);
-
-    if (result.success) {
-      toast.success('Welcome back!', { description: 'You have been signed in successfully.' });
-      navigate('/dashboard', { replace: true });
-    } else {
-      setError(result.error || 'Login failed.');
+  const onSubmit = async (values: LoginFormValues) => {
+    try {
+      const data = await login(values).unwrap();
+      if (data.must_change_password) {
+        toast.info('Please set a new password', { description: 'You must change your password before continuing.' });
+      } else {
+        toast.success('Welcome back!', { description: 'You have been signed in successfully.' });
+      }
+    } catch (err) {
+      // Wrong credentials come back as a 422 keyed on "email"; show them as one form-level message
+      setError('root', { message: parseApiError(err, 'Login failed. Please try again.').message });
     }
   };
 
-  const fillDemo = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('demo123');
-    setError('');
+  const clearRootError = () => {
+    if (errors.root) clearErrors('root');
   };
 
   return (
@@ -115,10 +114,10 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
+          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+            {errors.root?.message && (
               <div className="rounded-lg border border-destructive/30 bg-background/90 px-4 py-3 text-sm text-destructive">
-                {error}
+                {errors.root.message}
               </div>
             )}
 
@@ -128,12 +127,12 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 placeholder="you@techtrioz.com"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setError(''); }}
                 autoComplete="email"
                 disabled={submitting}
                 className="text-foreground"
+                {...register('email', { onChange: clearRootError })}
               />
+              {errors.email && <p className="text-xs text-red-300">{errors.email.message}</p>}
             </div>
 
             <div className="space-y-2">
@@ -143,32 +142,29 @@ export default function LoginPage() {
                   Forgot password?
                 </Link>
               </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                  autoComplete="current-password"
-                  disabled={submitting}
-                  className="pr-10 text-foreground"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+              <PasswordInput
+                id="password"
+                placeholder="Enter your password"
+                autoComplete="current-password"
+                disabled={submitting}
+                className="text-foreground"
+                {...register('password', { onChange: clearRootError })}
+              />
+              {errors.password && <p className="text-xs text-red-300">{errors.password.message}</p>}
             </div>
 
             <div className="flex items-center gap-2">
-              <Checkbox
-                id="remember"
-                checked={remember}
-                onCheckedChange={(v) => setRemember(v === true)}
+              <Controller
+                control={control}
+                name="remember"
+                render={({ field }) => (
+                  <Checkbox
+                    id="remember"
+                    checked={field.value}
+                    onCheckedChange={(v) => field.onChange(v === true)}
+                    disabled={submitting}
+                  />
+                )}
               />
               <Label htmlFor="remember" className="text-sm text-white/80 cursor-pointer">
                 Keep me signed in
@@ -186,29 +182,6 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-
-          {/* Demo credentials */}
-          <div className="rounded-lg border border-white/25 bg-white/10 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]">
-            <div className="mb-2 text-xs font-semibold text-white/80 uppercase tracking-wide">
-              Demo Accounts (click to fill)
-            </div>
-            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
-              {DEMO_CREDENTIALS.map((cred) => (
-                <button
-                  key={cred.email}
-                  onClick={() => fillDemo(cred.email)}
-                  title={cred.email}
-                  className="flex min-w-0 flex-col rounded-md border bg-background/80 text-foreground px-3 py-2 text-left text-xs transition-colors hover:border-primary hover:bg-accent"
-                >
-                  <span className="truncate font-medium">{cred.role}</span>
-                  <span className="truncate text-muted-foreground">{cred.email}</span>
-                </button>
-              ))}
-            </div>
-            <div className="mt-2 text-xs text-white/80">
-              Password for all demo accounts: <span className="font-mono font-medium">demo123</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>

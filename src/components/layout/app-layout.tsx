@@ -7,13 +7,16 @@ import { Loader2 } from 'lucide-react';
 
 export default function AppLayout() {
   const navigate = useNavigate();
-  const { session, loading } = useAuth();
+  const { session, loading, mustChangePassword } = useAuth();
 
   useEffect(() => {
-    if (!loading && !session) {
+    if (loading) return;
+    if (!session) {
       navigate('/login', { replace: true });
+    } else if (mustChangePassword) {
+      navigate('/change-password', { replace: true });
     }
-  }, [session, loading, navigate]);
+  }, [session, loading, mustChangePassword, navigate]);
 
   if (loading) {
     return (
@@ -23,7 +26,7 @@ export default function AppLayout() {
     );
   }
 
-  if (!session) {
+  if (!session || mustChangePassword) {
     return null;
   }
 

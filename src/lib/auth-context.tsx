@@ -1,7 +1,16 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useCallback, useContext, useMemo } from 'react';
 import type { User, Permission } from '@/lib/types';
-import { userRepo, roleRepo, getUserPermissions, getUserRoles } from '@/lib/repository';
+import { ALL_PERMISSIONS } from '@/lib/permissions';
+import { useAppDispatch, useAppSelector } from '@/redux/hooks';
+import { baseApi } from '@/redux/api/base-api';
+import { useGetMeQuery, useLogoutMutation } from '@/redux/features/auth/auth-api';
+import { loggedOut, selectAuth } from '@/redux/features/auth/auth-slice';
+import type { ApiUser, UserAccess } from '@/redux/features/auth/auth-types';
 
+/**
+ * Auth state lives in Redux (src/redux/features/auth). This context adapts it to the
+ * session shape the rest of the app was built against, so modules still on mock data keep working.
+ */
 interface AuthSession {
   user: User;
   permissions: Permission[];
@@ -10,8 +19,11 @@ interface AuthSession {
 
 interface AuthContextValue {
   session: AuthSession | null;
+  /** True while a stored token is being validated against /auth/me */
   loading: boolean;
-  login: (email: string, password: string) => { success: boolean; error?: string };
+  mustChangePassword: boolean;
+  /** Raw per-project access from the API, for project-scoped checks */
+  access: UserAccess | null;
   logout: () => void;
   register: (name: string, email: string, password: string) => { success: boolean; error?: string };
   refreshSession: () => void;
@@ -21,109 +33,120 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-const SESSION_KEY = 'techtrioz_session_user_id';
+
+/** API permission names that differ from the app's permission names */
+const API_PERMISSION_ALIASES: Record<string, Permission[]> = {
+  'projects.edit': ['projects.update', 'projects.assign_members'],
+  'issues.edit': ['issues.update'],
+  'issues.pick': ['issues.assign'],
+  'issues.status': ['issues.change_status'],
+  'comments.create': ['issues.comment'],
+  'users.edit': ['users.view', 'users.update'],
+};
+
+/** Every signed-in user can reach these regardless of project access */
+const BASELINE_PERMISSIONS: Permission[] = ['dashboard.view', 'notifications.view', 'settings.view'];
+
+const AVATAR_COLORS = ['#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#7c3aed', '#db2777'];
+
+function resolvePermissions(access: UserAccess | null): Permission[] {
+  if (!access) return BASELINE_PERMISSIONS;
+  if (access.is_super_admin) return ALL_PERMISSIONS;
+
+  const known = new Set<string>(ALL_PERMISSIONS);
+  const result = new Set<Permission>(BASELINE_PERMISSIONS);
+  for (const project of access.projects) {
+    for (const perm of project.permissions) {
+      if (known.has(perm)) result.add(perm as Permission);
+      API_PERMISSION_ALIASES[perm]?.forEach((p) => result.add(p));
+    }
+  }
+  if (access.can_manage_users) {
+    (['users.view', 'users.create', 'users.update', 'users.deactivate'] as Permission[]).forEach((p) => result.add(p));
+  }
+  return [...result];
+}
+
+function toSessionUser(user: ApiUser): User {
+  return {
+    id: String(user.id),
+    name: user.name,
+    email: user.email,
+    password: '',
+    avatarColor: AVATAR_COLORS[user.id % AVATAR_COLORS.length],
+    roleIds: [],
+    status: user.status === 'active' ? 'active' : 'inactive',
+    title: user.designation ?? undefined,
+    phone: user.phone ?? undefined,
+    createdAt: user.created_at,
+    lastActiveAt: user.last_login_at ?? undefined,
+  };
+}
+
+function toRoleNames(access: UserAccess | null): string[] {
+  if (!access) return [];
+  if (access.is_super_admin) return ['Super Admin'];
+  return [...new Set(access.projects.map((p) => p.role))];
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<AuthSession | null>(null);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const { accessToken, user, access, mustChangePassword } = useAppSelector(selectAuth);
+  const [logoutRequest] = useLogoutMutation();
 
-  const buildSession = useCallback((user: User): AuthSession => {
-    const permissions = getUserPermissions(user.id);
-    const roles = getUserRoles(user.id);
+  // Validates a stored token on load and keeps the profile fresh
+  const { isLoading, isUninitialized, refetch } = useGetMeQuery(undefined, { skip: !accessToken });
+  const loading = Boolean(accessToken) && !user && (isLoading || isUninitialized);
+
+  const session = useMemo<AuthSession | null>(() => {
+    if (!accessToken || !user) return null;
     return {
-      user,
-      permissions,
-      roleNames: roles.map((r) => r.name),
+      user: toSessionUser(user),
+      permissions: resolvePermissions(access),
+      roleNames: toRoleNames(access),
     };
-  }, []);
-
-  const refreshSession = useCallback(() => {
-    if (typeof window === 'undefined') return;
-    const userId = localStorage.getItem(SESSION_KEY);
-    if (!userId) {
-      setSession(null);
-      return;
-    }
-    const user = userRepo.find(userId);
-    if (!user || user.status !== 'active') {
-      localStorage.removeItem(SESSION_KEY);
-      setSession(null);
-      return;
-    }
-    setSession(buildSession(user));
-  }, [buildSession]);
-
-  useEffect(() => {
-    refreshSession();
-    setLoading(false);
-  }, [refreshSession]);
-
-  const login = useCallback((email: string, password: string): { success: boolean; error?: string } => {
-    const user = userRepo.findByEmail(email);
-    if (!user) return { success: false, error: 'No account found with that email address.' };
-    if (user.password !== password) return { success: false, error: 'Incorrect password. Please try again.' };
-    if (user.status !== 'active') return { success: false, error: 'This account has been deactivated. Contact your administrator.' };
-
-    userRepo.update(user.id, { lastActiveAt: new Date().toISOString() });
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(SESSION_KEY, user.id);
-    }
-    setSession(buildSession(user));
-    return { success: true };
-  }, [buildSession]);
+  }, [accessToken, user, access]);
 
   const logout = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(SESSION_KEY);
-    }
-    setSession(null);
-  }, []);
+    const token = accessToken;
+    // Clear locally first so the UI never sees a half-logged-out state
+    dispatch(loggedOut());
+    dispatch(baseApi.util.resetApiState());
+    if (token) logoutRequest(token);
+  }, [accessToken, dispatch, logoutRequest]);
 
-  const register = useCallback((name: string, email: string, password: string): { success: boolean; error?: string } => {
-    if (userRepo.findByEmail(email)) {
-      return { success: false, error: 'An account with this email already exists.' };
-    }
-    const customerRole = roleRepo.findByName('Customer');
-    if (!customerRole) {
-      return { success: false, error: 'Registration is not available at this time.' };
-    }
-    const colors = ['#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#7c3aed', '#db2777'];
-    const newUser = userRepo.create({
-      name,
-      email,
-      password,
-      avatarColor: colors[Math.floor(Math.random() * colors.length)],
-      roleIds: [customerRole.id],
-      status: 'active',
-      title: 'Customer',
-      department: 'External',
-    });
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(SESSION_KEY, newUser.id);
-    }
-    setSession(buildSession(newUser));
-    return { success: true };
-  }, [buildSession]);
+  const refreshSession = useCallback(() => {
+    if (accessToken) refetch();
+  }, [accessToken, refetch]);
 
-  const hasPermission = useCallback((perm: Permission): boolean => {
-    return session?.permissions.includes(perm) ?? false;
-  }, [session]);
+  const register = useCallback(
+    (): { success: boolean; error?: string } => ({
+      success: false,
+      error: 'Self-registration is not available. Please contact your administrator for an account.',
+    }),
+    [],
+  );
 
-  const hasAnyPermission = useCallback((perms: Permission[]): boolean => {
-    if (!session) return false;
-    return perms.some((p) => session.permissions.includes(p));
-  }, [session]);
-
-  const hasAllPermissions = useCallback((perms: Permission[]): boolean => {
-    if (!session) return false;
-    return perms.every((p) => session.permissions.includes(p));
-  }, [session]);
+  const hasPermission = useCallback(
+    (perm: Permission) => session?.permissions.includes(perm) ?? false,
+    [session],
+  );
+  const hasAnyPermission = useCallback(
+    (perms: Permission[]) => (session ? perms.some((p) => session.permissions.includes(p)) : false),
+    [session],
+  );
+  const hasAllPermissions = useCallback(
+    (perms: Permission[]) => (session ? perms.every((p) => session.permissions.includes(p)) : false),
+    [session],
+  );
 
   return (
-    <AuthContext.Provider value={{
-      session, loading, login, logout, register, refreshSession,
-      hasPermission, hasAnyPermission, hasAllPermissions,
-    }}>
+    <AuthContext.Provider
+      value={{
+        session, loading, mustChangePassword, access, logout, register, refreshSession,
+        hasPermission, hasAnyPermission, hasAllPermissions,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
