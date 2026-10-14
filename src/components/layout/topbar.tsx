@@ -243,12 +243,6 @@ export function Topbar() {
             <UserIcon className="mr-2 h-4 w-4" />
             Profile & Settings
           </DropdownMenuItem>
-          {hasPermission('settings.view') && (
-            <DropdownMenuItem onClick={() => navigate('/settings')}>
-              <SettingsIcon className="mr-2 h-4 w-4" />
-              System Settings
-            </DropdownMenuItem>
-          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleLogout} className="text-destructive">
             <LogOut className="mr-2 h-4 w-4" />
