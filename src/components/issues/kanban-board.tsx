@@ -201,7 +201,7 @@ function KanbanCard({ issue, canDrag, dragging }: KanbanCardProps) {
       <div className="flex items-center justify-between">
         {assignee ? (
           <div className="flex items-center gap-1.5">
-            <UserAvatar name={assignee.name} color={assignee.avatarColor} size="xs" />
+            <UserAvatar name={assignee.name} color={assignee.avatarColor} image={assignee.avatarUrl} size="xs" />
             <span className="text-xs text-muted-foreground truncate max-w-[80px]">{assignee.name}</span>
           </div>
         ) : (

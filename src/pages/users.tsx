@@ -177,7 +177,7 @@ export default function UsersPage() {
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <UserAvatar name={user.name} color={user.avatarColor} size="sm" />
+                          <UserAvatar name={user.name} color={user.avatarColor} image={user.avatarUrl} size="sm" />
                           <div>
                             <div className="font-medium">{user.name}</div>
                             <div className="text-xs text-muted-foreground">{user.title || '—'}</div>

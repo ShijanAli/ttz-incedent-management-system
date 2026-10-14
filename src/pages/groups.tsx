@@ -206,7 +206,7 @@ export default function GroupsPage() {
                     {lastMsg && (
                       <div className="mt-3 pt-3 border-t">
                         <div className="flex items-center gap-2">
-                          {lastSender && <UserAvatar name={lastSender.name} color={lastSender.avatarColor} size="xs" />}
+                          {lastSender && <UserAvatar name={lastSender.name} color={lastSender.avatarColor} image={lastSender.avatarUrl} size="xs" />}
                           <div className="flex-1 min-w-0">
                             <div className="text-xs truncate">
                               <span className="font-medium">{lastSender?.name.split(' ')[0] || 'Unknown'}: </span>

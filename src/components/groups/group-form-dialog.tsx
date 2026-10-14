@@ -200,7 +200,7 @@ export function GroupFormDialog({ open, onOpenChange, onSaved }: GroupFormDialog
                           checked={selectedMembers.includes(u.id)}
                           onCheckedChange={() => toggleMember(u.id)}
                         />
-                        <UserAvatar name={u.name} color={u.avatarColor} size="sm" />
+                        <UserAvatar name={u.name} color={u.avatarColor} image={u.avatarUrl} size="sm" />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium truncate">{u.name}</div>
                           <div className="text-xs text-muted-foreground truncate">{u.title || '—'}</div>

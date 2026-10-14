@@ -4,7 +4,8 @@ import { cn } from '@/lib/utils';
 interface UserAvatarProps {
   name: string;
   color: string;
-  size?: 'xs' | 'sm' | 'md' | 'lg';
+  image?: string;
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
 }
 
@@ -13,9 +14,21 @@ const SIZE_CLASSES = {
   sm: 'h-8 w-8 text-xs',
   md: 'h-10 w-10 text-sm',
   lg: 'h-12 w-12 text-base',
+  xl: 'h-20 w-20 text-2xl',
 };
 
-export function UserAvatar({ name, color, size = 'sm', className }: UserAvatarProps) {
+export function UserAvatar({ name, color, image, size = 'sm', className }: UserAvatarProps) {
+  if (image) {
+    return (
+      <img
+        src={image}
+        alt={name}
+        title={name}
+        className={cn('shrink-0 rounded-full object-cover', SIZE_CLASSES[size], className)}
+      />
+    );
+  }
+
   return (
     <div
       className={cn(

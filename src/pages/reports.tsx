@@ -384,7 +384,7 @@ export default function ReportsPage() {
                     <TableRow key={w.user!.id}>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <UserAvatar name={w.user!.name} color={w.user!.avatarColor} size="xs" />
+                          <UserAvatar name={w.user!.name} color={w.user!.avatarColor} image={w.user!.avatarUrl} size="xs" />
                           <span className="text-sm font-medium">{w.user!.name}</span>
                         </div>
                       </TableCell>

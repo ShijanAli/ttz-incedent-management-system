@@ -3,8 +3,9 @@ import { Link, useNavigate } from 'react-router';
 import { Bell, Search, LogOut, User as UserIcon, Settings as SettingsIcon, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { notificationRepo, userRepo, projectRepo, issueRepo } from '@/lib/repository';
-import { getInitials, formatRelativeTime } from '@/lib/shared-utils';
+import { formatRelativeTime } from '@/lib/shared-utils';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from '@/components/shared/user-avatar';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -224,12 +225,7 @@ export function Topbar() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent">
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white"
-              style={{ backgroundColor: session.user.avatarColor }}
-            >
-              {getInitials(session.user.name)}
-            </div>
+            <UserAvatar name={session.user.name} color={session.user.avatarColor} image={session.user.avatarUrl} size="sm" />
             <div className="hidden text-left sm:block">
               <div className="text-sm font-medium leading-tight">{session.user.name}</div>
               <div className="text-xs text-muted-foreground leading-tight">{session.roleNames.join(', ')}</div>

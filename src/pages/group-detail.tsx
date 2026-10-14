@@ -207,7 +207,7 @@ export default function GroupDetailPage() {
                     return (
                       <div key={msg.id} className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
                         {sender ? (
-                          <UserAvatar name={sender.name} color={sender.avatarColor} size="sm" />
+                          <UserAvatar name={sender.name} color={sender.avatarColor} image={sender.avatarUrl} size="sm" />
                         ) : (
                           <div className="h-8 w-8 rounded-full bg-muted" />
                         )}
@@ -269,7 +269,7 @@ export default function GroupDetailPage() {
                     <div className="space-y-1">
                       {eligibleToAdd.map((u) => (
                         <div key={u.id} className="flex items-center gap-2 rounded-lg border p-2">
-                          <UserAvatar name={u.name} color={u.avatarColor} size="xs" />
+                          <UserAvatar name={u.name} color={u.avatarColor} image={u.avatarUrl} size="xs" />
                           <div className="flex-1 min-w-0">
                             <div className="text-xs font-medium truncate">{u.name}</div>
                             <div className="text-xs text-muted-foreground truncate">{u.title || '—'}</div>
@@ -294,7 +294,7 @@ export default function GroupDetailPage() {
               <div className="space-y-2">
                 {groupMembers.map((m) => (
                   <div key={m.id} className="flex items-center gap-2 group">
-                    <UserAvatar name={m.name} color={m.avatarColor} size="sm" />
+                    <UserAvatar name={m.name} color={m.avatarColor} image={m.avatarUrl} size="sm" />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{m.name}</div>
                       <div className="text-xs text-muted-foreground truncate">{m.title || '—'}</div>

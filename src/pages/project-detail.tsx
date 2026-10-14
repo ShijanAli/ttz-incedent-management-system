@@ -263,7 +263,7 @@ export default function ProjectDetailPage() {
                 <div className="space-y-3">
                   {members.map((m) => (
                     <div key={m.id} className="flex items-center gap-3">
-                      <UserAvatar name={m.name} color={m.avatarColor} size="sm" />
+                      <UserAvatar name={m.name} color={m.avatarColor} image={m.avatarUrl} size="sm" />
                       <div className="flex-1">
                         <div className="text-sm font-medium">{m.name}</div>
                         <div className="text-xs text-muted-foreground">{m.title || '—'}</div>
@@ -322,7 +322,7 @@ export default function ProjectDetailPage() {
                           <TableCell>
                             {assignee ? (
                               <div className="flex items-center gap-2">
-                                <UserAvatar name={assignee.name} color={assignee.avatarColor} size="xs" />
+                                <UserAvatar name={assignee.name} color={assignee.avatarColor} image={assignee.avatarUrl} size="xs" />
                                 <span className="text-xs">{assignee.name}</span>
                               </div>
                             ) : <span className="text-xs text-muted-foreground">Unassigned</span>}

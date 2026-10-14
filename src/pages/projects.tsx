@@ -212,7 +212,7 @@ export default function ProjectsPage() {
                         <TableCell>
                           {owner && (
                             <div className="flex items-center gap-2">
-                              <UserAvatar name={owner.name} color={owner.avatarColor} size="xs" />
+                              <UserAvatar name={owner.name} color={owner.avatarColor} image={owner.avatarUrl} size="xs" />
                               <span className="text-sm">{owner.name}</span>
                             </div>
                           )}

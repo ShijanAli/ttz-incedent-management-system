@@ -286,7 +286,7 @@ export default function IssuesPage() {
                           <TableCell>
                             {assignee ? (
                               <div className="flex items-center gap-2">
-                                <UserAvatar name={assignee.name} color={assignee.avatarColor} size="xs" />
+                                <UserAvatar name={assignee.name} color={assignee.avatarColor} image={assignee.avatarUrl} size="xs" />
                                 <span className="text-sm truncate max-w-[120px]">{assignee.name}</span>
                               </div>
                             ) : (

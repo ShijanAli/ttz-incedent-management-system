@@ -33,6 +33,8 @@ export interface User {
   email: string;
   password: string;
   avatarColor: string;
+  /** Resized image as a data URL; falls back to initials on avatarColor when absent */
+  avatarUrl?: string;
   roleIds: UUID[];
   status: UserStatus;
   title?: string;

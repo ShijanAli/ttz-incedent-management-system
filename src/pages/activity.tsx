@@ -202,7 +202,7 @@ export default function ActivityPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          {actor && <UserAvatar name={actor.name} color={actor.avatarColor} size="xs" />}
+                          {actor && <UserAvatar name={actor.name} color={actor.avatarColor} image={actor.avatarUrl} size="xs" />}
                           <span className="text-sm font-medium">{actor?.name || 'Unknown'}</span>
                           <Badge variant="outline" className="text-[10px] px-1.5 py-0">{act.action.replace(/_/g, ' ')}</Badge>
                         </div>

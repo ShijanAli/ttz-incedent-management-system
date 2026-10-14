@@ -1,18 +1,18 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { settingsRepo, preferencesRepo } from '@/lib/repository';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { UserAvatar } from '@/components/shared/user-avatar';
+import { ProfileCard } from '@/components/settings/profile-card';
+import { PasswordCard } from '@/components/settings/password-card';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Save, Settings as SettingsIcon, User as UserIcon, Bell, Lock } from 'lucide-react';
+import { Save, Settings as SettingsIcon, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import type { IssueStatus } from '@/lib/types';
 
@@ -70,44 +70,7 @@ export default function SettingsPage() {
       />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Profile section */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <UserIcon className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-base">Profile</CardTitle>
-            </div>
-            <CardDescription>Your account information</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-3">
-              <UserAvatar name={session.user.name} color={session.user.avatarColor} size="lg" />
-              <div>
-                <div className="text-sm font-medium">{session.user.name}</div>
-                <div className="text-xs text-muted-foreground">{session.user.email}</div>
-              </div>
-            </div>
-            <Separator />
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-xs text-muted-foreground">Title</Label>
-                <p className="text-sm">{session.user.title || '—'}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Department</Label>
-                <p className="text-sm">{session.user.department || '—'}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Phone</Label>
-                <p className="text-sm">{session.user.phone || '—'}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Roles</Label>
-                <p className="text-sm">{session.roleNames.join(', ')}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <ProfileCard />
 
         {/* Notification preferences */}
         <Card>
@@ -251,21 +214,9 @@ export default function SettingsPage() {
           </Card>
         )}
 
-        {/* Security note */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Lock className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-base">Security</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Authentication is handled through the local session store. This is a demo application and
-              does not use server-side authentication. All data is stored locally in your browser.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="lg:col-span-2">
+          <PasswordCard />
+        </div>
       </div>
     </div>
   );

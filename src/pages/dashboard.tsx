@@ -472,7 +472,7 @@ export default function DashboardPage() {
               <CardContent className="space-y-3">
                 {data.developerWorkload.map((wl) => (
                   <div key={wl.user.id} className="flex items-center gap-3">
-                    <UserAvatar name={wl.user.name} color={wl.user.avatarColor} size="sm" />
+                    <UserAvatar name={wl.user.name} color={wl.user.avatarColor} image={wl.user.avatarUrl} size="sm" />
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium truncate">{wl.user.name}</div>
                       <div className="text-xs text-muted-foreground">{wl.total} total, {wl.unresolved} unresolved</div>

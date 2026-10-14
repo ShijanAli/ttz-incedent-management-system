@@ -267,7 +267,7 @@ export default function IssueDetailPage() {
                         const author = userRepo.find(c.authorId);
                         return (
                           <div key={c.id} className="flex gap-3">
-                            {author && <UserAvatar name={author.name} color={author.avatarColor} size="sm" />}
+                            {author && <UserAvatar name={author.name} color={author.avatarColor} image={author.avatarUrl} size="sm" />}
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-0.5">
                                 <span className="text-sm font-medium">{author?.name || 'Unknown'}</span>
@@ -467,7 +467,7 @@ export default function IssueDetailPage() {
                 <Label className="text-xs text-muted-foreground mb-1 block">Reporter</Label>
                 {reporter && (
                   <div className="flex items-center gap-2">
-                    <UserAvatar name={reporter.name} color={reporter.avatarColor} size="xs" />
+                    <UserAvatar name={reporter.name} color={reporter.avatarColor} image={reporter.avatarUrl} size="xs" />
                     <span className="text-sm">{reporter.name}</span>
                   </div>
                 )}
@@ -477,7 +477,7 @@ export default function IssueDetailPage() {
                 <Label className="text-xs text-muted-foreground mb-1 block">Assignee</Label>
                 {assignee ? (
                   <div className="flex items-center gap-2">
-                    <UserAvatar name={assignee.name} color={assignee.avatarColor} size="xs" />
+                    <UserAvatar name={assignee.name} color={assignee.avatarColor} image={assignee.avatarUrl} size="xs" />
                     <span className="text-sm">{assignee.name}</span>
                     {canAssign && (
                       <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto" onClick={handleUnassign}>
