@@ -277,7 +277,7 @@ export default function IssuesPage() {
                           <TableCell>
                             <Badge variant="outline" className={typeMeta.badgeClass}>{typeMeta.label}</Badge>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className='w-[120px]'>
                             <StatusBadge label={statusMeta.label} className={statusMeta.badgeClass} />
                           </TableCell>
                           <TableCell>
@@ -293,7 +293,7 @@ export default function IssuesPage() {
                               <span className="text-sm text-muted-foreground">Unassigned</span>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className='w-[160px]'>
                             {issue.dueDate ? (
                               <span className={`text-sm flex items-center gap-1 ${overdue ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
                                 {overdue && <AlertCircle className="h-3 w-3" />}
