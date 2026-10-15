@@ -15,8 +15,8 @@ export const projectFormSchema = z
   .object({
     name: z.string().trim().min(2, 'Name must be at least 2 characters.').max(150, 'Name must be at most 150 characters.'),
     description: z.string().trim().min(1, 'Description is required.').max(2000, 'Description is too long.'),
-    objectives: optionalText(2000, 'Objectives'),
-    state: z.string().min(1, 'Pick a status.'),
+    objective: optionalText(2000, 'Objective'),
+    status: z.string().min(1, 'Pick a status.'),
     priority: z.enum(['low', 'medium', 'high', 'critical']),
     color: z.string(),
     start_date: z.string(),

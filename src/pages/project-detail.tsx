@@ -87,13 +87,13 @@ function ProjectDetail({ project }: { project: ApiProject }) {
   const activities = useMemo(() => activityRepo.byProject(projectKey), [projectKey]);
   const mockUsers = useMemo(() => userRepo.all(), []);
 
-  const archived = project.state === ARCHIVED_STATE;
+  const archived = project.status === ARCHIVED_STATE;
   const canEdit = projectCan(project, 'projects.edit');
   const canDelete = projectCan(project, 'projects.delete');
   const canManageMembers = projectCan(project, 'users.edit');
 
   const initials = getProjectInitials(project);
-  const stateMeta = getProjectStateMeta(project.state);
+  const stateMeta = getProjectStateMeta(project.status);
   const priorityMeta = getProjectPriorityMeta(project.priority);
   const progress = getProjectProgress(project);
   const statuses = sortStatuses(project.statuses);
@@ -158,10 +158,10 @@ function ProjectDetail({ project }: { project: ApiProject }) {
                   <Badge variant="secondary" className="text-xs font-normal">Your role: {project.my_role}</Badge>
                 </div>
                 <p className="max-w-2xl text-sm text-muted-foreground">{project.description || 'No description.'}</p>
-                {project.objectives && (
+                {project.objective && (
                   <div className="flex items-start gap-2 pt-2">
                     <Target className="mt-0.5 h-4 w-4 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">{project.objectives}</p>
+                    <p className="text-sm text-muted-foreground">{project.objective}</p>
                   </div>
                 )}
               </div>

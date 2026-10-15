@@ -21,7 +21,7 @@ import { UserSearchList } from '@/components/projects/user-search-list';
 import { applyFieldErrors, parseApiError } from '@/lib/api-error';
 import { getAvatarColor } from '@/lib/shared-utils';
 import {
-  PROJECT_COLORS, PROJECT_STATE_OPTIONS, getProjectStateMeta, sortStatuses, toStatusInputs,
+  PROJECT_COLORS, PROJECT_PRIORITY_OPTIONS, PROJECT_STATE_OPTIONS, getProjectStateMeta, sortStatuses, toStatusInputs,
 } from '@/lib/project-utils';
 import {
   createProjectSchema, editProjectSchema, type ProjectFormValues, type ProjectMemberValue,
@@ -38,9 +38,8 @@ import {
 import { useStatusCatalog } from '@/redux/features/projects/use-status-catalog';
 import type { ApiProject, ProjectFields, ProjectStatus } from '@/redux/features/projects/projects-types';
 
-const PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
 const FIELDS = [
-  'name', 'description', 'objectives', 'state', 'priority', 'color',
+  'name', 'description', 'objective', 'status', 'priority', 'color',
   'start_date', 'due_date', 'status_ids', 'members',
 ] as const;
 
@@ -102,8 +101,8 @@ function toDefaults(project: ApiProject | null, catalog: ProjectStatus[]): Proje
   return {
     name: project?.name ?? '',
     description: project?.description ?? '',
-    objectives: project?.objectives ?? '',
-    state: project?.state ?? 'active',
+    objective: project?.objective ?? '',
+    status: project?.status ?? 'active',
     priority: project?.priority ?? 'medium',
     color: project?.color ?? PROJECT_COLORS[0],
     start_date: project?.start_date ?? '',
@@ -124,8 +123,8 @@ function toProjectFields(values: ProjectFormValues): ProjectFields {
     name: values.name,
     description: values.description,
     due_date: values.due_date || null,
-    state: values.state,
-    objectives: values.objectives || null,
+    status: values.status,
+    objective: values.objective || null,
     priority: values.priority,
     color: values.color,
     start_date: values.start_date || null,
@@ -262,20 +261,20 @@ function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
         <Textarea id="projDesc" placeholder="Brief description of the project..." rows={2} disabled={saving} {...register('description')} />
       </Field>
 
-      <Field id="projObj" label="Objectives" error={errors.objectives?.message}>
-        <Textarea id="projObj" placeholder="Project goals and objectives..." rows={2} disabled={saving} {...register('objectives')} />
+      <Field id="projObj" label="Objective" error={errors.objective?.message}>
+        <Textarea id="projObj" placeholder="What this project aims to achieve..." rows={2} disabled={saving} {...register('objective')} />
       </Field>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field id="projState" label="Status" error={errors.state?.message}>
+        <Field id="projStatus" label="Status" error={errors.status?.message}>
           <Controller
             control={control}
-            name="state"
+            name="status"
             render={({ field }) => (
               <Select value={field.value} onValueChange={field.onChange} disabled={saving}>
-                <SelectTrigger id="projState"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="projStatus"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {/* Keep a state outside the list (e.g. archived) selectable */}
+                  {/* Keep a status outside the list (e.g. archived) selectable */}
                   {[...new Set([...PROJECT_STATE_OPTIONS, field.value])].map((s) => (
                     <SelectItem key={s} value={s}>{getProjectStateMeta(s).label}</SelectItem>
                   ))}
@@ -292,7 +291,7 @@ function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
               <Select value={field.value} onValueChange={field.onChange} disabled={saving}>
                 <SelectTrigger id="projPriority"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {PRIORITIES.map((p) => <SelectItem key={p} value={p}>{titleCase(p)}</SelectItem>)}
+                  {PROJECT_PRIORITY_OPTIONS.map((p) => <SelectItem key={p} value={p}>{titleCase(p)}</SelectItem>)}
                 </SelectContent>
               </Select>
             )}

@@ -3,12 +3,19 @@ import { DEFAULT_ROLE_PERMISSIONS } from '@/lib/permissions';
 import type {
   ApiProject,
   ProjectMember,
+  ProjectPriority,
+  ProjectState,
   ProjectStatus,
   ProjectStatusInput,
 } from '@/redux/features/projects/projects-types';
 
-/** States offered in filters and forms; "archived" is reached through Archive/Restore */
-export const PROJECT_STATE_OPTIONS = ['planning', 'active', 'on_hold', 'completed'] as const;
+/** Every status the API accepts, used by the list filter */
+export const PROJECT_STATUS_FILTER_OPTIONS = ['active', 'completed', 'archived'] as const satisfies readonly ProjectState[];
+
+/** Statuses offered in the form; "archived" is set through Archive/Restore instead */
+export const PROJECT_STATE_OPTIONS = ['active', 'completed'] as const satisfies readonly ProjectState[];
+
+export const PROJECT_PRIORITY_OPTIONS = ['low', 'medium', 'high', 'critical'] as const satisfies readonly ProjectPriority[];
 
 export const PROJECT_COLORS = ['#2563eb', '#dc2626', '#059669', '#7c3aed', '#d97706', '#0891b2', '#db2777', '#64748b'];
 
@@ -17,8 +24,12 @@ const NEUTRAL_BADGE = 'bg-slate-100 text-slate-600 border-slate-200';
 const titleCase = (value: string) =>
   value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
-/** Falls back to a neutral badge for states the backend adds later */
-export function getProjectStateMeta(state: string) {
+/**
+ * Badge for a project state. Falls back to a neutral badge for states the backend
+ * adds later, and to "—" when the API leaves the state out entirely.
+ */
+export function getProjectStateMeta(state: string | null | undefined) {
+  if (!state) return { label: '—', badgeClass: NEUTRAL_BADGE };
   return (
     (PROJECT_STATUS_META as Record<string, { label: string; badgeClass: string }>)[state] ?? {
       label: titleCase(state),

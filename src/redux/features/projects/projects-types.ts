@@ -1,9 +1,9 @@
 import type { InfiniteListParams } from '@/redux/api/types';
 
-/** Lifecycle state of a project. "active" is confirmed; the rest mirror the UI options. */
-export type ProjectState = 'planning' | 'active' | 'on_hold' | 'completed' | 'archived' | (string & {});
+/** Project lifecycle status, as accepted by the API */
+export type ProjectState = 'active' | 'completed' | 'archived' | (string & {});
 
-/** Not returned by the backend yet; the UI keeps the field and shows blanks until it is */
+/** Project priority, as accepted by the API */
 export type ProjectPriority = 'low' | 'medium' | 'high' | 'critical';
 
 /** A workflow status attached to a project */
@@ -55,7 +55,8 @@ export interface ApiProject {
   description: string | null;
   /** YYYY-MM-DD */
   due_date: string | null;
-  state: ProjectState;
+  /** Lifecycle status (planning, active, ...). Not to be confused with the workflow `statuses`. */
+  status: ProjectState | null;
   statuses: ProjectStatus[];
   members: ProjectMember[];
   groups: ProjectGroupSummary[];
@@ -68,7 +69,7 @@ export interface ApiProject {
   created_at: string;
 
   // ---- Not returned by the backend yet; sent on save so they work once supported ----
-  objectives?: string | null;
+  objective?: string | null;
   priority?: ProjectPriority | null;
   color?: string | null;
   start_date?: string | null;
@@ -76,7 +77,8 @@ export interface ApiProject {
 
 export interface ProjectListParams extends InfiniteListParams {
   search?: string;
-  state?: ProjectState;
+  status?: ProjectState;
+  priority?: ProjectPriority;
 }
 
 // ---- Requests ----
@@ -92,8 +94,8 @@ export interface ProjectFields {
   name: string;
   description: string;
   due_date: string | null;
-  state: ProjectState;
-  objectives?: string | null;
+  status: ProjectState;
+  objective?: string | null;
   priority?: ProjectPriority;
   color?: string;
   start_date?: string | null;

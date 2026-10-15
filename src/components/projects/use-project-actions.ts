@@ -23,8 +23,8 @@ export function useProjectActions(options?: { onDeleted?: (project: ApiProject) 
         await deleteProject(project.id).unwrap();
         options?.onDeleted?.(project);
       } else {
-        // The API has no archive endpoint; archiving is a state change
-        await updateProject({ id: project.id, state: action === 'archive' ? ARCHIVED_STATE : 'active' }).unwrap();
+        // The API has no archive endpoint; archiving is a status change
+        await updateProject({ id: project.id, status: action === 'archive' ? ARCHIVED_STATE : 'active' }).unwrap();
       }
       toast.success(config.success, { description: project.name });
     } catch (err) {

@@ -10,11 +10,11 @@ import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { parseApiError } from '@/lib/api-error';
 import { formatDate, isOverdue } from '@/lib/shared-utils';
 import {
-  PROJECT_STATE_OPTIONS, getProjectColor, getProjectInitials, getProjectPriorityMeta,
+  PROJECT_PRIORITY_OPTIONS, PROJECT_STATUS_FILTER_OPTIONS, getProjectColor, getProjectInitials, getProjectPriorityMeta,
   getProjectProgress, getProjectStateMeta, projectCan,
 } from '@/lib/project-utils';
 import { useGetProjectsInfiniteQuery } from '@/redux/features/projects/projects-api';
-import type { ApiProject } from '@/redux/features/projects/projects-types';
+import type { ApiProject, ProjectPriority } from '@/redux/features/projects/projects-types';
 import { PageHeader } from '@/components/shared/page-header';
 import { ProjectFormDialog } from '@/components/projects/project-form-dialog';
 import { ARCHIVED_STATE, type ProjectActionType } from '@/components/projects/project-actions';
@@ -45,7 +45,7 @@ export default function ProjectsPage() {
   const { hasPermission } = useAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(ALL);
-  const [showArchived, setShowArchived] = useState(false);
+  const [priorityFilter, setPriorityFilter] = useState<string>(ALL);
   const [formOpen, setFormOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<ApiProject | null>(null);
   const actions = useProjectActions();
@@ -54,26 +54,27 @@ export default function ProjectsPage() {
   const debouncedSearch = useDebouncedValue(search.trim());
   const isSearchPending = search.trim() !== debouncedSearch;
 
-  // Search and state are filtered by the API; the archived view is just state=archived
+  // All filters run on the API (?search, ?status, ?priority); "All" leaves the param out
   const list = useInfiniteList(
     useGetProjectsInfiniteQuery({
       search: debouncedSearch || undefined,
-      state: showArchived ? ARCHIVED_STATE : statusFilter === ALL ? undefined : statusFilter,
+      status: statusFilter === ALL ? undefined : statusFilter,
+      priority: priorityFilter === ALL ? undefined : (priorityFilter as ProjectPriority),
     }),
   );
 
+  // The "View Archived" button is a shortcut for the archived status filter
+  const showArchived = statusFilter === ARCHIVED_STATE;
   const projects = list.items;
-  const hasFilters = search !== '' || statusFilter !== ALL;
+  const hasFilters = search !== '' || statusFilter !== ALL || priorityFilter !== ALL;
 
   const clearFilters = () => {
     setSearch('');
     setStatusFilter(ALL);
+    setPriorityFilter(ALL);
   };
 
-  const toggleArchived = (archived: boolean) => {
-    setShowArchived(archived);
-    setStatusFilter(ALL);
-  };
+  const toggleArchived = (archived: boolean) => setStatusFilter(archived ? ARCHIVED_STATE : ALL);
 
   const handleCreate = () => {
     setEditingProject(null);
@@ -135,19 +136,28 @@ export default function ProjectsPage() {
                 aria-label="Search projects"
               />
             </div>
-            {!showArchived && (
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>All statuses</SelectItem>
-                  {PROJECT_STATE_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={s}>{getProjectStateMeta(s).label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[150px]" aria-label="Filter by status">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All statuses</SelectItem>
+                {PROJECT_STATUS_FILTER_OPTIONS.map((s) => (
+                  <SelectItem key={s} value={s}>{getProjectStateMeta(s).label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="w-[150px]" aria-label="Filter by priority">
+                <SelectValue placeholder="Priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All priorities</SelectItem>
+                {PROJECT_PRIORITY_OPTIONS.map((p) => (
+                  <SelectItem key={p} value={p}>{getProjectPriorityMeta(p)?.label ?? p}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {hasFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground">
                 <X className="mr-1.5 h-4 w-4" />
@@ -208,9 +218,11 @@ export default function ProjectsPage() {
                 ) : projects.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={COLUMN_COUNT} className="py-12 text-center text-muted-foreground">
-                      {hasFilters
-                        ? 'No projects match your filters.'
-                        : showArchived ? 'No archived projects found.' : 'No projects found. Create one to get started.'}
+                      {showArchived && !debouncedSearch && priorityFilter === ALL
+                        ? 'No archived projects found.'
+                        : hasFilters
+                          ? 'No projects match your filters.'
+                          : 'No projects found. Create one to get started.'}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -253,10 +265,10 @@ interface ProjectRowProps {
 }
 
 function ProjectRow({ index, project, onEdit, onAction }: ProjectRowProps) {
-  const archived = project.state === ARCHIVED_STATE;
+  const archived = project.status === ARCHIVED_STATE;
   const progress = getProjectProgress(project);
-  const overdue = isOverdue(project.due_date ?? undefined, archived ? 'approved' : project.state);
-  const stateMeta = getProjectStateMeta(project.state);
+  const overdue = isOverdue(project.due_date ?? undefined, archived ? 'approved' : (project.status ?? undefined));
+  const stateMeta = getProjectStateMeta(project.status);
   const priorityMeta = getProjectPriorityMeta(project.priority);
   const initials = getProjectInitials(project);
 
