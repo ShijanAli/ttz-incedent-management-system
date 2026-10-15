@@ -11,37 +11,50 @@ import {
 } from '@/components/ui/select';
 import { UserAvatar } from '@/components/shared/user-avatar';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
-import { RoleSelect } from '@/components/projects/role-select';
-import { UserSearchList } from '@/components/projects/user-search-list';
+import { RoleSelect } from '@/components/members/role-select';
+import { UserSearchList } from '@/components/members/user-search-list';
 import { parseApiError } from '@/lib/api-error';
 import { getAvatarColor } from '@/lib/shared-utils';
-import {
-  useAddProjectMemberMutation,
-  useChangeProjectMemberRoleMutation,
-  useGetProjectMembersQuery,
-  useRemoveProjectMemberMutation,
-} from '@/redux/features/projects/projects-api';
-import type { ApiProject, ProjectMember } from '@/redux/features/projects/projects-types';
 
 const ALL = 'all';
 
-interface MemberManagerProps {
-  project: ApiProject;
-  /** Users with "Manage project members" can add, remove and change roles */
-  canManage: boolean;
+export interface ManagedMember {
+  user: { id: number; name: string; designation: string | null; status: string };
+  role: string;
+  /** "direct" (default) members are editable; anything else came in another way, e.g. a group */
+  source?: string;
 }
 
-export function MemberManager({ project, canManage }: MemberManagerProps) {
-  const { data: members = [], isLoading, isError, error, refetch } = useGetProjectMembersQuery(project.id);
-  const [addMember] = useAddProjectMemberMutation();
-  const [changeRole] = useChangeProjectMemberRoleMutation();
-  const [removeMember] = useRemoveProjectMemberMutation();
+export interface MemberManagerProps {
+  /** Shown in toasts and the remove confirmation, e.g. the project or group name */
+  entityName: string;
+  members: ManagedMember[];
+  isLoading: boolean;
+  error?: unknown;
+  onRetry: () => void;
+  canManage: boolean;
+  onAdd: (userId: number, role?: string) => Promise<unknown>;
+  onChangeRole: (userId: number, role: string) => Promise<unknown>;
+  onRemove: (userId: number) => Promise<unknown>;
+  /** Consequence of removal, appended to the confirmation text */
+  removeWarning?: string;
+  footnote?: string;
+}
 
+/**
+ * Lists members with their roles and, for managers, lets them add people
+ * (searchable, infinite user list), change roles and remove members. API-agnostic:
+ * the project and group pages pass their own mutations in.
+ */
+export function MemberManager({
+  entityName, members, isLoading, error, onRetry, canManage,
+  onAdd, onChangeRole, onRemove, removeWarning = 'They will lose access.', footnote,
+}: MemberManagerProps) {
   const [roleFilter, setRoleFilter] = useState(ALL);
   const [pending, setPending] = useState<number | null>(null);
   const [addRoleByUser, setAddRoleByUser] = useState<Record<number, string>>({});
   const [editing, setEditing] = useState<{ userId: number; role: string } | null>(null);
-  const [confirmRemove, setConfirmRemove] = useState<ProjectMember | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<ManagedMember | null>(null);
 
   const memberIds = useMemo(() => new Set(members.map((m) => m.user.id)), [members]);
   const roles = useMemo(() => [...new Set(members.map((m) => m.role))].sort(), [members]);
@@ -66,35 +79,29 @@ export function MemberManager({ project, canManage }: MemberManagerProps) {
     const role = addRoleByUser[userId] ?? '';
     const added = await run(
       userId,
-      () => addMember({ projectId: project.id, user_id: userId, ...(role && { role }) }).unwrap(),
-      `${name} added to ${project.name}${role ? ` as ${role}` : ''}`,
+      () => onAdd(userId, role || undefined),
+      `${name} added to ${entityName}${role ? ` as ${role}` : ''}`,
       'Failed to add member',
     );
     if (added) setAddRoleByUser(({ [userId]: _, ...rest }) => rest);
   };
 
-  const handleSaveRole = async (member: ProjectMember) => {
+  const handleSaveRole = async (member: ManagedMember) => {
     if (!editing || !editing.role || editing.role === member.role) {
       setEditing(null);
       return;
     }
     const saved = await run(
       member.user.id,
-      () => changeRole({ projectId: project.id, userId: member.user.id, role: editing.role }).unwrap(),
+      () => onChangeRole(member.user.id, editing.role),
       `${member.user.name} is now ${editing.role}`,
       'Failed to update role',
     );
     if (saved) setEditing(null);
   };
 
-  const handleRemove = async (member: ProjectMember) => {
-    await run(
-      member.user.id,
-      () => removeMember({ projectId: project.id, userId: member.user.id }).unwrap(),
-      `${member.user.name} removed from ${project.name}`,
-      'Failed to remove member',
-    );
-  };
+  const handleRemove = (member: ManagedMember) =>
+    run(member.user.id, () => onRemove(member.user.id), `${member.user.name} removed from ${entityName}`, 'Failed to remove member');
 
   return (
     <div className={canManage ? 'grid gap-4 lg:grid-cols-2' : undefined}>
@@ -106,7 +113,7 @@ export function MemberManager({ project, canManage }: MemberManagerProps) {
               Current Members ({members.length})
             </h3>
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="h-8 w-auto min-w-[140px] text-xs">
+              <SelectTrigger className="h-8 w-auto min-w-[140px] text-xs" aria-label="Filter members by role">
                 <SelectValue placeholder="Filter by role" />
               </SelectTrigger>
               <SelectContent>
@@ -119,10 +126,10 @@ export function MemberManager({ project, canManage }: MemberManagerProps) {
           <div className="max-h-[420px] space-y-2 overflow-y-auto">
             {isLoading ? (
               Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[72px] w-full rounded-lg" />)
-            ) : isError ? (
+            ) : error ? (
               <div className="py-8 text-center text-sm">
                 <p className="text-destructive">{parseApiError(error, 'Failed to load members.').message}</p>
-                <Button variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>Retry</Button>
+                <Button variant="outline" size="sm" className="mt-3" onClick={onRetry}>Retry</Button>
               </div>
             ) : filtered.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
@@ -130,8 +137,7 @@ export function MemberManager({ project, canManage }: MemberManagerProps) {
               </div>
             ) : (
               filtered.map((m) => {
-                // Group members are managed from their group, not here
-                const editable = canManage && m.source === 'direct';
+                const editable = canManage && (m.source ?? 'direct') === 'direct';
                 const isEditing = editing?.userId === m.user.id;
                 const busy = pending === m.user.id;
                 return (
@@ -143,7 +149,7 @@ export function MemberManager({ project, canManage }: MemberManagerProps) {
                         <div className="truncate text-xs text-muted-foreground">{m.user.designation || '—'}</div>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        {m.source !== 'direct' && (
+                        {m.source && m.source !== 'direct' && (
                           <Badge variant="secondary" className="text-xs font-normal" title="Added through a group">
                             <UsersIcon className="mr-1 h-3 w-3" />
                             Via group
@@ -167,7 +173,7 @@ export function MemberManager({ project, canManage }: MemberManagerProps) {
                       </div>
                     </div>
 
-                    {/* Project role */}
+                    {/* Role */}
                     <div className="flex items-center gap-2 pl-11">
                       {isEditing ? (
                         <>
@@ -241,7 +247,7 @@ export function MemberManager({ project, canManage }: MemberManagerProps) {
             />
             <Separator className="my-3" />
             <p className="text-xs text-muted-foreground">
-              Leave the role on "User's default role" to use the role from their account. Members added through a group are managed from that group.
+              {footnote ?? 'Leave the role on "User\'s default role" to use the role from their account.'}
             </p>
           </CardContent>
         </Card>
@@ -251,7 +257,7 @@ export function MemberManager({ project, canManage }: MemberManagerProps) {
         open={!!confirmRemove}
         onOpenChange={(open) => { if (!open) setConfirmRemove(null); }}
         title="Remove member"
-        description={`Remove ${confirmRemove?.user.name} from ${project.name}? They will lose access to this project.`}
+        description={`Remove ${confirmRemove?.user.name} from ${entityName}? ${removeWarning}`}
         confirmLabel="Remove"
         variant="destructive"
         onConfirm={async () => { if (confirmRemove) await handleRemove(confirmRemove); }}

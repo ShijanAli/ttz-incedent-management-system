@@ -20,6 +20,11 @@ export const ENDPOINTS = {
     USERS: '/api/admin/users',
     USER: (id: number | string) => `/api/admin/users/${id}`,
     USER_RESEND_INVITE: (id: number | string) => `/api/admin/users/${id}/resend-invite`,
+    GROUPS: '/api/admin/groups',
+    GROUP: (id: number | string) => `/api/admin/groups/${id}`,
+    GROUP_MEMBERS: (id: number | string) => `/api/admin/groups/${id}/members`,
+    GROUP_MEMBER: (id: number | string, userId: number | string) => `/api/admin/groups/${id}/members/${userId}`,
+    GROUP_PROJECTS: (id: number | string) => `/api/admin/groups/${id}/projects`,
   },
   PROJECTS: {
     LIST: '/api/projects',

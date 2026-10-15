@@ -16,8 +16,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { UserAvatar } from '@/components/shared/user-avatar';
-import { RoleSelect } from '@/components/projects/role-select';
-import { UserSearchList } from '@/components/projects/user-search-list';
+import { RoleSelect } from '@/components/members/role-select';
+import { UserSearchList } from '@/components/members/user-search-list';
 import { applyFieldErrors, parseApiError } from '@/lib/api-error';
 import { getAvatarColor } from '@/lib/shared-utils';
 import {

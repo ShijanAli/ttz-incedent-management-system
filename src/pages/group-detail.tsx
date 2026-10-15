@@ -1,345 +1,270 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { Link, useParams } from 'react-router';
+import { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router';
+import {
+  AlertCircle, Calendar, FolderKanban, Loader2, Pencil, Power, PowerOff, Trash2, Users as UsersIcon, UsersRound,
+} from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { projectRepo, userRepo, groupRepo, messageRepo } from '@/lib/repository';
-import { canUserViewGroup, groupService, getEligibleMembersForGroup } from '@/lib/services';
+import { parseApiError } from '@/lib/api-error';
+import { formatDate, isOverdue } from '@/lib/shared-utils';
+import {
+  getProjectColor, getProjectInitials, getProjectPriorityMeta, getProjectStateMeta,
+} from '@/lib/project-utils';
+import {
+  useAddGroupMemberMutation,
+  useChangeGroupMemberRoleMutation,
+  useGetGroupMembersQuery,
+  useGetGroupProjectsQuery,
+  useGetGroupQuery,
+  useRemoveGroupMemberMutation,
+} from '@/redux/features/groups/groups-api';
+import type { GroupDetail } from '@/redux/features/groups/groups-types';
 import { PageHeader } from '@/components/shared/page-header';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { StatusBadge } from '@/components/shared/status-badge';
+import { MemberManager } from '@/components/members/member-manager';
+import { GroupFormDialog } from '@/components/groups/group-form-dialog';
+import { GroupStatusBadge } from '@/components/groups/group-status-badge';
+import { useGroupActions } from '@/components/groups/use-group-actions';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { UserAvatar } from '@/components/shared/user-avatar';
-import { StatusBadge } from '@/components/shared/status-badge';
-import {
-  Send, UserPlus, UserMinus, AlertCircle,
-  Lock, EyeOff, MessageSquare, Users as UsersIcon,
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { formatRelativeTime, GROUP_TYPE_META } from '@/lib/shared-utils';
-import type { GroupMessage, UUID } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 
 export default function GroupDetailPage() {
-  const id = useParams().id as string;
-  const { session, hasPermission } = useAuth();
-  const group = useMemo(() => groupRepo.find(id), [id]);
-  const [messages, setMessages] = useState<GroupMessage[]>(() => messageRepo.byGroup(id));
-  const [input, setInput] = useState('');
-  const [showAddMember, setShowAddMember] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState<UUID | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const id = Number(useParams().id);
+  const { data: group, isLoading, isError, error, refetch } = useGetGroupQuery(id, { skip: !Number.isFinite(id) });
 
-  const project = useMemo(() => (group ? projectRepo.find(group.projectId) : undefined), [group]);
-  const allUsers = useMemo(() => userRepo.all(), []);
-  const canManage = hasPermission('groups.manage_members');
-  const canSend = hasPermission('groups.send_message');
+  if (isLoading) return <GroupDetailSkeleton />;
 
-  const eligibleToAdd = useMemo(() => {
-    if (!group) return [];
-    const eligible = getEligibleMembersForGroup(group);
-    return eligible.filter((u) => !group.memberIds.includes(u.id));
-  }, [group]);
-
-  // Mark messages as read on load
-  useEffect(() => {
-    if (session && group && group.memberIds.includes(session.user.id)) {
-      groupService.markRead(group.id, session.user.id);
-    }
-  }, [session, group, id]);
-
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  if (!group) {
+  if (isError || !group) {
+    const apiError = parseApiError(error, 'Failed to load the group.');
+    const forbidden = apiError.status === 403;
+    const notFound = apiError.status === 404 || !Number.isFinite(id);
     return (
       <div className="animate-fade-in">
         <PageHeader
-          title="Group not found"
-          breadcrumbs={[{ label: 'Groups', href: '/groups' }, { label: 'Not Found' }]}
-        />
-        <Card className="p-8 text-center text-muted-foreground">
-          The group you are looking for does not exist.
-          <div className="mt-4">
-            <Button variant="outline" onClick={() => window.history.back()}>
-              Go Back
-            </Button>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  if (session && !canUserViewGroup(session.user.id, group)) {
-    return (
-      <div className="animate-fade-in">
-        <PageHeader
-          title="Access restricted"
-          breadcrumbs={[{ label: 'Groups', href: '/groups' }, { label: 'Group' }]}
+          title={forbidden ? 'Access restricted' : notFound ? 'Group not found' : 'Something went wrong'}
+          breadcrumbs={[{ label: 'Groups', href: '/groups' }, { label: forbidden ? 'Restricted' : 'Not Found' }]}
         />
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <AlertCircle className="mb-4 h-12 w-12 text-muted-foreground" />
-            <h3 className="text-lg font-semibold">You don&apos;t have access to this group</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {group.type === 'secret'
-                ? 'This is a secret group. Only members can see it.'
-                : 'You must be a member of this group to view it.'}
-            </p>
+            <h3 className="text-lg font-semibold">
+              {forbidden
+                ? "You don't have access to this group"
+                : notFound ? 'The group you are looking for does not exist.' : apiError.message}
+            </h3>
+            <div className="mt-4 flex gap-2">
+              {!forbidden && !notFound && <Button variant="outline" onClick={() => refetch()}>Retry</Button>}
+              <Button variant="outline" asChild>
+                <Link to="/groups">Back to groups</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  // If user can view but is not a member (private group, project member but not group member)
-  const isMember = session ? group.memberIds.includes(session.user.id) : false;
-  const canViewContent = isMember;
+  return <GroupDetailView group={group} />;
+}
 
-  const refresh = () => setMessages(messageRepo.byGroup(id));
+function GroupDetailView({ group }: { group: GroupDetail }) {
+  const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const [editOpen, setEditOpen] = useState(false);
+  const actions = useGroupActions({ onDeleted: () => navigate('/groups', { replace: true }) });
 
-  const handleSend = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || !session || !isMember) return;
-    groupService.sendMessage(group.id, session.user.id, input.trim());
-    setInput('');
-    refresh();
-  };
+  const members = useGetGroupMembersQuery(group.id);
+  const [addMember] = useAddGroupMemberMutation();
+  const [changeRole] = useChangeGroupMemberRoleMutation();
+  const [removeMember] = useRemoveGroupMemberMutation();
+  const groupId = group.id;
 
-  const getSender = (senderId: string) => allUsers.find((u) => u.id === senderId);
-  const typeMeta = GROUP_TYPE_META[group.type];
-
-  const handleAddMember = (userId: UUID) => {
-    if (!session) return;
-    groupService.addMember(group.id, userId, session.user.id);
-    toast.success('Member added');
-    refresh();
-  };
-
-  const handleRemoveMember = (userId: UUID) => {
-    setConfirmRemove(userId);
-  };
-
-  const doRemoveMember = () => {
-    if (!confirmRemove || !session) return;
-    groupService.removeMember(group.id, confirmRemove, session.user.id);
-    toast.success('Member removed');
-    setConfirmRemove(null);
-    refresh();
-  };
-
-  const groupMembers = group.memberIds
-    .map((mid) => allUsers.find((u) => u.id === mid))
-    .filter((u): u is NonNullable<typeof u> => u !== undefined);
-
-  const groupIcon = group.type === 'default' ? <MessageSquare className="h-5 w-5 text-primary" /> :
-    group.type === 'private' ? <Lock className="h-5 w-5 text-amber-600" /> :
-    <EyeOff className="h-5 w-5 text-rose-600" />;
-
-  const removingUser = confirmRemove ? allUsers.find((u) => u.id === confirmRemove) : null;
+  const canUpdate = hasPermission('groups.update');
+  const canDelete = hasPermission('groups.delete');
+  const canManageMembers = hasPermission('groups.manage_members');
 
   return (
     <div className="animate-fade-in">
       <PageHeader
         title={group.name}
-        description={typeMeta.description}
+        description={group.description ?? undefined}
         breadcrumbs={[
           { label: 'Groups', href: '/groups' },
           { label: group.name },
         ]}
         actions={
-          canManage && group.type !== 'default' && (
-            <Button variant="outline" onClick={() => setShowAddMember(!showAddMember)}>
-              <UserPlus className="mr-2 h-4 w-4" />
-              Add Member
-            </Button>
-          )
+          <div className="flex items-center gap-2">
+            {canUpdate && (
+              <>
+                <Button variant="outline" onClick={() => setEditOpen(true)}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+                {group.is_active ? (
+                  <Button variant="outline" onClick={() => actions.request(group, 'deactivate')} className="text-amber-600">
+                    <PowerOff className="mr-2 h-4 w-4" />
+                    Deactivate
+                  </Button>
+                ) : (
+                  <Button variant="outline" onClick={() => actions.request(group, 'activate')} className="text-emerald-600">
+                    <Power className="mr-2 h-4 w-4" />
+                    Activate
+                  </Button>
+                )}
+              </>
+            )}
+            {canDelete && (
+              <Button variant="outline" onClick={() => actions.request(group, 'delete')} className="text-destructive">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+            )}
+          </div>
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-        {/* Chat area */}
-        <Card className="flex flex-col h-[calc(100vh-280px)] min-h-[400px]">
-          {/* Chat header */}
-          <div className="flex items-center gap-3 border-b p-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-              {groupIcon}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="font-semibold text-sm truncate">{group.name}</h2>
-                <StatusBadge label={typeMeta.label} className={typeMeta.badgeClass} />
-              </div>
-              {project && (
-                <Link to={`/projects/${project.id}`} className="text-xs text-muted-foreground hover:text-primary transition-colors">
-                  {project.name}
-                </Link>
+      {/* Group header card */}
+      <Card className="mb-6">
+        <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-4">
+            <div
+              className={cn(
+                'flex h-14 w-14 shrink-0 items-center justify-center rounded-xl',
+                group.is_active ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
               )}
+            >
+              <UsersRound className="h-7 w-7" />
             </div>
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <UsersIcon className="h-3.5 w-3.5" />
-              {group.memberIds.length}
+            <div className="space-y-1">
+              <GroupStatusBadge active={group.is_active} />
+              <p className="max-w-2xl text-sm text-muted-foreground">{group.description || 'No description.'}</p>
             </div>
           </div>
+          <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:items-end">
+            <span className="flex items-center gap-2">
+              <UsersIcon className="h-4 w-4" />
+              {group.member_count} member{group.member_count !== 1 ? 's' : ''}
+            </span>
+            <span className="flex items-center gap-2">
+              <FolderKanban className="h-4 w-4" />
+              {group.projects.length} project{group.projects.length !== 1 ? 's' : ''}
+            </span>
+            <span className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Created {formatDate(group.created_at)}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
 
-          {/* Messages or access-denied */}
-          {!canViewContent ? (
-            <div className="flex flex-1 flex-col items-center justify-center">
-              <Lock className="mb-3 h-10 w-10 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Join this group to see the conversation.</p>
-            </div>
-          ) : (
-            <>
-              <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-                {messages.length === 0 ? (
-                  <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
-                    <MessageSquare className="mb-3 h-10 w-10" />
-                    <p className="text-sm">No messages yet. Start the conversation!</p>
+      <Tabs defaultValue="members">
+        <TabsList className="grid w-full grid-cols-2 sm:w-[360px]">
+          <TabsTrigger value="members">Members ({group.member_count})</TabsTrigger>
+          <TabsTrigger value="projects">Projects ({group.projects.length})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="members">
+          <MemberManager
+            entityName={group.name}
+            members={members.data ?? []}
+            isLoading={members.isLoading}
+            error={members.error}
+            onRetry={members.refetch}
+            canManage={canManageMembers}
+            onAdd={(userId, role) => addMember({ groupId, user_id: userId, ...(role && { role }) }).unwrap()}
+            onChangeRole={(userId, role) => changeRole({ groupId, userId, role }).unwrap()}
+            onRemove={(userId) => removeMember({ groupId, userId }).unwrap()}
+            removeWarning="They will lose any project access they had only through this group."
+            footnote={'Leave the role on "User\'s default role" to use the role from their account. Members get this role in every project the group is attached to.'}
+          />
+        </TabsContent>
+
+        <TabsContent value="projects">
+          <GroupProjects groupId={group.id} />
+        </TabsContent>
+      </Tabs>
+
+      <GroupFormDialog open={editOpen} onOpenChange={setEditOpen} group={group} />
+      <ConfirmDialog {...actions.dialogProps} />
+    </div>
+  );
+}
+
+/** Projects this group is attached to, from GET /admin/groups/{id}/projects */
+function GroupProjects({ groupId }: { groupId: number }) {
+  const { data: projects = [], isLoading, error, refetch } = useGetGroupProjectsQuery(groupId);
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        {isLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
+          </div>
+        ) : error ? (
+          <div className="py-8 text-center text-sm">
+            <p className="text-destructive">{parseApiError(error, 'Failed to load projects.').message}</p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>Retry</Button>
+          </div>
+        ) : projects.length === 0 ? (
+          <div className="py-8 text-center text-muted-foreground">This group isn't attached to any project.</div>
+        ) : (
+          <div className="space-y-3">
+            {projects.map((project) => {
+              const stateMeta = getProjectStateMeta(project.status);
+              const priorityMeta = getProjectPriorityMeta(project.priority);
+              const overdue = isOverdue(project.due_date ?? undefined, project.status ?? undefined);
+              return (
+                <Link
+                  key={project.id}
+                  to={`/projects/${project.id}`}
+                  className="flex flex-wrap items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50"
+                >
+                  <div
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
+                    style={{ backgroundColor: getProjectColor(project) }}
+                  >
+                    {getProjectInitials(project)}
                   </div>
-                ) : (
-                  messages.map((msg) => {
-                    const sender = getSender(msg.senderId);
-                    const isOwn = session?.user.id === msg.senderId;
-                    return (
-                      <div key={msg.id} className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
-                        {sender ? (
-                          <UserAvatar name={sender.name} color={sender.avatarColor} image={sender.avatarUrl} size="sm" />
-                        ) : (
-                          <div className="h-8 w-8 rounded-full bg-muted" />
-                        )}
-                        <div className={`max-w-[70%] ${isOwn ? 'items-end' : ''} flex flex-col`}>
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-xs font-medium">{isOwn ? 'You' : sender?.name || 'Unknown'}</span>
-                            <span className="text-xs text-muted-foreground">{formatRelativeTime(msg.createdAt)}</span>
-                          </div>
-                          <div
-                            className={`rounded-2xl px-3.5 py-2 text-sm ${
-                              isOwn
-                                ? 'bg-primary text-primary-foreground rounded-br-md'
-                                : 'bg-muted rounded-bl-md'
-                            }`}
-                          >
-                            {msg.body}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Input */}
-              {isMember && canSend ? (
-                <form onSubmit={handleSend} className="border-t p-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium">{project.name}</div>
+                    <div className="truncate text-xs text-muted-foreground">{project.description || '—'}</div>
+                  </div>
                   <div className="flex items-center gap-2">
-                    <Input
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      placeholder="Type a message..."
-                      className="flex-1"
-                    />
-                    <Button type="submit" size="icon" disabled={!input.trim()}>
-                      <Send className="h-4 w-4" />
-                    </Button>
+                    <StatusBadge label={stateMeta.label} className={stateMeta.badgeClass} />
+                    {priorityMeta && <StatusBadge label={priorityMeta.label} className={priorityMeta.badgeClass} />}
                   </div>
-                </form>
-              ) : (
-                <div className="border-t p-3 text-center text-xs text-muted-foreground">
-                  {!isMember ? 'You are not a member of this group.' : 'You do not have permission to send messages.'}
-                </div>
-              )}
-            </>
-          )}
-        </Card>
-
-        {/* Sidebar: members + add member panel */}
-        <div className="space-y-4">
-          {showAddMember && canManage && group.type !== 'default' && (
-            <Card>
-              <CardContent className="p-4">
-                <h3 className="mb-3 text-sm font-semibold">Add Members</h3>
-                {eligibleToAdd.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">All project members are already in this group.</p>
-                ) : (
-                  <ScrollArea className="h-[200px]">
-                    <div className="space-y-1">
-                      {eligibleToAdd.map((u) => (
-                        <div key={u.id} className="flex items-center gap-2 rounded-lg border p-2">
-                          <UserAvatar name={u.name} color={u.avatarColor} image={u.avatarUrl} size="xs" />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs font-medium truncate">{u.name}</div>
-                            <div className="text-xs text-muted-foreground truncate">{u.title || '—'}</div>
-                          </div>
-                          <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => handleAddMember(u.id)}>
-                            <UserPlus className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardContent className="p-4">
-              <h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Members ({groupMembers.length})
-              </h3>
-              <div className="space-y-2">
-                {groupMembers.map((m) => (
-                  <div key={m.id} className="flex items-center gap-2 group">
-                    <UserAvatar name={m.name} color={m.avatarColor} image={m.avatarUrl} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{m.name}</div>
-                      <div className="text-xs text-muted-foreground truncate">{m.title || '—'}</div>
-                    </div>
-                    {canManage && group.type !== 'default' && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                        onClick={() => handleRemoveMember(m.id)}
-                      >
-                        <UserMinus className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {project && (
-            <Card>
-              <CardContent className="p-4">
-                <h3 className="mb-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">Project</h3>
-                <Link to={`/projects/${project.id}`} className="flex items-center gap-2 hover:text-primary transition-colors">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg text-white text-xs font-bold" style={{ backgroundColor: project.color }}>
-                    {project.key.slice(0, 3)}
-                  </div>
-                  <div className="text-sm font-medium">{project.name}</div>
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <UsersIcon className="h-3.5 w-3.5" />
+                    {project.member_count}
+                  </span>
+                  <span className={cn('text-xs', overdue ? 'font-medium text-red-600' : 'text-muted-foreground')}>
+                    Due {formatDate(project.due_date ?? undefined)}
+                  </span>
                 </Link>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
-      <ConfirmDialog
-        open={!!confirmRemove}
-        onOpenChange={(open) => { if (!open) setConfirmRemove(null); }}
-        title="Remove member"
-        description={`Remove ${removingUser?.name || 'this user'} from "${group.name}"? They will lose access to the conversation.`}
-        confirmLabel="Remove"
-        variant="destructive"
-        onConfirm={doRemoveMember}
-      />
+function GroupDetailSkeleton() {
+  return (
+    <div className="animate-fade-in space-y-6" aria-busy="true">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading group...
+      </div>
+      <Skeleton className="h-8 w-64" />
+      <Skeleton className="h-32 w-full rounded-xl" />
+      <Skeleton className="h-10 w-[360px]" />
+      <Skeleton className="h-64 w-full rounded-xl" />
     </div>
   );
 }

@@ -18,7 +18,7 @@ import type { ApiProject } from '@/redux/features/projects/projects-types';
 import { PageHeader } from '@/components/shared/page-header';
 import { ProjectFormDialog } from '@/components/projects/project-form-dialog';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
-import { MemberManager } from '@/components/projects/member-manager';
+import { ProjectMemberManager } from '@/components/projects/project-member-manager';
 import { StatusWorkflowEditor } from '@/components/projects/status-workflow-editor';
 import { ARCHIVED_STATE } from '@/components/projects/project-actions';
 import { useProjectActions } from '@/components/projects/use-project-actions';
@@ -238,7 +238,7 @@ function ProjectDetail({ project }: { project: ApiProject }) {
 
         {/* Members */}
         <TabsContent value="members">
-          <MemberManager project={project} canManage={canManageMembers} />
+          <ProjectMemberManager project={project} canManage={canManageMembers} />
         </TabsContent>
 
         {/* Workflow */}

@@ -104,24 +104,6 @@ export function calculateProjectProgress(projectId: string, issues: { projectId:
   return Math.round((done / projectIssues.length) * 100);
 }
 
-export const GROUP_TYPE_META: Record<string, { label: string; badgeClass: string; description: string }> = {
-  default: {
-    label: 'Default',
-    badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
-    description: 'All project members are automatically included',
-  },
-  private: {
-    label: 'Private',
-    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
-    description: 'Visible to project members, content only for group members',
-  },
-  secret: {
-    label: 'Secret',
-    badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
-    description: 'Invisible to anyone who is not a group member',
-  },
-};
-
 const AVATAR_COLORS = ['#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#7c3aed', '#db2777'];
 
 /** Stable avatar color for an API user, so the same person always looks the same. */
