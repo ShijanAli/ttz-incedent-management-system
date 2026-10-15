@@ -1,14 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
   AlertCircle, Archive, Calendar, Loader2, Pencil, RotateCcw,
   Target, Trash2, Users as UsersIcon,
 } from 'lucide-react';
-import { issueRepo, userRepo } from '@/lib/repository';
 import { useTabParam } from '@/hooks/use-tab-param';
 import { parseApiError } from '@/lib/api-error';
 import {
-  ISSUE_PRIORITY_META, ISSUE_STATUS_META, formatDate,
+  formatDate,
 } from '@/lib/shared-utils';
 import {
   getProjectColor, getProjectInitials, getProjectPriorityMeta, getProjectProgress, getProjectStateMeta,
@@ -22,6 +21,7 @@ import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { ProjectMemberManager } from '@/components/projects/project-member-manager';
 import { ProjectGroupManager } from '@/components/projects/project-group-manager';
 import { ProjectActivity } from '@/components/projects/project-activity';
+import { ProjectIssues } from '@/components/projects/project-issues';
 import { StatusWorkflowEditor } from '@/components/projects/status-workflow-editor';
 import { ARCHIVED_STATE } from '@/components/projects/project-actions';
 import { useProjectActions } from '@/components/projects/use-project-actions';
@@ -31,10 +31,6 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import { UserAvatar } from '@/components/shared/user-avatar';
 import { StatusBadge } from '@/components/shared/status-badge';
 
 const PROJECT_TABS = ['overview', 'members', 'workflow', 'issues', 'groups', 'activity'] as const;
@@ -87,11 +83,6 @@ function ProjectDetail({ project }: { project: ApiProject }) {
   const actions = useProjectActions({ onDeleted: () => navigate('/projects', { replace: true }) });
 
   const [tab, setTab] = useTabParam(PROJECT_TABS, 'overview');
-
-  // Issues and users are still mock data until the issues module moves to the API
-  const projectKey = String(project.id);
-  const allIssues = useMemo(() => issueRepo.byProject(projectKey), [projectKey]);
-  const mockUsers = useMemo(() => userRepo.all(), []);
 
   const archived = project.status === ARCHIVED_STATE;
   const canEdit = projectCan(project, 'projects.edit');
@@ -254,58 +245,7 @@ function ProjectDetail({ project }: { project: ApiProject }) {
 
         {/* Issues */}
         <TabsContent value="issues">
-          <Card>
-            <CardContent className="p-4">
-              {allIssues.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground">No issues in this project yet.</div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Key</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead>Assignee</TableHead>
-                      <TableHead>Due</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {allIssues.map((issue) => {
-                      const assignee = mockUsers.find((u) => u.id === issue.assigneeId);
-                      const iStatusMeta = ISSUE_STATUS_META[issue.status];
-                      const iPriorityMeta = ISSUE_PRIORITY_META[issue.priority];
-                      return (
-                        <TableRow key={issue.id} className="cursor-pointer hover:bg-muted/50">
-                          <TableCell>
-                            <Link to={`/issues/${issue.id}`} className="font-mono text-xs text-primary hover:underline">
-                              {issue.key}
-                            </Link>
-                          </TableCell>
-                          <TableCell>
-                            <Link to={`/issues/${issue.id}`} className="text-sm hover:text-primary">
-                              {issue.title}
-                            </Link>
-                          </TableCell>
-                          <TableCell><StatusBadge label={iStatusMeta.label} className={iStatusMeta.badgeClass} /></TableCell>
-                          <TableCell><StatusBadge label={iPriorityMeta.label} className={iPriorityMeta.badgeClass} /></TableCell>
-                          <TableCell>
-                            {assignee ? (
-                              <div className="flex items-center gap-2">
-                                <UserAvatar name={assignee.name} color={assignee.avatarColor} image={assignee.avatarUrl} size="xs" />
-                                <span className="text-xs">{assignee.name}</span>
-                              </div>
-                            ) : <span className="text-xs text-muted-foreground">Unassigned</span>}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{formatDate(issue.dueDate)}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <ProjectIssues projectId={project.id} />
         </TabsContent>
 
         {/* Groups */}

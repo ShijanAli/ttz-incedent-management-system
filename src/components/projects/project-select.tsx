@@ -9,6 +9,9 @@ import { getProjectColor } from '@/lib/project-utils';
 import { useGetProjectsInfiniteQuery } from '@/redux/features/projects/projects-api';
 import type { ApiProject } from '@/redux/features/projects/projects-types';
 
+/** Radix Select can't use "" as an item value */
+const ALL = '__all__';
+
 interface ProjectSelectProps {
   /** Project id as a string ("" for none) */
   value: string;
@@ -18,6 +21,9 @@ interface ProjectSelectProps {
   disabled?: boolean;
   placeholder?: string;
   id?: string;
+  /** Adds a first option meaning "no filter" (value ""), e.g. "All projects" */
+  allLabel?: string;
+  className?: string;
 }
 
 /**
@@ -25,21 +31,22 @@ interface ProjectSelectProps {
  * list is scrolled, so it works no matter how many projects exist.
  */
 export function ProjectSelect({
-  value, onChange, filter, disabled, placeholder = 'Select project...', id,
+  value, onChange, filter, disabled, placeholder = 'Select project...', id, allLabel, className,
 }: ProjectSelectProps) {
   const list = useInfiniteList(useGetProjectsInfiniteQuery({ status: 'active' }));
   const projects = useMemo(() => (filter ? list.items.filter(filter) : list.items), [list.items, filter]);
 
   return (
     <Select
-      value={value || undefined}
-      onValueChange={(v) => onChange(v, projects.find((p) => String(p.id) === v))}
+      value={value || (allLabel ? ALL : undefined)}
+      onValueChange={(v) => (v === ALL ? onChange('', undefined) : onChange(v, projects.find((p) => String(p.id) === v)))}
       disabled={disabled}
     >
-      <SelectTrigger id={id}>
+      <SelectTrigger id={id} className={className}>
         <SelectValue placeholder={list.showSkeleton ? 'Loading projects...' : placeholder} />
       </SelectTrigger>
       <SelectContent>
+        {allLabel && <SelectItem value={ALL}>{allLabel}</SelectItem>}
         {list.isError ? (
           <div className="px-2 py-3 text-center text-xs text-destructive">Failed to load projects.</div>
         ) : list.showSkeleton ? (

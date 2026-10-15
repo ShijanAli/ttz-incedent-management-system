@@ -25,6 +25,10 @@ export const ENDPOINTS = {
     GROUP_MEMBERS: (id: number | string) => `/api/admin/groups/${id}/members`,
     GROUP_MEMBER: (id: number | string, userId: number | string) => `/api/admin/groups/${id}/members/${userId}`,
     GROUP_PROJECTS: (id: number | string) => `/api/admin/groups/${id}/projects`,
+    ISSUES: '/api/admin/issues',
+  },
+  MY: {
+    ISSUES: '/api/my/issues',
   },
   PROJECTS: {
     LIST: '/api/projects',

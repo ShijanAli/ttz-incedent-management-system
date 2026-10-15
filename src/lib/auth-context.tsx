@@ -25,6 +25,8 @@ interface AuthContextValue {
   mustChangePassword: boolean;
   /** Raw per-project access from the API, for project-scoped checks */
   access: UserAccess | null;
+  /** Super admins see everything (admin endpoints); others are scoped to their projects */
+  isSuperAdmin: boolean;
   logout: () => void;
   register: (name: string, email: string, password: string) => { success: boolean; error?: string };
   refreshSession: () => void;
@@ -86,6 +88,7 @@ function toRoleNames(user: ApiUser, access: UserAccess | null): string[] {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const dispatch = useAppDispatch();
   const { accessToken, user, access, mustChangePassword } = useAppSelector(selectAuth);
+  const isSuperAdmin = Boolean(user?.is_super_admin || access?.is_super_admin);
   const [logoutRequest] = useLogoutMutation();
 
   // Validates a stored token on load and keeps the profile fresh
@@ -137,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        session, loading, mustChangePassword, access, logout, register, refreshSession,
+        session, loading, mustChangePassword, access, isSuperAdmin, logout, register, refreshSession,
         hasPermission, hasAnyPermission, hasAllPermissions,
       }}
     >
