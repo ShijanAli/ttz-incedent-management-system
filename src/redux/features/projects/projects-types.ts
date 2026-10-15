@@ -132,6 +132,17 @@ export interface ProjectStatusInput {
   is_terminal: boolean;
 }
 
+export interface AttachProjectGroupRequest {
+  projectId: number;
+  /** An active, non-deleted group */
+  group_id: number;
+}
+
+export interface DetachProjectGroupRequest {
+  projectId: number;
+  groupId: number;
+}
+
 export interface ReplaceProjectStatusesRequest {
   projectId: number;
   statuses: ProjectStatusInput[];

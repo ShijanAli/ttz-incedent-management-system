@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
-  Activity as ActivityIcon, AlertCircle, Archive, Calendar, Loader2, MessageSquare, Pencil, RotateCcw,
+  AlertCircle, Archive, Calendar, Loader2, Pencil, RotateCcw,
   Target, Trash2, Users as UsersIcon,
 } from 'lucide-react';
-import { issueRepo, userRepo, activityRepo } from '@/lib/repository';
+import { issueRepo, userRepo } from '@/lib/repository';
+import { useTabParam } from '@/hooks/use-tab-param';
 import { parseApiError } from '@/lib/api-error';
 import {
-  ISSUE_PRIORITY_META, ISSUE_STATUS_META, formatDate, formatRelativeTime,
+  ISSUE_PRIORITY_META, ISSUE_STATUS_META, formatDate,
 } from '@/lib/shared-utils';
 import {
   getProjectColor, getProjectInitials, getProjectPriorityMeta, getProjectProgress, getProjectStateMeta,
@@ -19,6 +20,8 @@ import { PageHeader } from '@/components/shared/page-header';
 import { ProjectFormDialog } from '@/components/projects/project-form-dialog';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { ProjectMemberManager } from '@/components/projects/project-member-manager';
+import { ProjectGroupManager } from '@/components/projects/project-group-manager';
+import { ProjectActivity } from '@/components/projects/project-activity';
 import { StatusWorkflowEditor } from '@/components/projects/status-workflow-editor';
 import { ARCHIVED_STATE } from '@/components/projects/project-actions';
 import { useProjectActions } from '@/components/projects/use-project-actions';
@@ -33,6 +36,8 @@ import {
 } from '@/components/ui/table';
 import { UserAvatar } from '@/components/shared/user-avatar';
 import { StatusBadge } from '@/components/shared/status-badge';
+
+const PROJECT_TABS = ['overview', 'members', 'workflow', 'issues', 'groups', 'activity'] as const;
 
 export default function ProjectDetailPage() {
   const id = Number(useParams().id);
@@ -81,10 +86,11 @@ function ProjectDetail({ project }: { project: ApiProject }) {
   const [editOpen, setEditOpen] = useState(false);
   const actions = useProjectActions({ onDeleted: () => navigate('/projects', { replace: true }) });
 
-  // Issues, activity and users are still mock data until those modules move to the API
+  const [tab, setTab] = useTabParam(PROJECT_TABS, 'overview');
+
+  // Issues and users are still mock data until the issues module moves to the API
   const projectKey = String(project.id);
   const allIssues = useMemo(() => issueRepo.byProject(projectKey), [projectKey]);
-  const activities = useMemo(() => activityRepo.byProject(projectKey), [projectKey]);
   const mockUsers = useMemo(() => userRepo.all(), []);
 
   const archived = project.status === ARCHIVED_STATE;
@@ -192,7 +198,7 @@ function ProjectDetail({ project }: { project: ApiProject }) {
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="members">Members ({project.member_count})</TabsTrigger>
@@ -304,62 +310,12 @@ function ProjectDetail({ project }: { project: ApiProject }) {
 
         {/* Groups */}
         <TabsContent value="groups">
-          <Card>
-            <CardContent className="p-4">
-              {project.groups.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground">No groups in this project.</div>
-              ) : (
-                <div className="space-y-3">
-                  {project.groups.map((g) => (
-                    <Link
-                      key={g.id}
-                      to={`/groups/${g.id}`}
-                      className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50"
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                        <MessageSquare className="h-5 w-5 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">{g.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {g.member_count} member{g.member_count !== 1 ? 's' : ''}
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ProjectGroupManager project={project} canManage={canManageMembers && !archived} />
         </TabsContent>
 
         {/* Activity */}
         <TabsContent value="activity">
-          <Card>
-            <CardContent className="p-4">
-              {activities.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground">No activity recorded.</div>
-              ) : (
-                <div className="space-y-3">
-                  {activities.slice().reverse().map((a) => {
-                    const actor = mockUsers.find((u) => u.id === a.actorId);
-                    return (
-                      <div key={a.id} className="flex items-start gap-3 text-sm">
-                        <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-muted">
-                          <ActivityIcon className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <div className="flex-1">
-                          <span className="font-medium">{actor?.name || 'Unknown'}</span>{' '}
-                          <span className="text-muted-foreground">{a.summary}</span>
-                          <div className="text-xs text-muted-foreground">{formatRelativeTime(a.timestamp)}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ProjectActivity project={project} />
         </TabsContent>
       </Tabs>
 

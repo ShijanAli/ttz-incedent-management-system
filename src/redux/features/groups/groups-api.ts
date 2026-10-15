@@ -32,6 +32,7 @@ const memberChangeTags = (groupId: number) => [
   GROUP_LIST_TAG,
   'ProjectMembers' as const,
   'Project' as const,
+  'ProjectActivity' as const,
 ];
 
 export const groupsApi = baseApi.injectEndpoints({

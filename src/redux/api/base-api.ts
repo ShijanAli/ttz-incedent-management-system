@@ -76,7 +76,7 @@ export const baseApi = createApi({
   baseQuery: baseQueryWithReauth,
   tagTypes: [
     'Me', 'Role', 'PermissionCatalog', 'User',
-    'Project', 'ProjectMembers', 'ProjectStatuses',
+    'Project', 'ProjectMembers', 'ProjectStatuses', 'ProjectGroups', 'ProjectActivity',
     'Group', 'GroupMembers', 'GroupProjects',
     'Issue',
   ],

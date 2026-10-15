@@ -9,6 +9,9 @@ import {
 } from '@/redux/api/types';
 import type {
   AddProjectMemberRequest,
+  AttachProjectGroupRequest,
+  DetachProjectGroupRequest,
+  ProjectGroupSummary,
   ApiProject,
   ChangeMemberRoleRequest,
   CreateProjectRequest,
@@ -19,6 +22,7 @@ import type {
   ReplaceProjectStatusesRequest,
   UpdateProjectRequest,
 } from './projects-types';
+import type { ActivityEntry } from '@/redux/features/activity/activity-types';
 
 const PROJECT_LIST_TAG = { type: 'Project', id: 'LIST' } as const;
 
@@ -26,7 +30,19 @@ const PROJECT_LIST_TAG = { type: 'Project', id: 'LIST' } as const;
 const memberTags = (projectId: number) => [
   { type: 'ProjectMembers' as const, id: projectId },
   { type: 'Project' as const, id: projectId },
+  { type: 'ProjectActivity' as const, id: projectId },
   PROJECT_LIST_TAG,
+];
+
+/**
+ * Attaching or detaching a group changes the project's groups, its members (group
+ * members join as "Via group") and counts, and the group's own project list.
+ */
+const groupLinkTags = (projectId: number, groupId: number) => [
+  { type: 'ProjectGroups' as const, id: projectId },
+  ...memberTags(projectId),
+  { type: 'GroupProjects' as const, id: groupId },
+  { type: 'Group' as const, id: groupId },
 ];
 
 export const projectsApi = baseApi.injectEndpoints({
@@ -58,7 +74,7 @@ export const projectsApi = baseApi.injectEndpoints({
     updateProject: build.mutation<ApiProject, UpdateProjectRequest>({
       query: ({ id, ...body }) => ({ url: ENDPOINTS.PROJECTS.ONE(id), method: 'PATCH', body }),
       transformResponse: (res: ApiResponse<ApiProject>) => res.data,
-      invalidatesTags: (_result, _error, { id }) => [{ type: 'Project', id }, PROJECT_LIST_TAG],
+      invalidatesTags: (_result, _error, { id }) => [{ type: 'Project', id }, { type: 'ProjectActivity', id }, PROJECT_LIST_TAG],
     }),
 
     deleteProject: build.mutation<ApiResponse<unknown>, number>({
@@ -93,6 +109,36 @@ export const projectsApi = baseApi.injectEndpoints({
       invalidatesTags: (_result, _error, { projectId }) => memberTags(projectId),
     }),
 
+    // ---- Groups attached to the project ----
+
+    getProjectGroups: build.query<ProjectGroupSummary[], number>({
+      query: (projectId) => ENDPOINTS.PROJECTS.GROUPS(projectId),
+      transformResponse: (res: ApiResponse<ProjectGroupSummary[]>) => res.data,
+      providesTags: (_result, _error, projectId) => [{ type: 'ProjectGroups', id: projectId }],
+    }),
+
+    attachProjectGroup: build.mutation<ApiResponse<unknown>, AttachProjectGroupRequest>({
+      query: ({ projectId, group_id }) => ({ url: ENDPOINTS.PROJECTS.GROUPS(projectId), method: 'POST', body: { group_id } }),
+      invalidatesTags: (_result, _error, { projectId, group_id }) => groupLinkTags(projectId, group_id),
+    }),
+
+    detachProjectGroup: build.mutation<ApiResponse<unknown>, DetachProjectGroupRequest>({
+      query: ({ projectId, groupId }) => ({ url: ENDPOINTS.PROJECTS.GROUP(projectId, groupId), method: 'DELETE' }),
+      invalidatesTags: (_result, _error, { projectId, groupId }) => groupLinkTags(projectId, groupId),
+    }),
+
+    // ---- Activity log ----
+
+    getProjectActivity: build.infiniteQuery<Paginated<ActivityEntry>, number, PageParam>({
+      infiniteQueryOptions: laravelInfiniteOptions<ActivityEntry, number>(),
+      query: ({ queryArg: projectId, pageParam }) => ({
+        url: ENDPOINTS.PROJECTS.ACTIVITY(projectId),
+        params: { page: pageParam },
+      }),
+      transformResponse: (res: PaginatedApiResponse<ActivityEntry>) => toPaginated(res),
+      providesTags: (_result, _error, projectId) => [{ type: 'ProjectActivity', id: projectId }],
+    }),
+
     // ---- Workflow statuses ----
 
     getProjectStatuses: build.query<ProjectStatus[], number>({
@@ -111,6 +157,7 @@ export const projectsApi = baseApi.injectEndpoints({
       invalidatesTags: (_result, _error, { projectId }) => [
         { type: 'ProjectStatuses', id: projectId },
         { type: 'Project', id: projectId },
+        { type: 'ProjectActivity', id: projectId },
         PROJECT_LIST_TAG,
       ],
     }),
@@ -127,6 +174,10 @@ export const {
   useAddProjectMemberMutation,
   useChangeProjectMemberRoleMutation,
   useRemoveProjectMemberMutation,
+  useGetProjectActivityInfiniteQuery,
+  useGetProjectGroupsQuery,
+  useAttachProjectGroupMutation,
+  useDetachProjectGroupMutation,
   useGetProjectStatusesQuery,
   useReplaceProjectStatusesMutation,
 } = projectsApi;

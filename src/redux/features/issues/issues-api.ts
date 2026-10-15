@@ -13,6 +13,7 @@ export const issuesApi = baseApi.injectEndpoints({
         { type: 'Issue', id: 'LIST' },
         { type: 'Project', id: projectId },
         { type: 'Project', id: 'LIST' },
+        { type: 'ProjectActivity', id: projectId },
       ],
     }),
   }),

@@ -4,6 +4,7 @@ import {
   AlertCircle, Calendar, FolderKanban, Loader2, Pencil, Power, PowerOff, Trash2, Users as UsersIcon, UsersRound,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { useTabParam } from '@/hooks/use-tab-param';
 import { parseApiError } from '@/lib/api-error';
 import { formatDate, isOverdue } from '@/lib/shared-utils';
 import {
@@ -30,6 +31,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+
+const GROUP_TABS = ['members', 'projects'] as const;
 
 export default function GroupDetailPage() {
   const id = Number(useParams().id);
@@ -75,6 +78,7 @@ function GroupDetailView({ group }: { group: GroupDetail }) {
   const { hasPermission } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const actions = useGroupActions({ onDeleted: () => navigate('/groups', { replace: true }) });
+  const [tab, setTab] = useTabParam(GROUP_TABS, 'members');
 
   const members = useGetGroupMembersQuery(group.id);
   const [addMember] = useAddGroupMemberMutation();
@@ -160,7 +164,7 @@ function GroupDetailView({ group }: { group: GroupDetail }) {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="members">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="grid w-full grid-cols-2 sm:w-[360px]">
           <TabsTrigger value="members">Members ({group.member_count})</TabsTrigger>
           <TabsTrigger value="projects">Projects ({group.projects.length})</TabsTrigger>
