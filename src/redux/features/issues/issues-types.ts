@@ -36,7 +36,8 @@ export interface IssueSummary {
 
 /** One row from GET /admin/issues or GET /my/issues, which span projects */
 export interface IssueListItem extends IssueSummary {
-  project: { id: number; name: string };
+  /** Usually present; /my/issues may leave it out, so always guard */
+  project?: { id: number; name: string } | null;
 }
 
 /**
@@ -91,7 +92,7 @@ export interface ApiIssue {
 export interface CreateIssueBody {
   title: string;
   description: string | null;
-  type: IssueType;
+  issue_type: IssueType;
   priority: IssuePriority;
   severity: IssueSeverity | null;
   /** Users to assign; an empty array leaves the issue unassigned */
@@ -108,4 +109,138 @@ export interface CreateIssueRequest extends CreateIssueBody {
 export interface ProjectIssuesArgs extends Omit<IssueListFilters, 'project_id'> {
   /** Goes in the URL: /projects/{projectId}/issues */
   projectId: number;
+}
+
+// ---- Single issue ----
+
+/** A user as embedded in issue payloads */
+export interface IssueUser {
+  id: number;
+  name: string;
+  designation: string | null;
+  status: string;
+  email: string;
+}
+
+/** One person working on an issue, with their own status and progress */
+export interface IssueAssignee {
+  user: IssueUser;
+  status: IssueColoredRef | null;
+  /** 0-100 */
+  progress: number;
+  /** True when they picked the issue up themselves */
+  self_picked: boolean;
+  picked_at: string | null;
+  completed_at: string | null;
+}
+
+export interface IssueAttachment {
+  id: number;
+  original_name: string;
+  mime: string;
+  size_bytes: number;
+  uploaded_by: IssueUser | null;
+  created_at: string;
+  /** Relative API path; needs the auth header, so download through the API layer */
+  download_url: string;
+}
+
+export interface IssueComment {
+  id: number;
+  body: string;
+  author: IssueUser | null;
+  edited_at: string | null;
+  created_at: string;
+}
+
+/** A status change, either of the whole issue ("overall") or one assignee's part */
+export interface IssueHistoryEntry {
+  id: number;
+  scope: 'overall' | 'assignee' | (string & {});
+  actor: { id: number; name: string } | null;
+  /** The assignee whose status changed, for assignee-scoped entries */
+  subject: { id: number; name: string } | null;
+  from_status: IssueColoredRef | null;
+  to_status: IssueColoredRef | null;
+  note: string | null;
+  created_at: string;
+}
+
+/** What the signed-in user may do on this issue; drives which controls are shown */
+export interface IssueAbilities {
+  can_edit: boolean;
+  can_triage: boolean;
+  can_delete: boolean;
+  can_pick: boolean;
+  can_unpick: boolean;
+  can_assign: boolean;
+  can_change_own_status: boolean;
+  can_reopen: boolean;
+  can_comment: boolean;
+  can_upload: boolean;
+  can_review: boolean;
+}
+
+/** GET /issues/{id} */
+export interface IssueDetail extends Omit<IssueSummary, 'assignee_count'> {
+  description: string | null;
+  project: { id: number; name: string };
+  reported_by: IssueUser | null;
+  closed_at: string | null;
+  /** All assignees are done and the reporter needs to confirm or send it back */
+  awaiting_review: boolean;
+  assignees: IssueAssignee[];
+  attachments: IssueAttachment[];
+  comments: IssueComment[];
+  status_history: IssueHistoryEntry[];
+  abilities: IssueAbilities;
+}
+
+// ---- Single-issue requests ----
+
+/** POST /issues/{id} (sent as multipart with _method=PATCH, since it can carry files) */
+export interface UpdateIssueRequest {
+  issueId: number;
+  title: string;
+  description: string | null;
+  attachments?: File[];
+  remove_attachment_ids?: number[];
+}
+
+/** PATCH /issues/{id}: classification and assignment, for users who can triage */
+export interface TriageIssueRequest {
+  issueId: number;
+  issue_type?: IssueType | null;
+  priority?: IssuePriority | null;
+  severity?: IssueSeverity | null;
+  issue_category_id?: number | null;
+  due_date?: string | null;
+  labels?: string[];
+  assignee_ids?: number[];
+}
+
+/** Body shared by "change my status" and "override an assignee's status" */
+export interface StatusUpdateBody {
+  status_id: number;
+  /** 0-100 */
+  progress: number;
+  note?: string;
+}
+
+export interface ChangeMyStatusRequest extends StatusUpdateBody {
+  issueId: number;
+}
+
+export interface OverrideAssigneeStatusRequest extends StatusUpdateBody {
+  issueId: number;
+  userId: number;
+}
+
+export type ReviewDecision = 'confirm' | 'recheck';
+
+export interface ReviewIssueRequest {
+  issueId: number;
+  decision: ReviewDecision;
+  /** Optional on confirm; required on recheck (up to 5000 characters) */
+  comment?: string;
 }

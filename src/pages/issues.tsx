@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import {
-  AlertCircle, AlertTriangle, Eye, KanbanSquare, ListFilter, Loader2, MoreVertical, Plus, RotateCw,
-  Search, SlidersHorizontal, Users as UsersIcon, X,
+  AlertCircle, AlertTriangle, Eye, FolderKanban, KanbanSquare, ListFilter, Loader2, MoreVertical, Pencil, Plus, RotateCw,
+  Search, SlidersHorizontal, Trash2, Users as UsersIcon, X,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
@@ -12,7 +12,7 @@ import {
   ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, ISSUE_TYPE_OPTIONS, formatDate, formatRelativeTime, isOverdue,
 } from '@/lib/shared-utils';
 import { sortStatuses } from '@/lib/project-utils';
-import { useGetIssuesInfiniteQuery } from '@/redux/features/issues/issues-api';
+import { useGetIssuesInfiniteQuery, useGetProjectIssuesInfiniteQuery } from '@/redux/features/issues/issues-api';
 import type { IssueListFilters, IssueListItem } from '@/redux/features/issues/issues-types';
 import { useGetProjectStatusesQuery } from '@/redux/features/projects/projects-api';
 import { useStatusCatalog } from '@/redux/features/projects/use-status-catalog';
@@ -20,6 +20,10 @@ import type { IssuePriority, IssueSeverity, IssueType } from '@/lib/types';
 import { PageHeader } from '@/components/shared/page-header';
 import { IssueFormDialog } from '@/components/issues/issue-form-dialog';
 import { IssueBoard } from '@/components/issues/issue-board';
+import { EditIssueDialog } from '@/components/issues/edit-issue-dialog';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { useChangeMyIssueStatusMutation, useDeleteIssueMutation } from '@/redux/features/issues/issue-detail-api';
+import { toast } from 'sonner';
 import {
   IssuePriorityBadge, IssueStatusBadge, IssueTypeBadge,
 } from '@/components/issues/issue-badges';
@@ -39,11 +43,11 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
-const COLUMN_COUNT = 9;
+const COLUMN_COUNT = 10;
 const ALL = 'all';
 
 /** Raw filter state as the controls hold it; converted to API params below */
@@ -111,14 +115,35 @@ export default function IssuesPage() {
     due_before: filters.dueBefore || undefined,
   }), [filters, search, label, myId]);
 
+  // Boards follow one project's workflow, so the board uses that project's own issues API
+  const boardProjectId = Number(filters.projectId);
+  const boardActive = showBoard && Boolean(filters.projectId);
+  const { project_id: _projectId, ...boardFilters } = params;
+
   // Super admins see every issue; everyone else sees the issues of their projects
-  const list = useInfiniteList(useGetIssuesInfiniteQuery({ scope: isSuperAdmin ? 'admin' : 'my', ...params }));
-  const issues = list.items;
+  const tableList = useInfiniteList(
+    useGetIssuesInfiniteQuery({ scope: isSuperAdmin ? 'admin' : 'my', ...params }, { skip: boardActive }),
+  );
+  const boardList = useInfiniteList(
+    useGetProjectIssuesInfiniteQuery({ projectId: boardProjectId, ...boardFilters }, { skip: !boardActive }),
+  );
+  const { data: boardStatuses = [] } = useGetProjectStatusesQuery(boardProjectId, { skip: !boardActive });
+
+  // Whichever list is on screen drives the count, refresh, errors and paging
+  const list = boardActive ? boardList : tableList;
+  const issues = tableList.items;
 
   const activeCount = (Object.keys(filters) as (keyof FilterState)[]).filter((k) => isSet(k, filters[k])).length;
   const advancedCount = ADVANCED_KEYS.filter((k) => isSet(k, filters[k])).length;
 
   const canCreate = hasPermission('issues.create');
+  // The API still checks each issue's own abilities; these only decide what the menu offers
+  const canUpdate = hasPermission('issues.update');
+  const canDelete = hasPermission('issues.delete');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<IssueListItem | null>(null);
+  const [deleteIssue] = useDeleteIssueMutation();
+  const [changeMyStatus] = useChangeMyIssueStatusMutation();
 
   return (
     <div className="animate-fade-in">
@@ -204,7 +229,7 @@ export default function IssuesPage() {
               )}
               <div className="flex items-center gap-3 lg:ml-auto">
                 <span className="text-sm text-muted-foreground">
-                  {issues.length} of {list.total} issue{list.total !== 1 ? 's' : ''}
+                  {list.items.length} of {list.total} issue{list.total !== 1 ? 's' : ''}
                 </span>
                 <Button
                   variant="outline"
@@ -294,19 +319,45 @@ export default function IssuesPage() {
               </Button>
             </div>
           ) : showBoard ? (
-            list.showSkeleton ? (
+            !boardActive ? (
+              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
+                <FolderKanban className="mb-2 h-8 w-8 text-muted-foreground" />
+                <p className="text-sm font-medium">Select a project to see its board</p>
+                <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+                  Each project has its own workflow, so the board shows one project at a time. Pick one from the project filter above.
+                </p>
+              </div>
+            ) : list.showSkeleton ? (
               <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Loading issues...
+                Loading board...
               </div>
             ) : (
-              <IssueBoard issues={issues} />
+              <IssueBoard
+                issues={boardList.items}
+                statuses={sortStatuses(boardStatuses)}
+                onMove={async (issue, to) => {
+                  try {
+                    // Moving to a final status finishes the work; otherwise keep the current progress
+                    await changeMyStatus({
+                      issueId: issue.id,
+                      status_id: to.id,
+                      progress: to.is_terminal ? 100 : issue.progress,
+                    }).unwrap();
+                    toast.success(`${issue.code} moved to ${to.name}`);
+                  } catch (err) {
+                    toast.error(`Couldn't move ${issue.code}`, { description: parseApiError(err).message });
+                    throw err;
+                  }
+                }}
+              />
             )
           ) : (
             <div ref={tableRef} className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[60px]">SL</TableHead>
                     <TableHead className="w-[90px]">Key</TableHead>
                     <TableHead>Summary</TableHead>
                     <TableHead>Type</TableHead>
@@ -328,7 +379,17 @@ export default function IssuesPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    issues.map((issue, index) => <IssueRow key={issue.id} index={index} issue={issue} />)
+                    issues.map((issue, index) => (
+                      <IssueRow
+                        key={issue.id}
+                        index={index}
+                        issue={issue}
+                        canUpdate={canUpdate}
+                        canDelete={canDelete}
+                        onEdit={(i) => setEditingId(i.id)}
+                        onDelete={setConfirmDelete}
+                      />
+                    ))
                   )}
                 </TableBody>
               </Table>
@@ -337,26 +398,55 @@ export default function IssuesPage() {
 
           <InfiniteScrollTrigger
             {...list.trigger}
-            disabled={list.trigger.disabled || list.showSkeleton}
-            endMessage={issues.length > 0 ? 'No more issues' : undefined}
+            disabled={list.trigger.disabled || list.showSkeleton || (showBoard && !boardActive)}
+            endMessage={list.items.length > 0 ? 'No more issues' : undefined}
           />
         </CardContent>
       </Card>
 
       {!showBoard && <ScrollPositionIndicator containerRef={tableRef} total={list.total} />}
 
-      {/* The list refreshes itself after a create (cache invalidation) */}
+      {/* The list refreshes itself after a create, edit or delete (cache invalidation) */}
       <IssueFormDialog open={formOpen} onOpenChange={setFormOpen} onSaved={() => undefined} />
+      <EditIssueDialog issueId={editingId} onClose={() => setEditingId(null)} />
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onOpenChange={(open) => { if (!open) setConfirmDelete(null); }}
+        title="Delete issue"
+        description={`Are you sure you want to delete "${confirmDelete?.code}"? This will also remove all comments, history, and attachments. This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={async () => {
+          if (!confirmDelete) return;
+          try {
+            await deleteIssue(confirmDelete.id).unwrap();
+            toast.success('Issue deleted', { description: `${confirmDelete.code} has been deleted.` });
+          } catch (err) {
+            toast.error('Failed to delete issue', { description: parseApiError(err).message });
+          }
+        }}
+      />
     </div>
   );
 }
 
-function IssueRow({ index, issue }: { index: number; issue: IssueListItem }) {
+interface IssueRowProps {
+  index: number;
+  issue: IssueListItem;
+  canUpdate: boolean;
+  canDelete: boolean;
+  onEdit: (issue: IssueListItem) => void;
+  onDelete: (issue: IssueListItem) => void;
+}
+
+function IssueRow({ index, issue, canUpdate, canDelete, onEdit, onDelete }: IssueRowProps) {
   const overdue = issue.progress < 100 && isOverdue(issue.due_date ?? undefined);
   // The list has no updated_at yet, so fall back to when the issue was created
   const updatedAt = issue.updated_at ?? issue.created_at;
   return (
     <TableRow className="cursor-pointer hover:bg-muted/50" {...{ [ROW_INDEX_ATTR]: index }}>
+      <TableCell className="text-sm tabular-nums text-muted-foreground">{index + 1}</TableCell>
       <TableCell>
         <Link to={`/issues/${issue.id}`} className="font-mono text-xs text-primary hover:underline">
           {issue.code}
@@ -365,7 +455,7 @@ function IssueRow({ index, issue }: { index: number; issue: IssueListItem }) {
       <TableCell>
         <Link to={`/issues/${issue.id}`} className="block">
           <div className="max-w-[300px] truncate font-medium transition-colors hover:text-primary">{issue.title}</div>
-          <div className="text-xs text-muted-foreground">{issue.project.name}</div>
+          {issue.project && <div className="text-xs text-muted-foreground">{issue.project.name}</div>}
         </Link>
       </TableCell>
       <TableCell><IssueTypeBadge issue={issue} /></TableCell>
@@ -410,6 +500,19 @@ function IssueRow({ index, issue }: { index: number; issue: IssueListItem }) {
                 <Eye className="mr-2 h-4 w-4" /> View issue
               </Link>
             </DropdownMenuItem>
+            {canUpdate && (
+              <DropdownMenuItem onClick={() => onEdit(issue)}>
+                <Pencil className="mr-2 h-4 w-4" /> Edit issue
+              </DropdownMenuItem>
+            )}
+            {canDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onDelete(issue)} className="text-red-600">
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete issue
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>

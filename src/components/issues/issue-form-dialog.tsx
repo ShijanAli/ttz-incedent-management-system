@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { issueService } from '@/lib/services';
 import { parseApiError } from '@/lib/api-error';
 import { projectCan } from '@/lib/project-utils';
 import { ProjectSelect } from '@/components/projects/project-select';
@@ -8,6 +7,8 @@ import { MemberMultiSelect } from '@/components/members/member-multi-select';
 import { useGetProjectMembersQuery, useGetProjectQuery } from '@/redux/features/projects/projects-api';
 import type { ApiProject } from '@/redux/features/projects/projects-types';
 import { useCreateIssueMutation } from '@/redux/features/issues/issues-api';
+import { useTriageIssueMutation, useUpdateIssueMutation } from '@/redux/features/issues/issue-detail-api';
+import type { IssueDetail } from '@/redux/features/issues/issues-types';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -25,7 +26,7 @@ import { toast } from 'sonner';
 import {
   ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, ISSUE_TYPE_OPTIONS,
 } from '@/lib/shared-utils';
-import type { Issue, IssuePriority, IssueType, IssueSeverity, UUID } from '@/lib/types';
+import type { IssuePriority, IssueType, IssueSeverity } from '@/lib/types';
 
 /** Only projects where the signed-in user may create issues */
 const canCreateIssueIn = (project: ApiProject) => projectCan(project, 'issues.create');
@@ -34,7 +35,7 @@ const canCreateIssueIn = (project: ApiProject) => projectCan(project, 'issues.cr
 const API_FIELD_TO_ERROR: Record<string, string> = {
   title: 'title',
   description: 'description',
-  type: 'type',
+  issue_type: 'type',
   priority: 'priority',
   severity: 'severity',
   assignee_ids: 'assignee',
@@ -45,43 +46,50 @@ const API_FIELD_TO_ERROR: Record<string, string> = {
 interface IssueFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  issue?: Issue;
-  defaultProjectId?: UUID;
+  /** Present in edit mode */
+  issue?: IssueDetail;
+  defaultProjectId?: string;
   onSaved: () => void;
 }
+
+const sameList = <T,>(a: T[], b: T[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
 
 export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, onSaved }: IssueFormDialogProps) {
   const { session } = useAuth();
   const [createIssue, { isLoading: creating }] = useCreateIssueMutation();
+  const [updateIssue, { isLoading: updating }] = useUpdateIssueMutation();
+  const [triageIssue, { isLoading: triaging }] = useTriageIssueMutation();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [projectId, setProjectId] = useState('');
-  const [type, setType] = useState<IssueType>('bug');
-  const [priority, setPriority] = useState<IssuePriority>('medium');
+  // Existing issues may have no type or priority yet, so both allow "not set"
+  const [type, setType] = useState<IssueType | ''>('bug');
+  const [priority, setPriority] = useState<IssuePriority | ''>('medium');
   const [severity, setSeverity] = useState<IssueSeverity | ''>('');
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [labels, setLabels] = useState<string[]>([]);
   const [labelInput, setLabelInput] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [savingEdit, setSavingEdit] = useState(false);
 
   const isEdit = !!issue;
-  const saving = creating || savingEdit;
+  const saving = creating || updating || triaging;
+  // In edit mode each part of the form follows what the API says this user may change
+  const canEditText = !issue || issue.abilities.can_edit;
+  const canTriage = !issue || issue.abilities.can_triage;
 
   useEffect(() => {
     if (open) {
       if (issue) {
         setTitle(issue.title);
-        setDescription(issue.description);
-        setProjectId(issue.projectId);
-        setType(issue.type);
-        setPriority(issue.priority);
-        setSeverity(issue.severity || '');
-        // Mock issues reference mock users, which aren't API members; start empty
-        setAssigneeIds([]);
+        setDescription(issue.description ?? '');
+        setProjectId(String(issue.project.id));
+        setType(issue.issue_type ?? '');
+        setPriority(issue.priority ?? '');
+        setSeverity(issue.severity ?? '');
+        setAssigneeIds(issue.assignees.map((a) => a.user.id));
         setLabels(issue.labels);
-        setDueDate(issue.dueDate ? issue.dueDate.split('T')[0] : '');
+        setDueDate(issue.due_date ?? '');
       } else {
         setTitle('');
         setDescription('');
@@ -106,13 +114,15 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
     skip: !open || !hasApiProject,
   });
 
-  const eligibleAssignees = useMemo(
-    () => members.filter((m) => m.user.status === 'active').map((m) => m.user),
-    [members],
-  );
+  const eligibleAssignees = useMemo(() => {
+    const options = new Map(members.filter((m) => m.user.status === 'active').map((m) => [m.user.id, m.user]));
+    // Keep current assignees selectable even if they're no longer active members
+    issue?.assignees.forEach((a) => { if (!options.has(a.user.id)) options.set(a.user.id, a.user); });
+    return [...options.values()];
+  }, [members, issue]);
 
-  // Uses the signed-in user's permissions in the selected project
-  const canAssign = projectCan(project, 'issues.assign');
+  // Create: the signed-in user's permission in the project. Edit: the issue's own abilities.
+  const canAssign = issue ? issue.abilities.can_assign && canTriage : projectCan(project, 'issues.assign');
   // The rest of the form depends on the project (assignees, permissions), so it waits for one
   const showDetails = isEdit || Boolean(projectId);
 
@@ -142,8 +152,9 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
     if (!projectId) errs.project = 'Project is required';
     if (!title.trim()) errs.title = 'Title is required';
     else if (title.trim().length < 5) errs.title = 'Title must be at least 5 characters';
-    if (!type) errs.type = 'Type is required';
-    if (!priority) errs.priority = 'Priority is required';
+    // Older issues may have no type/priority; only new issues must set them
+    if (!isEdit && !type) errs.type = 'Type is required';
+    if (!isEdit && !priority) errs.priority = 'Priority is required';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -153,6 +164,18 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
     onOpenChange(false);
   };
 
+  /** Shows API validation errors under the matching fields */
+  const showApiErrors = (err: unknown, fallback: string) => {
+    const apiError = parseApiError(err, fallback);
+    const fieldErrors: Record<string, string> = {};
+    for (const [field, messages] of Object.entries(apiError.fieldErrors)) {
+      const key = API_FIELD_TO_ERROR[field.split('.')[0]];
+      if (key && messages[0]) fieldErrors[key] = messages[0];
+    }
+    setErrors(fieldErrors);
+    toast.error(fallback, { description: apiError.message });
+  };
+
   const handleCreate = async () => {
     try {
       // The project goes in the URL (POST /projects/{id}/issues), not the body
@@ -160,8 +183,8 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
         projectId: apiProjectId,
         title: title.trim(),
         description: description.trim() || null,
-        type,
-        priority,
+        issue_type: type as IssueType,
+        priority: priority as IssuePriority,
         severity: severity || null,
         assignee_ids: canAssign ? assigneeIds : [],
         labels,
@@ -170,47 +193,48 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
       toast.success('Issue created', { description: `"${title.trim()}" was added to ${project?.name ?? 'the project'}.` });
       close();
     } catch (err) {
-      const apiError = parseApiError(err, 'Failed to create issue.');
-      const fieldErrors: Record<string, string> = {};
-      for (const [field, messages] of Object.entries(apiError.fieldErrors)) {
-        const key = API_FIELD_TO_ERROR[field.split('.')[0]];
-        if (key && messages[0]) fieldErrors[key] = messages[0];
-      }
-      setErrors(fieldErrors);
-      toast.error('Failed to create issue', { description: apiError.message });
+      showApiErrors(err, 'Failed to create issue');
     }
   };
 
-  // Editing still runs on mock data until the issue update API is connected
-  const handleEdit = (current: Issue, userId: string) => {
-    setSavingEdit(true);
+  /**
+   * Edit is two APIs: title/description go through the update endpoint, everything
+   * else through triage. Each sends only what changed and what this user may change.
+   */
+  const handleEdit = async (current: IssueDetail) => {
+    const textChanged = title.trim() !== current.title || description.trim() !== (current.description ?? '');
+    const triage = {
+      ...(type !== (current.issue_type ?? '') && { issue_type: type || null }),
+      ...(priority !== (current.priority ?? '') && { priority: priority || null }),
+      ...(severity !== (current.severity ?? '') && { severity: severity || null }),
+      ...(dueDate !== (current.due_date ?? '') && { due_date: dueDate || null }),
+      ...(!sameList(labels, current.labels) && { labels }),
+      ...(canAssign && !sameList(assigneeIds, current.assignees.map((a) => a.user.id)) && { assignee_ids: assigneeIds }),
+    };
+    const triageChanged = Object.keys(triage).length > 0;
+
+    if (!textChanged && !triageChanged) {
+      onOpenChange(false);
+      return;
+    }
     try {
-      const result = issueService.update(current.id, {
-        title: title.trim(),
-        description: description.trim(),
-        type,
-        priority,
-        severity: severity || undefined,
-        labels,
-        dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
-      }, userId);
-      if ('error' in result) {
-        toast.error(result.error);
-      } else {
-        toast.success('Issue updated', { description: `${result.key} has been updated.` });
-        close();
+      if (textChanged && canEditText) {
+        await updateIssue({ issueId: current.id, title: title.trim(), description: description.trim() || null }).unwrap();
       }
-    } catch {
-      toast.error('Failed to save issue');
-    } finally {
-      setSavingEdit(false);
+      if (triageChanged && canTriage) {
+        await triageIssue({ issueId: current.id, ...triage }).unwrap();
+      }
+      toast.success('Issue updated', { description: `${current.code} has been updated.` });
+      close();
+    } catch (err) {
+      showApiErrors(err, 'Failed to update issue');
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate() || !session) return;
-    if (isEdit && issue) handleEdit(issue, session.user.id);
+    if (issue) void handleEdit(issue);
     else void handleCreate();
   };
 
@@ -218,7 +242,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? `Edit ${issue?.key}` : 'Create New Issue'}</DialogTitle>
+          <DialogTitle>{isEdit ? `Edit ${issue?.code}` : 'Create New Issue'}</DialogTitle>
           <DialogDescription>
             {isEdit ? 'Update issue details and attributes.' : 'Pick the project first, then describe the issue.'}
           </DialogDescription>
@@ -256,7 +280,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                   value={title}
                   onChange={(e) => { setTitle(e.target.value); clearError('title'); }}
                   placeholder="Brief summary of the issue..."
-                  disabled={saving}
+                  disabled={saving || !canEditText}
                   autoFocus={!isEdit}
                 />
                 {errors.title && <p className="text-xs text-destructive">{errors.title}</p>}
@@ -270,7 +294,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                   onChange={(e) => { setDescription(e.target.value); clearError('description'); }}
                   placeholder="Detailed description including steps to reproduce, expected vs actual behavior..."
                   rows={4}
-                  disabled={saving}
+                  disabled={saving || !canEditText}
                 />
                 {errors.description && <p className="text-xs text-destructive">{errors.description}</p>}
               </div>
@@ -278,8 +302,8 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="issueType">Type <span className="text-destructive">*</span></Label>
-                  <Select value={type} onValueChange={(v) => { setType(v as IssueType); clearError('type'); }} disabled={saving}>
-                    <SelectTrigger id="issueType"><SelectValue /></SelectTrigger>
+                  <Select value={type} onValueChange={(v) => { setType(v as IssueType); clearError('type'); }} disabled={saving || !canTriage}>
+                    <SelectTrigger id="issueType"><SelectValue placeholder="Not set" /></SelectTrigger>
                     <SelectContent>
                       {ISSUE_TYPE_OPTIONS.map((t) => (
                         <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
@@ -291,8 +315,8 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
 
                 <div className="space-y-1.5">
                   <Label htmlFor="issuePriority">Priority <span className="text-destructive">*</span></Label>
-                  <Select value={priority} onValueChange={(v) => { setPriority(v as IssuePriority); clearError('priority'); }} disabled={saving}>
-                    <SelectTrigger id="issuePriority"><SelectValue /></SelectTrigger>
+                  <Select value={priority} onValueChange={(v) => { setPriority(v as IssuePriority); clearError('priority'); }} disabled={saving || !canTriage}>
+                    <SelectTrigger id="issuePriority"><SelectValue placeholder="Not set" /></SelectTrigger>
                     <SelectContent>
                       {(Object.entries(ISSUE_PRIORITY_META)).map(([val, meta]) => (
                         <SelectItem key={val} value={val}>{meta.label}</SelectItem>
@@ -307,7 +331,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                   <Select
                     value={severity || 'none'}
                     onValueChange={(v) => { setSeverity(v === 'none' ? '' : v as IssueSeverity); clearError('severity'); }}
-                    disabled={saving}
+                    disabled={saving || !canTriage}
                   >
                     <SelectTrigger id="issueSeverity"><SelectValue placeholder="None" /></SelectTrigger>
                     <SelectContent>
@@ -350,7 +374,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                     type="date"
                     value={dueDate}
                     onChange={(e) => { setDueDate(e.target.value); clearError('dueDate'); }}
-                    disabled={saving}
+                    disabled={saving || !canTriage}
                   />
                   {errors.dueDate && <p className="text-xs text-destructive">{errors.dueDate}</p>}
                 </div>
@@ -365,9 +389,9 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                     onChange={(e) => setLabelInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLabel(); } }}
                     placeholder="Type a label and press Enter..."
-                    disabled={saving}
+                    disabled={saving || !canTriage}
                   />
-                  <Button type="button" variant="outline" onClick={addLabel} disabled={!labelInput.trim() || saving}>
+                  <Button type="button" variant="outline" onClick={addLabel} disabled={!labelInput.trim() || saving || !canTriage}>
                     Add
                   </Button>
                 </div>

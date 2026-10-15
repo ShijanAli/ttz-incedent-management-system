@@ -1,84 +1,71 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router';
+import { toast } from 'sonner';
+import {
+  Pencil, Trash2, Paperclip, CheckCircle2, AlertCircle, History as HistoryIcon, MessageSquare, Hand,
+  LogOut, RotateCcw, Loader2, Hourglass,
+} from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { useTabParam } from '@/hooks/use-tab-param';
+import { parseApiError } from '@/lib/api-error';
+import { formatDate, getAvatarColor, isOverdue } from '@/lib/shared-utils';
+import { getProjectColor, getProjectInitials, sortStatuses } from '@/lib/project-utils';
 import {
-  issueRepo, commentRepo, historyRepo, attachmentRepo, userRepo, projectRepo,
-} from '@/lib/repository';
-import {
-  issueService, canUserViewIssue, canUserAssignIssue, getValidTransitions,
-} from '@/lib/services';
+  useChangeMyIssueStatusMutation,
+  useDeleteIssueMutation,
+  useGetIssueAssigneesQuery,
+  useGetIssueQuery,
+  usePickIssueMutation,
+  useReviewIssueMutation,
+  useUnpickIssueMutation,
+} from '@/redux/features/issues/issue-detail-api';
+import type { IssueDetail, ReviewDecision } from '@/redux/features/issues/issues-types';
+import { useGetProjectMembersQuery, useGetProjectStatusesQuery } from '@/redux/features/projects/projects-api';
 import { PageHeader } from '@/components/shared/page-header';
 import { IssueFormDialog } from '@/components/issues/issue-form-dialog';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { UserAvatar } from '@/components/shared/user-avatar';
-import { StatusBadge } from '@/components/shared/status-badge';
+import {
+  IssuePriorityBadge, IssueProgress, IssueSeverityBadge, IssueStatusBadge, IssueTypeBadge,
+} from '@/components/issues/issue-badges';
+import { IssueComments } from '@/components/issues/issue-comments';
+import { IssueHistory } from '@/components/issues/issue-history';
+import { IssueAttachments } from '@/components/issues/issue-attachments';
+import { IssueAssignees } from '@/components/issues/issue-assignees';
+import { StatusUpdateDialog } from '@/components/issues/status-update-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import {
-  Pencil, Trash2, Send, Paperclip, X, CheckCircle2,
-  UserPlus, UserMinus, AlertCircle, History as HistoryIcon, MessageSquare,
-} from 'lucide-react';
-import { toast } from 'sonner';
-import {
-  ISSUE_STATUS_META, ISSUE_PRIORITY_META, ISSUE_TYPE_META, ISSUE_SEVERITY_META,
-  formatDate, formatRelativeTime, isOverdue,
-} from '@/lib/shared-utils';
-import type { Issue, IssueComment, IssueHistoryEntry, IssueAttachment, IssueStatus, User } from '@/lib/types';
+
+const ISSUE_TABS = ['comments', 'history', 'attachments'] as const;
 
 export default function IssueDetailPage() {
-  const params = useParams();
+  const issueId = Number(useParams().id);
   const navigate = useNavigate();
-  const { session, hasPermission } = useAuth();
-  const issueId = params.id as string;
+  const { data: issue, isLoading, error, refetch } = useGetIssueQuery(issueId, { skip: !Number.isFinite(issueId) });
 
-  const [issue, setIssue] = useState<Issue | null>(() => issueRepo.find(issueId) || null);
-  const [comments, setComments] = useState<IssueComment[]>(() => commentRepo.byIssue(issueId));
-  const [history, setHistory] = useState<IssueHistoryEntry[]>(() => historyRepo.byIssue(issueId));
-  const [attachments, setAttachments] = useState<IssueAttachment[]>(() => attachmentRepo.byIssue(issueId));
-  const [editOpen, setEditOpen] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [commentBody, setCommentBody] = useState('');
-  const [attFileName, setAttFileName] = useState('');
-  const [attFileSize, setAttFileSize] = useState('');
-  const [showAttachForm, setShowAttachForm] = useState(false);
-  const [assigneeSelect, setAssigneeSelect] = useState('');
+  if (isLoading) return <IssueDetailSkeleton />;
 
-  const canView = session && issue ? canUserViewIssue(session.user.id, issue) : false;
-
-  const refresh = useCallback(() => {
-    const fresh = issueRepo.find(issueId);
-    setIssue(fresh || null);
-    setComments(commentRepo.byIssue(issueId));
-    setHistory(historyRepo.byIssue(issueId));
-    setAttachments(attachmentRepo.byIssue(issueId));
-  }, [issueId]);
-
-  const eligibleAssignees: User[] = useMemo(() => {
-    if (!issue) return [];
-    const project = projectRepo.find(issue.projectId);
-    if (!project) return [];
-    return project.memberIds
-      .map((id) => userRepo.find(id))
-      .filter((u): u is User => u !== undefined && u.status === 'active');
-  }, [issue]);
-
-  if (!session) return null;
-
-  if (!issue || !canView) {
+  if (!issue) {
+    const apiError = parseApiError(error, 'Failed to load the issue.');
+    const missing = !Number.isFinite(issueId) || apiError.status === 404 || apiError.status === 403;
     return (
       <div className="animate-fade-in">
         <PageHeader title="Issue not found" breadcrumbs={[{ label: 'Issues', href: '/issues' }, { label: 'Not Found' }]} />
         <Card className="p-8 text-center text-muted-foreground">
-          The issue you are looking for does not exist or you do not have access to it.
-          <div className="mt-4">
+          {missing ? 'The issue you are looking for does not exist or you do not have access to it.' : apiError.message}
+          <div className="mt-4 flex justify-center gap-2">
+            {!missing && <Button variant="outline" onClick={() => refetch()}>Retry</Button>}
             <Button variant="outline" onClick={() => navigate('/issues')}>
               Back to Issues
             </Button>
@@ -88,135 +75,79 @@ export default function IssueDetailPage() {
     );
   }
 
-  const reporter = userRepo.find(issue.reporterId);
-  const assignee = issue.assigneeId ? userRepo.find(issue.assigneeId) : null;
-  const project = projectRepo.find(issue.projectId);
-  const approver = issue.approvedBy ? userRepo.find(issue.approvedBy) : null;
+  return <IssueDetailView issue={issue} />;
+}
 
-  const canEdit = hasPermission('issues.update');
-  const canDelete = hasPermission('issues.delete');
-  const canComment = hasPermission('issues.comment');
-  const canChangeStatus = hasPermission('issues.change_status');
-  const canApprove = hasPermission('issues.approve');
-  const canAssign = canUserAssignIssue(session.user.id, issue);
+function IssueDetailView({ issue }: { issue: IssueDetail }) {
+  const navigate = useNavigate();
+  const { session } = useAuth();
+  const myId = session ? Number(session.user.id) : undefined;
+  const can = issue.abilities;
+  const [tab, setTab] = useTabParam(ISSUE_TABS, 'comments');
 
-  const validTransitions = getValidTransitions(issue.status);
+  const [editOpen, setEditOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [statusDialog, setStatusDialog] = useState<{ status_id?: number } | null>(null);
+  const [review, setReview] = useState<ReviewDecision | null>(null);
 
-  const handleAddComment = () => {
-    if (!commentBody.trim()) return;
-    const result = issueService.addComment(issue.id, session.user.id, commentBody);
-    if (typeof result === 'object' && 'error' in result) {
-      toast.error(result.error);
-    } else {
-      setCommentBody('');
-      refresh();
-      toast.success('Comment added');
+  // Fresh assignee list (the issue payload embeds one too, used until it loads)
+  const { data: assignees = issue.assignees } = useGetIssueAssigneesQuery(issue.id);
+  const needsStatuses = can.can_change_own_status || can.can_assign;
+  const { data: statusList = [] } = useGetProjectStatusesQuery(issue.project.id, { skip: !needsStatuses });
+  const { data: members = [] } = useGetProjectMembersQuery(issue.project.id, { skip: !can.can_assign });
+  const statuses = sortStatuses(statusList);
+
+  const [deleteIssue] = useDeleteIssueMutation();
+  const [pickIssue, { isLoading: picking }] = usePickIssueMutation();
+  const [unpickIssue, { isLoading: unpicking }] = useUnpickIssueMutation();
+  const [changeMyStatus] = useChangeMyIssueStatusMutation();
+
+  const myAssignment = assignees.find((a) => a.user.id === myId);
+  const overdue = issue.progress < 100 && !issue.closed_at && isOverdue(issue.due_date ?? undefined);
+
+  const run = async (action: () => Promise<unknown>, success: string, failure: string) => {
+    try {
+      await action();
+      toast.success(success);
+    } catch (err) {
+      toast.error(failure, { description: parseApiError(err).message });
     }
   };
 
-  const handleStatusChange = (newStatus: IssueStatus) => {
-    const result = issueService.changeStatus(issue.id, newStatus, session.user.id);
-    if (typeof result === 'object' && 'error' in result) {
-      toast.error('Cannot change status', { description: result.error });
-    } else {
-      refresh();
-      toast.success('Status updated', { description: `${issue.key} moved to ${ISSUE_STATUS_META[newStatus].label}` });
+  const handleDelete = async () => {
+    try {
+      await deleteIssue(issue.id).unwrap();
+      toast.success('Issue deleted', { description: `${issue.code} has been deleted.` });
+      navigate('/issues', { replace: true });
+    } catch (err) {
+      toast.error('Failed to delete issue', { description: parseApiError(err).message });
     }
-  };
-
-  const handleApprove = () => {
-    const result = issueService.approve(issue.id, session.user.id);
-    if (typeof result === 'object' && 'error' in result) {
-      toast.error(result.error);
-    } else {
-      refresh();
-      toast.success('Issue approved', { description: `${issue.key} has been approved.` });
-    }
-  };
-
-  const handleAssign = () => {
-    if (!assigneeSelect) return;
-    const result = issueService.assign(issue.id, assigneeSelect, session.user.id);
-    if (typeof result === 'object' && 'error' in result) {
-      toast.error(result.error);
-    } else {
-      setAssigneeSelect('');
-      refresh();
-      toast.success('Issue assigned');
-    }
-  };
-
-  const handleUnassign = () => {
-    const result = issueService.unassign(issue.id, session.user.id);
-    if (typeof result === 'object' && 'error' in result) {
-      toast.error(result.error);
-    } else {
-      refresh();
-      toast.success('Issue unassigned');
-    }
-  };
-
-  const handleAddAttachment = () => {
-    if (!attFileName.trim()) return;
-    const size = parseInt(attFileSize) || 0;
-    const result = issueService.addAttachment(issue.id, attFileName.trim(), size, session.user.id);
-    if (typeof result === 'object' && 'error' in result) {
-      toast.error(result.error);
-    } else {
-      setAttFileName('');
-      setAttFileSize('');
-      setShowAttachForm(false);
-      refresh();
-      toast.success('Attachment added');
-    }
-  };
-
-  const handleDeleteAttachment = (attId: string) => {
-    const result = issueService.deleteAttachment(attId, session.user.id);
-    if (typeof result === 'object' && 'error' in result) {
-      toast.error(result.error);
-    } else {
-      refresh();
-      toast.success('Attachment removed');
-    }
-  };
-
-  const handleDelete = () => {
-    const result = issueService.delete(issue.id, session.user.id);
-    if (typeof result === 'object' && 'error' in result) {
-      toast.error(result.error);
-    } else {
-      toast.success('Issue deleted');
-      navigate('/issues');
-    }
-  };
-
-  const statusMeta = ISSUE_STATUS_META[issue.status];
-  const priorityMeta = ISSUE_PRIORITY_META[issue.priority];
-  const typeMeta = ISSUE_TYPE_META[issue.type];
-  const severityMeta = issue.severity ? ISSUE_SEVERITY_META[issue.severity] : null;
-  const overdue = isOverdue(issue.dueDate, issue.status);
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / 1048576).toFixed(1)} MB`;
   };
 
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title={issue.key}
+        title={issue.code}
         description={issue.title}
-        breadcrumbs={[{ label: 'Issues', href: '/issues' }, { label: issue.key }]}
+        breadcrumbs={[{ label: 'Issues', href: '/issues' }, { label: issue.code }]}
         actions={
           <div className="flex items-center gap-2">
-            {canEdit && (
+            {can.can_pick && (
+              <Button onClick={() => run(() => pickIssue(issue.id).unwrap(), 'You picked up this issue', 'Failed to pick up')} disabled={picking}>
+                {picking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Hand className="mr-2 h-4 w-4" />} Pick up
+              </Button>
+            )}
+            {can.can_unpick && (
+              <Button variant="outline" onClick={() => run(() => unpickIssue(issue.id).unwrap(), 'You dropped this issue', 'Failed to drop')} disabled={unpicking}>
+                {unpicking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut className="mr-2 h-4 w-4" />} Drop
+              </Button>
+            )}
+            {(can.can_edit || can.can_triage) && (
               <Button variant="outline" onClick={() => setEditOpen(true)}>
                 <Pencil className="mr-2 h-4 w-4" /> Edit
               </Button>
             )}
-            {canDelete && (
+            {can.can_delete && (
               <Button variant="outline" onClick={() => setConfirmDelete(true)} className="text-red-600 hover:text-red-700">
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </Button>
@@ -242,140 +173,32 @@ export default function IssueDetailPage() {
 
           <Card>
             <CardContent className="p-4">
-              <Tabs defaultValue="comments">
+              <Tabs value={tab} onValueChange={setTab}>
                 <TabsList>
                   <TabsTrigger value="comments" className="gap-1.5">
                     <MessageSquare className="h-3.5 w-3.5" />
-                    Comments ({comments.length})
+                    Comments ({issue.comment_count})
                   </TabsTrigger>
                   <TabsTrigger value="history" className="gap-1.5">
                     <HistoryIcon className="h-3.5 w-3.5" />
-                    History ({history.length})
+                    History ({issue.status_history.length})
                   </TabsTrigger>
                   <TabsTrigger value="attachments" className="gap-1.5">
                     <Paperclip className="h-3.5 w-3.5" />
-                    Files ({attachments.length})
+                    Files ({issue.attachment_count})
                   </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="comments" className="mt-4">
-                  <div className="space-y-3 mb-4">
-                    {comments.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-6">No comments yet. Be the first to comment.</p>
-                    ) : (
-                      [...comments].reverse().map((c) => {
-                        const author = userRepo.find(c.authorId);
-                        return (
-                          <div key={c.id} className="flex gap-3">
-                            {author && <UserAvatar name={author.name} color={author.avatarColor} image={author.avatarUrl} size="sm" />}
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-0.5">
-                                <span className="text-sm font-medium">{author?.name || 'Unknown'}</span>
-                                <span className="text-xs text-muted-foreground">{formatRelativeTime(c.createdAt)}</span>
-                              </div>
-                              <p className="text-sm bg-muted/40 rounded-lg p-3 whitespace-pre-wrap">{c.body}</p>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                  {canComment && (
-                    <div className="flex gap-2">
-                      <Textarea
-                        value={commentBody}
-                        onChange={(e) => setCommentBody(e.target.value)}
-                        placeholder="Write a comment..."
-                        rows={2}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAddComment(); }}
-                      />
-                      <Button onClick={handleAddComment} disabled={!commentBody.trim()} className="self-end">
-                        <Send className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
+                  <IssueComments issueId={issue.id} canComment={can.can_comment} myId={myId} />
                 </TabsContent>
 
                 <TabsContent value="history" className="mt-4">
-                  {history.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-6">No history recorded.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {[...history].reverse().map((h) => {
-                        const actor = userRepo.find(h.actorId);
-                        return (
-                          <div key={h.id} className="flex items-start gap-3 text-sm py-2 border-b last:border-0">
-                            <div className="mt-0.5">
-                              <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center">
-                                <HistoryIcon className="h-3 w-3 text-muted-foreground" />
-                              </div>
-                            </div>
-                            <div className="flex-1">
-                              <span className="font-medium">{actor?.name || 'Unknown'}</span>
-                              {h.field === 'created' ? (
-                                <span> created this issue</span>
-                              ) : (
-                                <span> changed <span className="font-medium">{h.field}</span> from <span className="text-muted-foreground">&quot;{h.oldValue}&quot;</span> to <span className="font-medium">&quot;{h.newValue}&quot;</span></span>
-                              )}
-                              <div className="text-xs text-muted-foreground mt-0.5">{formatRelativeTime(h.timestamp)}</div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <IssueHistory issueId={issue.id} />
                 </TabsContent>
 
                 <TabsContent value="attachments" className="mt-4">
-                  <div className="space-y-2 mb-4">
-                    {attachments.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-6">No files attached.</p>
-                    ) : (
-                      attachments.map((a) => {
-                        const uploader = userRepo.find(a.uploadedById);
-                        return (
-                          <div key={a.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
-                            <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                              <Paperclip className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium truncate">{a.fileName}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {formatFileSize(a.fileSize)} · {uploader?.name || 'Unknown'} · {formatRelativeTime(a.uploadedAt)}
-                              </div>
-                            </div>
-                            {canEdit && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" onClick={() => handleDeleteAttachment(a.id)}>
-                                <X className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                  {canEdit && (
-                    showAttachForm ? (
-                      <div className="rounded-lg border border-border p-3 space-y-2">
-                        <div className="space-y-1">
-                          <Label className="text-xs">File name</Label>
-                          <Input value={attFileName} onChange={(e) => setAttFileName(e.target.value)} placeholder="e.g. screenshot.png" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">File size (bytes)</Label>
-                          <Input value={attFileSize} onChange={(e) => setAttFileSize(e.target.value)} placeholder="e.g. 102400" type="number" />
-                        </div>
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={handleAddAttachment} disabled={!attFileName.trim()}>Add file</Button>
-                          <Button size="sm" variant="outline" onClick={() => setShowAttachForm(false)}>Cancel</Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <Button variant="outline" size="sm" onClick={() => setShowAttachForm(true)}>
-                        <Paperclip className="mr-2 h-4 w-4" /> Add attachment
-                      </Button>
-                    )
-                  )}
+                  <IssueAttachments issueId={issue.id} canUpload={can.can_upload} canEdit={can.can_edit} myId={myId} />
                 </TabsContent>
               </Tabs>
             </CardContent>
@@ -390,33 +213,58 @@ export default function IssueDetailPage() {
             <CardContent className="space-y-3">
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Current status</Label>
-                <StatusBadge label={statusMeta.label} className={statusMeta.badgeClass} />
+                <IssueStatusBadge issue={issue} />
               </div>
 
-              {canChangeStatus && validTransitions.length > 0 && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">Progress</Label>
+                <IssueProgress issue={issue} />
+              </div>
+
+              {can.can_change_own_status && statuses.length > 0 && (
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1 block">Change status</Label>
-                  <Select value="" onValueChange={(v) => handleStatusChange(v as IssueStatus)}>
+                  <Label className="text-xs text-muted-foreground mb-1 block">
+                    Change status{myAssignment?.status ? ` (yours: ${myAssignment.status.name}, ${myAssignment.progress}%)` : ''}
+                  </Label>
+                  <Select value="" onValueChange={(v) => setStatusDialog({ status_id: Number(v) })}>
                     <SelectTrigger><SelectValue placeholder="Move to..." /></SelectTrigger>
                     <SelectContent>
-                      {validTransitions.map((s) => (
-                        <SelectItem key={s} value={s}>{ISSUE_STATUS_META[s].label}</SelectItem>
+                      {statuses.map((s) => (
+                        <SelectItem key={s.id} value={String(s.id)}>
+                          <span className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+                            {s.name}
+                          </span>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               )}
 
-              {canApprove && issue.status === 'completed' && (
-                <Button onClick={handleApprove} className="w-full">
-                  <CheckCircle2 className="mr-2 h-4 w-4" /> Approve Issue
-                </Button>
+              {issue.awaiting_review && (
+                can.can_review ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">All assignees are done. Check the fix and confirm it, or send it back.</p>
+                    <Button onClick={() => setReview('confirm')} className="w-full">
+                      <CheckCircle2 className="mr-2 h-4 w-4" /> Confirm fix
+                    </Button>
+                    <Button variant="outline" onClick={() => setReview('recheck')} className="w-full">
+                      <RotateCcw className="mr-2 h-4 w-4" /> Send back
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 pt-1">
+                    <Hourglass className="h-3.5 w-3.5 text-amber-600" />
+                    Waiting for the reporter to confirm the fix
+                  </div>
+                )
               )}
 
-              {issue.status === 'approved' && approver && (
+              {issue.closed_at && (
                 <div className="text-xs text-muted-foreground flex items-center gap-1.5 pt-1">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                  Approved by {approver.name} on {formatDate(issue.approvedAt)}
+                  Closed on {formatDate(issue.closed_at)}
                 </div>
               )}
             </CardContent>
@@ -429,99 +277,74 @@ export default function IssueDetailPage() {
             <CardContent className="space-y-3">
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Project</Label>
-                {project && (
-                  <Link to={`/projects/${project.id}`} className="text-sm hover:text-primary flex items-center gap-2">
-                    <div className="h-6 w-6 rounded text-white text-[10px] font-bold flex items-center justify-center" style={{ backgroundColor: project.color }}>
-                      {project.key.slice(0, 3)}
-                    </div>
-                    {project.name}
-                  </Link>
-                )}
+                <Link to={`/projects/${issue.project.id}`} className="text-sm hover:text-primary flex items-center gap-2">
+                  <div
+                    className="h-6 w-6 rounded text-white text-[9px] font-bold flex items-center justify-center"
+                    style={{ backgroundColor: getProjectColor(issue.project) }}
+                  >
+                    {getProjectInitials(issue.project)}
+                  </div>
+                  {issue.project.name}
+                </Link>
               </div>
 
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Type</Label>
-                <Badge variant="outline" className={typeMeta.badgeClass}>{typeMeta.label}</Badge>
+                <IssueTypeBadge issue={issue} />
               </div>
 
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Priority</Label>
-                <StatusBadge label={priorityMeta.label} className={priorityMeta.badgeClass} />
+                <IssuePriorityBadge priority={issue.priority} />
               </div>
 
-              {severityMeta && (
+              {issue.severity && (
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">Severity</Label>
-                  <StatusBadge label={severityMeta.label} className={severityMeta.badgeClass} />
-                </div>
-              )}
-
-              {issue.reproducibility && (
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1 block">Reproducibility</Label>
-                  <span className="text-sm">{issue.reproducibility}</span>
+                  <IssueSeverityBadge severity={issue.severity} />
                 </div>
               )}
 
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Reporter</Label>
-                {reporter && (
+                {issue.reported_by ? (
                   <div className="flex items-center gap-2">
-                    <UserAvatar name={reporter.name} color={reporter.avatarColor} image={reporter.avatarUrl} size="xs" />
-                    <span className="text-sm">{reporter.name}</span>
+                    <UserAvatar name={issue.reported_by.name} color={getAvatarColor(issue.reported_by.id)} size="xs" />
+                    <span className="text-sm">{issue.reported_by.name}</span>
                   </div>
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
                 )}
               </div>
 
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Assignee</Label>
-                {assignee ? (
-                  <div className="flex items-center gap-2">
-                    <UserAvatar name={assignee.name} color={assignee.avatarColor} image={assignee.avatarUrl} size="xs" />
-                    <span className="text-sm">{assignee.name}</span>
-                    {canAssign && (
-                      <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto" onClick={handleUnassign}>
-                        <UserMinus className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <span className="text-sm text-muted-foreground">Unassigned</span>
-                )}
-                {canAssign && (
-                  <div className="mt-2 flex gap-2">
-                    <Select value={assigneeSelect} onValueChange={setAssigneeSelect}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={assignee ? 'Reassign to...' : 'Assign to...'} /></SelectTrigger>
-                      <SelectContent>
-                        {eligibleAssignees.filter((u) => u.id !== assignee?.id).map((u) => (
-                          <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button size="sm" onClick={handleAssign} disabled={!assigneeSelect}>
-                      <UserPlus className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                )}
+                <IssueAssignees
+                  issueId={issue.id}
+                  assignees={assignees}
+                  canAssign={can.can_assign}
+                  members={members}
+                  statuses={statuses}
+                />
               </div>
 
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Due date</Label>
                 <span className={`text-sm flex items-center gap-1 ${overdue ? 'text-red-600 font-medium' : ''}`}>
                   {overdue && <AlertCircle className="h-3 w-3" />}
-                  {formatDate(issue.dueDate)}
+                  {formatDate(issue.due_date ?? undefined)}
                 </span>
               </div>
 
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Created</Label>
-                <span className="text-sm text-muted-foreground">{formatDate(issue.createdAt)}</span>
+                <span className="text-sm text-muted-foreground">{formatDate(issue.created_at)}</span>
               </div>
 
-              {issue.resolvedAt && (
+              {issue.closed_at && (
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">Resolved</Label>
-                  <span className="text-sm text-muted-foreground">{formatDate(issue.resolvedAt)}</span>
+                  <span className="text-sm text-muted-foreground">{formatDate(issue.closed_at)}</span>
                 </div>
               )}
 
@@ -540,22 +363,119 @@ export default function IssueDetailPage() {
         </div>
       </div>
 
-      <IssueFormDialog
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        issue={issue}
-        onSaved={refresh}
-      />
+      <IssueFormDialog open={editOpen} onOpenChange={setEditOpen} issue={issue} onSaved={() => undefined} />
 
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title="Delete issue"
-        description={`Are you sure you want to delete "${issue.key}"? All comments, history, and attachments will be permanently removed.`}
+        description={`Are you sure you want to delete "${issue.code}"? All comments, history, and attachments will be permanently removed.`}
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={handleDelete}
       />
+
+      <StatusUpdateDialog
+        open={!!statusDialog}
+        onOpenChange={(open) => { if (!open) setStatusDialog(null); }}
+        title="Change my status"
+        description="Update where you are on this issue. The overall status follows everyone's progress."
+        statuses={statuses}
+        initial={{ status_id: statusDialog?.status_id ?? myAssignment?.status?.id, progress: myAssignment?.progress ?? 0 }}
+        onSubmit={async (body) => {
+          try {
+            await changeMyStatus({ issueId: issue.id, ...body }).unwrap();
+            toast.success('Status updated');
+          } catch (err) {
+            toast.error('Failed to update status', { description: parseApiError(err).message });
+            throw err;
+          }
+        }}
+      />
+
+      <ReviewDialog issueId={issue.id} decision={review} onClose={() => setReview(null)} />
+    </div>
+  );
+}
+
+/** Confirm the fix (comment optional) or send it back for a recheck (comment required) */
+function ReviewDialog({ issueId, decision, onClose }: { issueId: number; decision: ReviewDecision | null; onClose: () => void }) {
+  const [reviewIssue, { isLoading }] = useReviewIssueMutation();
+  const [comment, setComment] = useState('');
+  const isRecheck = decision === 'recheck';
+  const valid = !isRecheck || comment.trim().length > 0;
+
+  const close = () => {
+    setComment('');
+    onClose();
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!decision || !valid) return;
+    try {
+      await reviewIssue({ issueId, decision, ...(comment.trim() && { comment: comment.trim() }) }).unwrap();
+      toast.success(isRecheck ? 'Sent back for a recheck' : 'Fix confirmed');
+      close();
+    } catch (err) {
+      toast.error('Review failed', { description: parseApiError(err).message });
+    }
+  };
+
+  return (
+    <Dialog open={!!decision} onOpenChange={(open) => { if (!open) close(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{isRecheck ? 'Send it back' : 'Confirm the fix'}</DialogTitle>
+          <DialogDescription>
+            {isRecheck
+              ? 'Explain what still needs work. The assignees will pick it up again.'
+              : 'Confirming closes the issue. You can leave a note for the team.'}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="reviewComment">
+              Comment {isRecheck ? <span className="text-destructive">*</span> : <span className="text-muted-foreground">(optional)</span>}
+            </Label>
+            <Textarea
+              id="reviewComment"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder={isRecheck ? 'e.g. Still misaligned on a 360px wide screen.' : 'e.g. Works on my device now.'}
+              rows={4}
+              maxLength={5000}
+              disabled={isLoading}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={close} disabled={isLoading}>Cancel</Button>
+            <Button type="submit" variant={isRecheck ? 'destructive' : 'default'} disabled={isLoading || !valid}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isRecheck ? 'Send back' : 'Confirm fix'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function IssueDetailSkeleton() {
+  return (
+    <div className="animate-fade-in space-y-4" aria-busy="true">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-5 w-80" />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-64 w-full rounded-xl" />
+        </div>
+        <div className="space-y-4">
+          <Skeleton className="h-40 w-full rounded-xl" />
+          <Skeleton className="h-72 w-full rounded-xl" />
+        </div>
+      </div>
     </div>
   );
 }

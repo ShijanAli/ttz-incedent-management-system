@@ -30,6 +30,25 @@ export const ENDPOINTS = {
   MY: {
     ISSUES: '/api/my/issues',
   },
+  ISSUES: {
+    ONE: (id: number | string) => `/api/issues/${id}`,
+    HISTORY: (id: number | string) => `/api/issues/${id}/history`,
+    STATUS: (id: number | string) => `/api/issues/${id}/status`,
+    PICK: (id: number | string) => `/api/issues/${id}/pick`,
+    REVIEW: (id: number | string) => `/api/issues/${id}/review`,
+    ASSIGNEES: (id: number | string) => `/api/issues/${id}/assignees`,
+    ASSIGNEE: (id: number | string, userId: number | string) => `/api/issues/${id}/assignees/${userId}`,
+    ASSIGNEE_STATUS: (id: number | string, userId: number | string) => `/api/issues/${id}/assignees/${userId}/status`,
+    COMMENTS: (id: number | string) => `/api/issues/${id}/comments`,
+    ATTACHMENTS: (id: number | string) => `/api/issues/${id}/attachments`,
+  },
+  COMMENTS: {
+    ONE: (id: number | string) => `/api/comments/${id}`,
+  },
+  ATTACHMENTS: {
+    ONE: (id: number | string) => `/api/attachments/${id}`,
+    DOWNLOAD: (id: number | string) => `/api/attachments/${id}/download`,
+  },
   PROJECTS: {
     LIST: '/api/projects',
     ONE: (id: number | string) => `/api/projects/${id}`,
