@@ -78,6 +78,7 @@ export const baseApi = createApi({
     'Me', 'Role', 'PermissionCatalog', 'User',
     'Project', 'ProjectMembers', 'ProjectStatuses',
     'Group', 'GroupMembers', 'GroupProjects',
+    'Issue',
   ],
   endpoints: () => ({}),
 });

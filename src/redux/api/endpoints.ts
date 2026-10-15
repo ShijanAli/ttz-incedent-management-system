@@ -32,6 +32,7 @@ export const ENDPOINTS = {
     MEMBERS: (id: number | string) => `/api/projects/${id}/members`,
     MEMBER: (id: number | string, userId: number | string) => `/api/projects/${id}/members/${userId}`,
     STATUSES: (id: number | string) => `/api/projects/${id}/statuses`,
+    ISSUES: (id: number | string) => `/api/projects/${id}/issues`,
   },
 } as const;
 
