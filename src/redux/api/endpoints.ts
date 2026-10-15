@@ -17,6 +17,9 @@ export const ENDPOINTS = {
     PERMISSIONS: '/api/admin/permissions',
     ROLES: '/api/admin/roles',
     ROLE: (id: number | string) => `/api/admin/roles/${id}`,
+    USERS: '/api/admin/users',
+    USER: (id: number | string) => `/api/admin/users/${id}`,
+    USER_RESEND_INVITE: (id: number | string) => `/api/admin/users/${id}/resend-invite`,
   },
 } as const;
 

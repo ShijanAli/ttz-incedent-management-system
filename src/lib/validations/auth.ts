@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const OTP_LENGTH = 6;
 
-const emailField = z
+export const emailField = z
   .string()
   .trim()
   .min(1, 'Email is required.')

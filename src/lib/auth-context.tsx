@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo } from 'react';
 import type { User, Permission } from '@/lib/types';
 import { ALL_PERMISSIONS, toAppPermissions } from '@/lib/permissions';
+import { getAvatarColor } from '@/lib/shared-utils';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import { baseApi } from '@/redux/api/base-api';
 import { useGetMeQuery, useLogoutMutation } from '@/redux/features/auth/auth-api';
@@ -37,7 +38,6 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 /** Every signed-in user can reach these regardless of project access */
 const BASELINE_PERMISSIONS: Permission[] = ['dashboard.view', 'notifications.view', 'settings.view'];
 
-const AVATAR_COLORS = ['#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#7c3aed', '#db2777'];
 
 function resolvePermissions(access: UserAccess | null): Permission[] {
   if (!access) return BASELINE_PERMISSIONS;
@@ -57,7 +57,7 @@ function toSessionUser(user: ApiUser): User {
     name: user.name,
     email: user.email,
     password: '',
-    avatarColor: AVATAR_COLORS[user.id % AVATAR_COLORS.length],
+    avatarColor: getAvatarColor(user.id),
     roleIds: [],
     status: user.status === 'active' ? 'active' : 'inactive',
     title: user.designation ?? undefined,

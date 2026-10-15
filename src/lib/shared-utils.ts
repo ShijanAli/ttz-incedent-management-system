@@ -121,3 +121,27 @@ export const GROUP_TYPE_META: Record<string, { label: string; badgeClass: string
     description: 'Invisible to anyone who is not a group member',
   },
 };
+
+const AVATAR_COLORS = ['#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#7c3aed', '#db2777'];
+
+/** Stable avatar color for an API user, so the same person always looks the same. */
+export function getAvatarColor(id: number): string {
+  return AVATAR_COLORS[Math.abs(id) % AVATAR_COLORS.length];
+}
+
+export const USER_STATUS_META: Record<string, { label: string; textClass: string; dotClass: string }> = {
+  active: { label: 'Active', textClass: 'text-emerald-600', dotClass: 'bg-emerald-500' },
+  invited: { label: 'Invited', textClass: 'text-amber-600', dotClass: 'bg-amber-500' },
+  disabled: { label: 'Disabled', textClass: 'text-slate-500', dotClass: 'bg-slate-400' },
+};
+
+/** Falls back to a neutral style for statuses the backend adds later. */
+export function getUserStatusMeta(status: string) {
+  return (
+    USER_STATUS_META[status] ?? {
+      label: status.charAt(0).toUpperCase() + status.slice(1),
+      textClass: 'text-slate-500',
+      dotClass: 'bg-slate-400',
+    }
+  );
+}
