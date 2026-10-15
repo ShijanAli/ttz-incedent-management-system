@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo } from 'react';
 import type { User, Permission } from '@/lib/types';
-import { ALL_PERMISSIONS, toAppPermissions } from '@/lib/permissions';
+import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, toAppPermissions } from '@/lib/permissions';
 import { getAvatarColor } from '@/lib/shared-utils';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import { baseApi } from '@/redux/api/base-api';
@@ -39,13 +39,22 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const BASELINE_PERMISSIONS: Permission[] = ['dashboard.view', 'notifications.view', 'settings.view'];
 
 
-function resolvePermissions(access: UserAccess | null): Permission[] {
-  if (!access) return BASELINE_PERMISSIONS;
-  if (access.is_super_admin) return ALL_PERMISSIONS;
+/** Backend permissions granted by the user's system-wide default role */
+function defaultRolePermissions(user: ApiUser): string[] {
+  if (user.permissions) return user.permissions;
+  return user.default_role ? DEFAULT_ROLE_PERMISSIONS[user.default_role] ?? [] : [];
+}
 
-  const result = toAppPermissions(access.projects.flatMap((p) => p.permissions));
+function resolvePermissions(user: ApiUser, access: UserAccess | null): Permission[] {
+  if (user.is_super_admin || access?.is_super_admin) return ALL_PERMISSIONS;
+
+  // Default role applies everywhere; project roles add to it per project
+  const result = toAppPermissions([
+    ...defaultRolePermissions(user),
+    ...(access?.projects.flatMap((p) => p.permissions) ?? []),
+  ]);
   BASELINE_PERMISSIONS.forEach((p) => result.add(p));
-  if (access.can_manage_users) {
+  if (user.can_manage_users || access?.can_manage_users) {
     (['users.view', 'users.create', 'users.update', 'users.deactivate'] as Permission[]).forEach((p) => result.add(p));
   }
   return [...result];
@@ -61,16 +70,17 @@ function toSessionUser(user: ApiUser): User {
     roleIds: [],
     status: user.status === 'active' ? 'active' : 'inactive',
     title: user.designation ?? undefined,
+    department: user.department ?? undefined,
     phone: user.phone ?? undefined,
     createdAt: user.created_at,
     lastActiveAt: user.last_login_at ?? undefined,
   };
 }
 
-function toRoleNames(access: UserAccess | null): string[] {
-  if (!access) return [];
-  if (access.is_super_admin) return ['Super Admin'];
-  return [...new Set(access.projects.map((p) => p.role))];
+function toRoleNames(user: ApiUser, access: UserAccess | null): string[] {
+  if (user.is_super_admin || access?.is_super_admin) return ['Super Admin'];
+  const names = [user.default_role, ...(access?.projects.map((p) => p.role) ?? [])];
+  return [...new Set(names.filter((n): n is string => Boolean(n)))];
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -86,8 +96,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!accessToken || !user) return null;
     return {
       user: toSessionUser(user),
-      permissions: resolvePermissions(access),
-      roleNames: toRoleNames(access),
+      permissions: resolvePermissions(user, access),
+      roleNames: toRoleNames(user, access),
     };
   }, [accessToken, user, access]);
 

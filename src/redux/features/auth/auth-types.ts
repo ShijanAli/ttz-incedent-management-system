@@ -5,6 +5,14 @@ export interface ApiUser {
   phone: string | null;
   designation: string | null;
   status: 'active' | 'inactive' | (string & {});
+  department?: string | null;
+  /** System-wide role name, e.g. "Developer"; drives the sidebar and dashboard */
+  default_role?: string | null;
+  /**
+   * Backend permission names for the default role. Not sent yet; when it is, it
+   * replaces the DEFAULT_ROLE_PERMISSIONS fallback.
+   */
+  permissions?: string[];
   is_super_admin: boolean;
   /** Sent on /auth/me; login sends it inside `access` instead */
   can_manage_users?: boolean;

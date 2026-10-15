@@ -134,6 +134,30 @@ const API_PERMISSION_ALIASES: Record<string, Permission[]> = {
   'users.edit': ['users.view', 'users.update'],
 };
 
+/**
+ * Backend permissions per system role, mirroring GET /api/admin/roles.
+ * Fallback only: /auth/me sends `default_role` without its permissions, and
+ * non-admins cannot read the roles API. Remove once /auth/me returns `permissions`.
+ */
+export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
+  Manager: [
+    'dashboard.view', 'projects.view', 'projects.edit', 'projects.delete',
+    'issues.view', 'issues.create', 'issues.edit', 'issues.delete', 'issues.pick', 'issues.assign', 'issues.status',
+    'users.edit', 'reports.view',
+    'comments.view', 'comments.create', 'comments.edit', 'comments.delete',
+    'attachments.view', 'attachments.create', 'attachments.delete',
+  ],
+  Developer: [
+    'dashboard.view', 'projects.view', 'issues.view', 'issues.edit', 'issues.pick', 'issues.status',
+    'comments.view', 'comments.create', 'comments.edit', 'attachments.view', 'attachments.create',
+  ],
+  Reporter: [
+    'dashboard.view', 'projects.view', 'issues.view', 'issues.create', 'issues.status',
+    'comments.view', 'comments.create', 'comments.edit', 'attachments.view', 'attachments.create',
+  ],
+  Viewer: ['dashboard.view', 'projects.view', 'issues.view', 'comments.view', 'attachments.view'],
+};
+
 /** Translates backend permission names into the app permissions they unlock. */
 export function toAppPermissions(apiPermissions: Iterable<string>): Set<Permission> {
   const known = new Set<string>(ALL_PERMISSIONS);
