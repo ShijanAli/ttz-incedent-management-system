@@ -21,6 +21,13 @@ export const ENDPOINTS = {
     USER: (id: number | string) => `/api/admin/users/${id}`,
     USER_RESEND_INVITE: (id: number | string) => `/api/admin/users/${id}/resend-invite`,
   },
+  PROJECTS: {
+    LIST: '/api/projects',
+    ONE: (id: number | string) => `/api/projects/${id}`,
+    MEMBERS: (id: number | string) => `/api/projects/${id}/members`,
+    MEMBER: (id: number | string, userId: number | string) => `/api/projects/${id}/members/${userId}`,
+    STATUSES: (id: number | string) => `/api/projects/${id}/statuses`,
+  },
 } as const;
 
 /** Requests that must never trigger the 401 -> refresh-token retry. */

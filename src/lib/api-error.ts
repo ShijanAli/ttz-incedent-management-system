@@ -48,8 +48,11 @@ export function applyFieldErrors<T extends FieldValues>(
   fields: readonly Path<T>[],
 ): boolean {
   let applied = false;
+  const entries = Object.entries(error.fieldErrors);
   for (const field of fields) {
-    const messages = error.fieldErrors[field];
+    // Laravel keys array errors by index, e.g. "members.0.user_id" belongs to "members"
+    const messages =
+      error.fieldErrors[field] ?? entries.find(([key]) => key.startsWith(`${field}.`))?.[1];
     if (messages?.length) {
       setError(field, { type: 'server', message: messages[0] });
       applied = true;

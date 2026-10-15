@@ -1,137 +1,139 @@
-import { useState, useMemo } from 'react';
-import { Link, useParams } from 'react-router';
-import { useAuth } from '@/lib/auth-context';
+import { useMemo, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router';
 import {
-  projectRepo, issueRepo, userRepo, activityRepo, groupRepo,
-} from '@/lib/repository';
+  Activity as ActivityIcon, AlertCircle, Archive, Calendar, Loader2, MessageSquare, Pencil, RotateCcw,
+  Target, Trash2, Users as UsersIcon,
+} from 'lucide-react';
+import { issueRepo, userRepo, activityRepo } from '@/lib/repository';
+import { parseApiError } from '@/lib/api-error';
 import {
-  projectService, canUserViewProject, getProjectMembers, getProjectDevelopers, getProjectAssigners,
-  getProjectMemberRole,
-} from '@/lib/services';
+  ISSUE_PRIORITY_META, ISSUE_STATUS_META, formatDate, formatRelativeTime,
+} from '@/lib/shared-utils';
+import {
+  getProjectColor, getProjectInitials, getProjectPriorityMeta, getProjectProgress, getProjectStateMeta,
+  memberRoleHas, projectCan, sortStatuses,
+} from '@/lib/project-utils';
+import { useGetProjectQuery } from '@/redux/features/projects/projects-api';
+import type { ApiProject } from '@/redux/features/projects/projects-types';
 import { PageHeader } from '@/components/shared/page-header';
 import { ProjectFormDialog } from '@/components/projects/project-form-dialog';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { MemberManager } from '@/components/projects/member-manager';
+import { StatusWorkflowEditor } from '@/components/projects/status-workflow-editor';
+import { ARCHIVED_STATE } from '@/components/projects/project-actions';
+import { useProjectActions } from '@/components/projects/use-project-actions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { UserAvatar } from '@/components/shared/user-avatar';
 import { StatusBadge } from '@/components/shared/status-badge';
-import {
-  Pencil, Archive, RotateCcw, Calendar, Users as UsersIcon, Target, Tag,
-  MessageSquare, Activity as ActivityIcon, AlertCircle,
-} from 'lucide-react';
-import { toast } from 'sonner';
-import {
-  PROJECT_STATUS_META, PROJECT_PRIORITY_META, formatDate, formatRelativeTime,
-  calculateProjectProgress, ISSUE_STATUS_META, ISSUE_PRIORITY_META,
-} from '@/lib/shared-utils';
-import type { Project } from '@/lib/types';
 
 export default function ProjectDetailPage() {
-  const id = useParams().id as string;
-  const { session, hasPermission } = useAuth();
-  const [project, setProject] = useState<Project | null>(() => projectRepo.find(id) || null);
-  const [editOpen, setEditOpen] = useState(false);
-  const [confirmArchive, setConfirmArchive] = useState(false);
+  const id = Number(useParams().id);
+  const { data: project, isLoading, isError, error, refetch } = useGetProjectQuery(id, { skip: !Number.isFinite(id) });
 
-  const allIssues = useMemo(() => issueRepo.byProject(id), [id]);
-  const allUsers = useMemo(() => userRepo.all(), []);
-  const groups = useMemo(() => groupRepo.byProject(id), [id]);
-  const activities = useMemo(() => activityRepo.byProject(id), [id]);
+  if (isLoading) return <ProjectDetailSkeleton />;
 
-  if (!project) {
+  if (isError || !project) {
+    const apiError = parseApiError(error, 'Failed to load the project.');
+    const forbidden = apiError.status === 403;
+    const notFound = apiError.status === 404 || !Number.isFinite(id);
     return (
       <div className="animate-fade-in">
-        <PageHeader title="Project not found" breadcrumbs={[{ label: 'Projects', href: '/projects' }, { label: 'Not Found' }]} />
-        <Card className="p-8 text-center text-muted-foreground">
-          The project you are looking for does not exist.
-          <div className="mt-4">
-            <Button variant="outline" onClick={() => window.history.back()}>
-              Go Back
-            </Button>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  // Permission check
-  if (session && !canUserViewProject(session.user.id, project)) {
-    return (
-      <div className="animate-fade-in">
-        <PageHeader title="Access restricted" breadcrumbs={[{ label: 'Projects', href: '/projects' }, { label: project.name }]} />
+        <PageHeader
+          title={forbidden ? 'Access restricted' : notFound ? 'Project not found' : 'Something went wrong'}
+          breadcrumbs={[{ label: 'Projects', href: '/projects' }, { label: forbidden ? 'Restricted' : 'Not Found' }]}
+        />
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <AlertCircle className="mb-4 h-12 w-12 text-muted-foreground" />
-            <h3 className="text-lg font-semibold">You don&apos;t have access to this project</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Contact a project owner or administrator to be added.</p>
+            <h3 className="text-lg font-semibold">
+              {forbidden
+                ? "You don't have access to this project"
+                : notFound ? 'The project you are looking for does not exist.' : apiError.message}
+            </h3>
+            {forbidden && (
+              <p className="mt-1 text-sm text-muted-foreground">Contact a project manager or administrator to be added.</p>
+            )}
+            <div className="mt-4 flex gap-2">
+              {!forbidden && !notFound && <Button variant="outline" onClick={() => refetch()}>Retry</Button>}
+              <Button variant="outline" asChild>
+                <Link to="/projects">Back to projects</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const refresh = () => setProject(projectRepo.find(id) || null);
-  const canUpdate = hasPermission('projects.update');
-  const canDelete = hasPermission('projects.delete');
-  const canManageMembers = hasPermission('projects.assign_members');
+  return <ProjectDetail project={project} />;
+}
 
-  const owner = allUsers.find((u) => u.id === project.ownerId);
-  const members = getProjectMembers(project);
-  const developers = getProjectDevelopers(project);
-  const assigners = getProjectAssigners(project);
-  const progress = calculateProjectProgress(project.id, allIssues);
-  const statusMeta = PROJECT_STATUS_META[project.status];
-  const priorityMeta = PROJECT_PRIORITY_META[project.priority];
+function ProjectDetail({ project }: { project: ApiProject }) {
+  const navigate = useNavigate();
+  const [editOpen, setEditOpen] = useState(false);
+  const actions = useProjectActions({ onDeleted: () => navigate('/projects', { replace: true }) });
 
-  const handleArchive = () => {
-    if (!session) return;
-    projectService.archive(project.id, session.user.id);
-    toast.success('Project archived');
-    refresh();
-  };
+  // Issues, activity and users are still mock data until those modules move to the API
+  const projectKey = String(project.id);
+  const allIssues = useMemo(() => issueRepo.byProject(projectKey), [projectKey]);
+  const activities = useMemo(() => activityRepo.byProject(projectKey), [projectKey]);
+  const mockUsers = useMemo(() => userRepo.all(), []);
 
-  const handleRestore = () => {
-    if (!session) return;
-    projectService.restore(project.id, session.user.id);
-    toast.success('Project restored');
-    refresh();
-  };
+  const archived = project.state === ARCHIVED_STATE;
+  const canEdit = projectCan(project, 'projects.edit');
+  const canDelete = projectCan(project, 'projects.delete');
+  const canManageMembers = projectCan(project, 'users.edit');
+
+  const initials = getProjectInitials(project);
+  const stateMeta = getProjectStateMeta(project.state);
+  const priorityMeta = getProjectPriorityMeta(project.priority);
+  const progress = getProjectProgress(project);
+  const statuses = sortStatuses(project.statuses);
+  const developers = project.members.filter((m) => m.role === 'Developer').length;
+  const assigners = project.members.filter((m) => memberRoleHas(m, 'issues.assign')).length;
+  const counts = project.issue_counts;
 
   return (
     <div className="animate-fade-in">
       <PageHeader
         title={project.name}
-        description={project.description}
+        description={project.description ?? undefined}
         breadcrumbs={[
           { label: 'Projects', href: '/projects' },
           { label: project.name },
         ]}
         actions={
           <div className="flex items-center gap-2">
-            {canUpdate && project.status !== 'archived' && (
+            {canEdit && !archived && (
               <Button variant="outline" onClick={() => setEditOpen(true)}>
                 <Pencil className="mr-2 h-4 w-4" />
                 Edit
               </Button>
             )}
-            {canDelete && project.status === 'archived' && (
-              <Button variant="outline" onClick={handleRestore} className="text-emerald-600">
+            {canEdit && archived && (
+              <Button variant="outline" onClick={() => actions.request(project, 'restore')} className="text-emerald-600">
                 <RotateCcw className="mr-2 h-4 w-4" />
                 Restore
               </Button>
             )}
-            {canDelete && project.status !== 'archived' && (
-              <Button variant="outline" onClick={() => setConfirmArchive(true)} className="text-amber-600">
+            {canEdit && !archived && (
+              <Button variant="outline" onClick={() => actions.request(project, 'archive')} className="text-amber-600">
                 <Archive className="mr-2 h-4 w-4" />
                 Archive
+              </Button>
+            )}
+            {canDelete && (
+              <Button variant="outline" onClick={() => actions.request(project, 'delete')} className="text-destructive">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
               </Button>
             )}
           </div>
@@ -143,19 +145,22 @@ export default function ProjectDetailPage() {
         <CardContent className="p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-xl text-white text-lg font-bold" style={{ backgroundColor: project.color }}>
-                {project.key.slice(0, 3)}
+              <div
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-lg font-bold text-white"
+                style={{ backgroundColor: getProjectColor(project) }}
+              >
+                {initials}
               </div>
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="font-mono text-xs">{project.key}</Badge>
-                  <StatusBadge label={statusMeta.label} className={statusMeta.badgeClass} />
-                  <StatusBadge label={priorityMeta.label} className={priorityMeta.badgeClass} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge label={stateMeta.label} className={stateMeta.badgeClass} />
+                  {priorityMeta && <StatusBadge label={priorityMeta.label} className={priorityMeta.badgeClass} />}
+                  <Badge variant="secondary" className="text-xs font-normal">Your role: {project.my_role}</Badge>
                 </div>
-                <p className="text-sm text-muted-foreground max-w-2xl">{project.description}</p>
+                <p className="max-w-2xl text-sm text-muted-foreground">{project.description || 'No description.'}</p>
                 {project.objectives && (
                   <div className="flex items-start gap-2 pt-2">
-                    <Target className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <Target className="mt-0.5 h-4 w-4 text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">{project.objectives}</p>
                   </div>
                 )}
@@ -164,28 +169,21 @@ export default function ProjectDetailPage() {
             <div className="flex flex-col gap-2 sm:items-end">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-4 w-4" />
-                {formatDate(project.startDate)} → {formatDate(project.dueDate)}
+                {formatDate(project.start_date ?? undefined)} → {formatDate(project.due_date ?? undefined)}
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <UsersIcon className="h-4 w-4" />
-                {members.length} member{members.length !== 1 ? 's' : ''}
+                {project.member_count} member{project.member_count !== 1 ? 's' : ''}
               </div>
-              {project.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 sm:justify-end">
-                  {project.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary" className="text-xs">
-                      <Tag className="mr-1 h-2.5 w-2.5" />{tag}
-                    </Badge>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
           {/* Progress bar */}
           <div className="mt-4 space-y-1.5">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Progress ({allIssues.length} issues)</span>
+              <span className="text-muted-foreground">
+                Progress ({counts.closed} of {counts.total} issues closed)
+              </span>
               <span className="font-medium">{progress}%</span>
             </div>
             <Progress value={progress} className="h-2" />
@@ -195,91 +193,57 @@ export default function ProjectDetailPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5">
+        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="members">Members ({members.length})</TabsTrigger>
-          <TabsTrigger value="issues">Issues ({allIssues.length})</TabsTrigger>
-          <TabsTrigger value="groups">Groups ({groups.length})</TabsTrigger>
+          <TabsTrigger value="members">Members ({project.member_count})</TabsTrigger>
+          <TabsTrigger value="workflow">Workflow ({statuses.length})</TabsTrigger>
+          <TabsTrigger value="issues">Issues ({counts.total})</TabsTrigger>
+          <TabsTrigger value="groups">Groups ({project.groups.length})</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
 
         {/* Overview */}
         <TabsContent value="overview">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Issues</div>
-                <div className="mt-1 text-2xl font-bold">{allIssues.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Developers</div>
-                <div className="mt-1 text-2xl font-bold">{developers.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Issue Assigners</div>
-                <div className="mt-1 text-2xl font-bold">{assigners.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Groups</div>
-                <div className="mt-1 text-2xl font-bold">{groups.length}</div>
-              </CardContent>
-            </Card>
+            <StatCard label="Total Issues" value={counts.total} hint={`${counts.open} open · ${counts.closed} closed`} />
+            <StatCard label="Overdue Issues" value={counts.overdue} danger={counts.overdue > 0} />
+            <StatCard label="Developers" value={developers} />
+            <StatCard label="Issue Assigners" value={assigners} />
           </div>
 
           {/* Issue status breakdown */}
           <Card className="mt-4">
             <CardHeader><CardTitle className="text-base">Issue Status Breakdown</CardTitle></CardHeader>
             <CardContent className="space-y-2">
-              {Object.entries(ISSUE_STATUS_META).map(([status, meta]) => {
-                const count = allIssues.filter((i) => i.status === status).length;
-                const pct = allIssues.length > 0 ? (count / allIssues.length) * 100 : 0;
-                return (
-                  <div key={status} className="flex items-center gap-3">
-                    <div className="w-24 text-sm">{meta.label}</div>
-                    <div className="h-2 flex-1 rounded-full bg-muted overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: meta.color }} />
+              {statuses.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">No workflow statuses set up.</p>
+              ) : (
+                statuses.map((status) => {
+                  const count = status.count ?? 0;
+                  const pct = counts.total > 0 ? (count / counts.total) * 100 : 0;
+                  return (
+                    <div key={status.id} className="flex items-center gap-3">
+                      <div className="w-28 truncate text-sm">{status.name}</div>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: status.color }} />
+                      </div>
+                      <div className="w-8 text-right text-sm font-medium">{count}</div>
                     </div>
-                    <div className="w-8 text-right text-sm font-medium">{count}</div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* Members */}
         <TabsContent value="members">
-          {canManageMembers ? (
-            <MemberManager project={project} onUpdated={refresh} />
-          ) : (
-            <Card>
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  {members.map((m) => (
-                    <div key={m.id} className="flex items-center gap-3">
-                      <UserAvatar name={m.name} color={m.avatarColor} image={m.avatarUrl} size="sm" />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">{m.name}</div>
-                        <div className="text-xs text-muted-foreground">{m.title || '—'}</div>
-                      </div>
-                      <Badge variant="secondary" className="text-xs font-normal">
-                        {getProjectMemberRole(project.id, m.id)}
-                      </Badge>
-                      {project.developerIds.includes(m.id) && <Badge variant="secondary" className="text-xs">Developer</Badge>}
-                      {project.assignerIds.includes(m.id) && <Badge variant="secondary" className="text-xs">Assigner</Badge>}
-                      {project.ownerId === m.id && <Badge variant="outline" className="text-xs">Owner</Badge>}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <MemberManager project={project} canManage={canManageMembers} />
+        </TabsContent>
+
+        {/* Workflow */}
+        <TabsContent value="workflow">
+          <StatusWorkflowEditor projectId={project.id} canEdit={canEdit && !archived} />
         </TabsContent>
 
         {/* Issues */}
@@ -287,7 +251,7 @@ export default function ProjectDetailPage() {
           <Card>
             <CardContent className="p-4">
               {allIssues.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">No issues in this project yet.</div>
+                <div className="py-8 text-center text-muted-foreground">No issues in this project yet.</div>
               ) : (
                 <Table>
                   <TableHeader>
@@ -302,7 +266,7 @@ export default function ProjectDetailPage() {
                   </TableHeader>
                   <TableBody>
                     {allIssues.map((issue) => {
-                      const assignee = allUsers.find((u) => u.id === issue.assigneeId);
+                      const assignee = mockUsers.find((u) => u.id === issue.assigneeId);
                       const iStatusMeta = ISSUE_STATUS_META[issue.status];
                       const iPriorityMeta = ISSUE_PRIORITY_META[issue.priority];
                       return (
@@ -342,20 +306,25 @@ export default function ProjectDetailPage() {
         <TabsContent value="groups">
           <Card>
             <CardContent className="p-4">
-              {groups.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">No groups in this project.</div>
+              {project.groups.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">No groups in this project.</div>
               ) : (
                 <div className="space-y-3">
-                  {groups.map((g) => (
-                    <Link key={g.id} to={`/groups/${g.id}`} className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+                  {project.groups.map((g) => (
+                    <Link
+                      key={g.id}
+                      to={`/groups/${g.id}`}
+                      className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50"
+                    >
                       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                         <MessageSquare className="h-5 w-5 text-primary" />
                       </div>
                       <div className="flex-1">
                         <div className="text-sm font-medium">{g.name}</div>
-                        <div className="text-xs text-muted-foreground">{g.memberIds.length} members</div>
+                        <div className="text-xs text-muted-foreground">
+                          {g.member_count} member{g.member_count !== 1 ? 's' : ''}
+                        </div>
                       </div>
-                      <Badge variant="outline" className="text-xs capitalize">{g.type}</Badge>
                     </Link>
                   ))}
                 </div>
@@ -369,11 +338,11 @@ export default function ProjectDetailPage() {
           <Card>
             <CardContent className="p-4">
               {activities.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">No activity recorded.</div>
+                <div className="py-8 text-center text-muted-foreground">No activity recorded.</div>
               ) : (
                 <div className="space-y-3">
                   {activities.slice().reverse().map((a) => {
-                    const actor = allUsers.find((u) => u.id === a.actorId);
+                    const actor = mockUsers.find((u) => u.id === a.actorId);
                     return (
                       <div key={a.id} className="flex items-start gap-3 text-sm">
                         <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-muted">
@@ -394,22 +363,37 @@ export default function ProjectDetailPage() {
         </TabsContent>
       </Tabs>
 
-      <ProjectFormDialog
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        project={project}
-        onSaved={refresh}
-      />
+      <ProjectFormDialog open={editOpen} onOpenChange={setEditOpen} project={project} />
+      <ConfirmDialog {...actions.dialogProps} />
+    </div>
+  );
+}
 
-      <ConfirmDialog
-        open={confirmArchive}
-        onOpenChange={setConfirmArchive}
-        title="Archive project"
-        description={`Archive "${project.name}"? You can restore it later.`}
-        confirmLabel="Archive"
-        variant="destructive"
-        onConfirm={handleArchive}
-      />
+function StatCard({ label, value, hint, danger }: { label: string; value: number; hint?: string; danger?: boolean }) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className={`mt-1 text-2xl font-bold ${danger ? 'text-red-600' : ''}`}>{value}</div>
+        {hint && <div className="mt-0.5 text-xs text-muted-foreground">{hint}</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProjectDetailSkeleton() {
+  return (
+    <div className="animate-fade-in space-y-6" aria-busy="true">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading project...
+      </div>
+      <Skeleton className="h-8 w-64" />
+      <Skeleton className="h-40 w-full rounded-xl" />
+      <Skeleton className="h-10 w-full" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+      </div>
     </div>
   );
 }
