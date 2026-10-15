@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
@@ -16,6 +17,7 @@ import { UserAvatar } from '@/components/shared/user-avatar';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { InfiniteScrollTrigger } from '@/components/shared/infinite-scroll-trigger';
 import { TableSkeletonRows } from '@/components/shared/table-skeleton-rows';
+import { ROW_INDEX_ATTR, ScrollPositionIndicator } from '@/components/shared/scroll-position-indicator';
 import { UserFormDialog } from '@/components/users/user-form-dialog';
 import { UserStatusIndicator } from '@/components/users/user-status-indicator';
 import { Card, CardContent } from '@/components/ui/card';
@@ -34,12 +36,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  MoreVertical, Plus, Search, Pencil, Mail, Send, Lock, AlertTriangle, RotateCw, ShieldCheck, X,
+  MoreVertical, Plus, Search, Pencil, Mail, Send, Lock, AlertTriangle, RotateCw, ShieldCheck, X, Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-const COLUMN_COUNT = 7;
+const COLUMN_COUNT = 8;
 const ALL = 'all';
 
 type UserActionType = 'activate' | 'deactivate' | 'resend';
@@ -78,10 +80,17 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState<string>(ALL);
   const [roleFilter, setRoleFilter] = useState<string>(ALL);
 
-  // Status is filtered by the API (undefined params are dropped from the query string).
-  // Each filter value is its own cache entry, so changing it starts again from page 1.
+  // The input updates instantly; the API only sees the value once typing pauses
+  const debouncedSearch = useDebouncedValue(search.trim());
+  const isSearchPending = search.trim() !== debouncedSearch;
+
+  // Search and status are filtered by the API (undefined params are dropped from the query
+  // string). Each combination is its own cache entry, so changing one starts again from page 1.
   const list = useInfiniteList(
-    useGetUsersInfiniteQuery({ status: statusFilter === ALL ? undefined : statusFilter }),
+    useGetUsersInfiniteQuery({
+      search: debouncedSearch || undefined,
+      status: statusFilter === ALL ? undefined : statusFilter,
+    }),
   );
   const { data: roles = [] } = useGetRolesQuery();
   const [disableUser] = useDisableUserMutation();
@@ -91,16 +100,13 @@ export default function UsersPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
 
-  // Search and role still apply to the loaded rows until the backend supports them as params
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return list.items.filter((u) => {
-      if (q && ![u.name, u.email, u.designation ?? ''].some((v) => v.toLowerCase().includes(q))) return false;
-      if (roleFilter !== ALL && u.default_role !== roleFilter) return false;
-      return true;
-    });
-  }, [list.items, search, roleFilter]);
+  // Role still applies to the loaded rows until the backend supports it as a param
+  const filtered = useMemo(
+    () => (roleFilter === ALL ? list.items : list.items.filter((u) => u.default_role === roleFilter)),
+    [list.items, roleFilter],
+  );
 
   const hasFilters = search !== '' || statusFilter !== ALL || roleFilter !== ALL;
 
@@ -170,12 +176,18 @@ export default function UsersPage() {
           {/* Filters */}
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              {isSearchPending || (list.isFetching && !list.showSkeleton && debouncedSearch) ? (
+                <Loader2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+              ) : (
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              )}
               <Input
+                type="search"
                 placeholder="Search by name, email..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
+                aria-label="Search users"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -225,10 +237,11 @@ export default function UsersPage() {
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto">
+          <div ref={tableRef} className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[60px]">SL</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Roles</TableHead>
@@ -263,7 +276,7 @@ export default function UsersPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((user) => {
+                  filtered.map((user, index) => {
                     const self = isSelf(user);
                     // Super admin accounts are protected from every action
                     const locked = user.is_super_admin;
@@ -272,7 +285,8 @@ export default function UsersPage() {
                     // Backend rejects re-inviting active accounts (USER_ALREADY_ACTIVE)
                     const canResend = canEdit && user.status === 'invited';
                     return (
-                      <TableRow key={user.id}>
+                      <TableRow key={user.id} {...{ [ROW_INDEX_ATTR]: index }}>
+                        <TableCell className="text-sm tabular-nums text-muted-foreground">{index + 1}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <UserAvatar name={user.name} color={getAvatarColor(user.id)} size="sm" />
@@ -368,6 +382,12 @@ export default function UsersPage() {
           />
         </CardContent>
       </Card>
+
+      {/* The role filter is client-side, so the server total doesn't apply while it's set */}
+      <ScrollPositionIndicator
+        containerRef={tableRef}
+        total={roleFilter === ALL ? list.total : filtered.length}
+      />
 
       <UserFormDialog open={formOpen} onOpenChange={setFormOpen} user={editingUser} />
 

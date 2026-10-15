@@ -20,6 +20,8 @@ export interface AdminUser extends Omit<ApiUser, 'can_manage_users' | 'status'> 
 export interface UserListParams extends InfiniteListParams {
   /** Server-side status filter; omit for all statuses */
   status?: UserStatus;
+  /** Server-side text search (name, email, ...); omit when empty */
+  search?: string;
 }
 
 // ---- Requests ----
