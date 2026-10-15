@@ -595,7 +595,7 @@ function RoleEditorForm({ role, allRoles, modules }: RoleEditorFormProps) {
       </div>
 
       {/* ─── Sticky action bar ─── */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 backdrop-blur lg:left-[240px]">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 backdrop-blur lg:left-[var(--sidebar-width)] transition-[left] duration-300">
         <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
           <div className="min-w-0 flex-1 text-sm">
             {hasChanges ? (

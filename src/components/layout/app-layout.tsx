@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from 'react-router';
 import { useAuth } from '@/lib/auth-context';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
+import { SidebarProvider, useSidebar } from '@/components/layout/sidebar-context';
 import { Loader2 } from 'lucide-react';
 
 export default function AppLayout() {
@@ -31,9 +32,20 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <SidebarProvider>
+      <LayoutShell />
+    </SidebarProvider>
+  );
+}
+
+function LayoutShell() {
+  const { width } = useSidebar();
+
+  return (
+    // --sidebar-width lets the content and any fixed bars follow the sidebar's width
+    <div className="min-h-screen bg-background" style={{ '--sidebar-width': `${width}px` } as React.CSSProperties}>
       <Sidebar />
-      <div className="lg:pl-[240px]">
+      <div className="transition-[padding] duration-300 lg:pl-[var(--sidebar-width)]">
         <Topbar />
         <main className="p-4 lg:p-6">
           <Suspense

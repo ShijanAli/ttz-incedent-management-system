@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router';
 import { ChevronLeft, ChevronRight, ShieldCheck } from 'lucide-react';
 import { NAV_ITEMS } from '@/lib/nav-config';
 import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useSidebar } from '@/components/layout/sidebar-context';
 
 export function Sidebar() {
   const { pathname } = useLocation();
   const { session, hasPermission } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, toggleCollapsed } = useSidebar();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -33,7 +34,8 @@ export function Sidebar() {
       <aside
         className={cn(
           'fixed left-0 top-0 z-50 flex h-screen flex-col bg-sidebar text-sidebar-foreground transition-all duration-300',
-          collapsed ? 'w-[60px]' : 'w-[240px]',
+          // Full width on mobile (drawer); collapsible only on desktop
+          'w-[240px] lg:w-[var(--sidebar-width)]',
           'lg:translate-x-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
@@ -43,12 +45,11 @@ export function Sidebar() {
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <ShieldCheck className="h-5 w-5" />
           </div>
-          {!collapsed && (
-            <div className="overflow-hidden">
-              <div className="truncate text-sm font-bold tracking-tight">Techtrioz IMS</div>
-              <div className="truncate text-[10px] text-sidebar-foreground/60">Incident Management</div>
-            </div>
-          )}
+          {/* Collapsing is desktop-only; the mobile drawer always shows labels */}
+          <div className={cn('overflow-hidden', collapsed && 'lg:hidden')}>
+            <div className="truncate text-sm font-bold tracking-tight">Techtrioz IMS</div>
+            <div className="truncate text-[10px] text-sidebar-foreground/60">Incident Management</div>
+          </div>
         </div>
 
         {/* Nav */}
@@ -69,7 +70,7 @@ export function Sidebar() {
                 title={collapsed ? item.label : undefined}
               >
                 <Icon className="h-[18px] w-[18px] shrink-0" />
-                {!collapsed && <span className="truncate">{item.label}</span>}
+                <span className={cn('truncate', collapsed && 'lg:hidden')}>{item.label}</span>
               </Link>
             );
           })}
@@ -80,7 +81,8 @@ export function Sidebar() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className="w-full justify-center text-sidebar-foreground/70 hover:bg-white/5 hover:text-white"
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
