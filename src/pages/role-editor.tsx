@@ -1,9 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useAuth } from '@/lib/auth-context';
-import { roleRepo, userRepo, activityRepo } from '@/lib/repository';
-import { PERMISSION_MODULES, ALL_PERMISSIONS, PERMISSION_LABELS, MODULE_LABELS, getPermissionModule } from '@/lib/permissions';
+import { parseApiError } from '@/lib/api-error';
+import { getPermissionModule, toAppPermissions } from '@/lib/permissions';
 import { NAV_ITEMS } from '@/lib/nav-config';
+import {
+  useCreateRoleMutation,
+  useGetPermissionCatalogQuery,
+  useGetRolesQuery,
+  useUpdateRoleMutation,
+} from '@/redux/features/roles/roles-api';
+import type { ApiPermissionModule, ApiRole } from '@/redux/features/roles/roles-types';
 import { PageHeader } from '@/components/shared/page-header';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -12,66 +19,140 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
   ArrowLeft, Loader2, AlertTriangle, Sparkles, Eye, ShieldAlert, Users as UsersIcon,
-  Plus, Minus, Check, Lock,
+  Plus, Minus, Check, Lock, MessageCircle, Paperclip, RotateCw, type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import type { Permission, PermissionModule } from '@/lib/types';
 
 type AccessLevel = 'none' | 'view' | 'custom' | 'full';
+type FormErrors = Partial<Record<'name' | 'description' | 'permissions', string>>;
 
-// Permissions that can cause damage or escalate privileges.
-const SENSITIVE_PERMS = new Set<Permission>([
-  'projects.delete', 'issues.delete', 'groups.delete',
-  'users.create', 'users.update', 'users.deactivate',
-  'roles.create', 'roles.update', 'roles.delete', 'roles.assign_permissions',
-  'settings.update',
+// Backend permissions that can cause damage or escalate privileges.
+const SENSITIVE_PERMS = new Set<string>([
+  'projects.delete', 'issues.delete', 'comments.delete', 'attachments.delete',
+  'issues.assign', 'users.edit',
 ]);
 
-const MODULE_ICONS = Object.fromEntries(
-  NAV_ITEMS.map((item) => [getPermissionModule(item.permission), item.icon])
-) as Partial<Record<PermissionModule, (typeof NAV_ITEMS)[number]['icon']>>;
+const MODULE_ICONS: Record<string, LucideIcon> = {
+  ...Object.fromEntries(NAV_ITEMS.map((item) => [getPermissionModule(item.permission), item.icon])),
+  comments: MessageCircle,
+  attachments: Paperclip,
+};
 
-// Keyed by id so form state resets when moving between roles
+const isViewPerm = (perm: { action: string }) => perm.action === 'view';
+
+/** Loads the role + permission catalog, then mounts the form with real data. */
 export default function RoleEditorRoute() {
   const { id } = useParams();
-  return <RoleEditorPage key={id ?? 'new'} id={id} />;
-}
-
-function RoleEditorPage({ id }: { id?: string }) {
-  const navigate = useNavigate();
-  const { session, hasPermission } = useAuth();
+  const { hasPermission } = useAuth();
 
   const isNew = !id || id === 'new';
-  const role = useMemo(() => (isNew ? undefined : roleRepo.find(id!)), [id, isNew]);
-  const allRoles = useMemo(() => roleRepo.all(), []);
-  const assignedUsers = useMemo(
-    () => (role ? userRepo.all().filter((u) => u.roleIds.includes(role.id)).length : 0),
-    [role]
+  const canEdit = isNew ? hasPermission('roles.create') : hasPermission('roles.update');
+
+  const rolesQuery = useGetRolesQuery(undefined, { skip: !canEdit });
+  const catalogQuery = useGetPermissionCatalogQuery(undefined, { skip: !canEdit });
+
+  if (!canEdit) {
+    return (
+      <EmptyState
+        icon={<Lock className="h-6 w-6" />}
+        title="You don't have access"
+        description={`You need the "${isNew ? 'roles.create' : 'roles.update'}" permission to use the role editor.`}
+      />
+    );
+  }
+
+  if (rolesQuery.isLoading || catalogQuery.isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24 text-sm text-muted-foreground">
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+        Loading role editor...
+      </div>
+    );
+  }
+
+  if (rolesQuery.isError || catalogQuery.isError) {
+    return (
+      <EmptyState
+        icon={<AlertTriangle className="h-6 w-6" />}
+        title="Could not load the role editor"
+        description={parseApiError(rolesQuery.error ?? catalogQuery.error).message}
+        onRetry={() => {
+          if (rolesQuery.isError) rolesQuery.refetch();
+          if (catalogQuery.isError) catalogQuery.refetch();
+        }}
+      />
+    );
+  }
+
+  const allRoles = rolesQuery.data ?? [];
+  const role = isNew ? undefined : allRoles.find((r) => String(r.id) === id);
+
+  if (!isNew && !role) {
+    return (
+      <EmptyState
+        icon={<AlertTriangle className="h-6 w-6" />}
+        title="Role not found"
+        description="This role may have been deleted."
+      />
+    );
+  }
+
+  // Keyed by id so form state resets when moving between roles
+  return (
+    <RoleEditorForm
+      key={id ?? 'new'}
+      role={role}
+      allRoles={allRoles}
+      modules={catalogQuery.data ?? []}
+    />
   );
+}
+
+interface RoleEditorFormProps {
+  role?: ApiRole;
+  allRoles: ApiRole[];
+  modules: ApiPermissionModule[];
+}
+
+function RoleEditorForm({ role, allRoles, modules }: RoleEditorFormProps) {
+  const navigate = useNavigate();
+  const [createRole, { isLoading: creating }] = useCreateRoleMutation();
+  const [updateRole, { isLoading: updating }] = useUpdateRoleMutation();
+
+  const isNew = !role;
+  const saving = creating || updating;
+  const assignedUsers = role?.member_count ?? 0;
 
   const [name, setName] = useState(role?.name ?? '');
   const [description, setDescription] = useState(role?.description ?? '');
-  const [isActive, setIsActive] = useState(role?.isActive ?? true);
-  const [selectedPerms, setSelectedPerms] = useState<Set<Permission>>(new Set(role?.permissions ?? []));
+  // Not stored by the backend yet; kept so the UI is ready when it is
+  const [isActive, setIsActive] = useState(role?.is_active ?? true);
+  const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set(role?.permissions ?? []));
   const [template, setTemplate] = useState('blank');
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<FormErrors>({});
   const [confirmLeave, setConfirmLeave] = useState(false);
 
-  const originalPerms = useMemo(() => new Set<Permission>(role?.permissions ?? []), [role]);
-  const canEdit = isNew ? hasPermission('roles.create') : hasPermission('roles.update');
+  const originalPerms = useMemo(() => new Set<string>(role?.permissions ?? []), [role]);
+
+  const allPermissions = useMemo(
+    () => modules.flatMap((m) => m.permissions.map((p) => p.name)),
+    [modules]
+  );
+  const permIndex = useMemo(
+    () => new Map(modules.flatMap((m) => m.permissions.map((p) => [p.name, `${m.label} · ${p.label}`] as const))),
+    [modules]
+  );
 
   const hasChanges = useMemo(() => {
     if (name !== (role?.name ?? '')) return true;
     if (description !== (role?.description ?? '')) return true;
-    if (isActive !== (role?.isActive ?? true)) return true;
+    if (isActive !== (role?.is_active ?? true)) return true;
     if (selectedPerms.size !== originalPerms.size) return true;
     for (const p of selectedPerms) if (!originalPerms.has(p)) return true;
     return false;
@@ -86,28 +167,26 @@ function RoleEditorPage({ id }: { id?: string }) {
   }, [hasChanges]);
 
   // ─── Permission helpers ───
-  const getLevel = (moduleKey: PermissionModule): AccessLevel => {
-    const mod = PERMISSION_MODULES.find((m) => m.module === moduleKey)!;
-    const picked = mod.permissions.filter((p) => selectedPerms.has(p.value));
+  const getLevel = (mod: ApiPermissionModule): AccessLevel => {
+    const picked = mod.permissions.filter((p) => selectedPerms.has(p.name));
     if (picked.length === 0) return 'none';
     if (picked.length === mod.permissions.length) return 'full';
-    if (picked.length === 1 && picked[0].value.endsWith('.view')) return 'view';
+    if (picked.length === 1 && isViewPerm(picked[0])) return 'view';
     return 'custom';
   };
 
-  const setLevel = (moduleKey: PermissionModule, level: Exclude<AccessLevel, 'custom'>) => {
-    const mod = PERMISSION_MODULES.find((m) => m.module === moduleKey)!;
+  const setLevel = (mod: ApiPermissionModule, level: Exclude<AccessLevel, 'custom'>) => {
     setSelectedPerms((prev) => {
       const next = new Set(prev);
-      mod.permissions.forEach((p) => next.delete(p.value));
-      if (level === 'full') mod.permissions.forEach((p) => next.add(p.value));
-      if (level === 'view') mod.permissions.filter((p) => p.value.endsWith('.view')).forEach((p) => next.add(p.value));
+      mod.permissions.forEach((p) => next.delete(p.name));
+      if (level === 'full') mod.permissions.forEach((p) => next.add(p.name));
+      if (level === 'view') mod.permissions.filter(isViewPerm).forEach((p) => next.add(p.name));
       return next;
     });
     setErrors((e) => ({ ...e, permissions: '' }));
   };
 
-  const togglePerm = (perm: Permission) => {
+  const togglePerm = (perm: string) => {
     setSelectedPerms((prev) => {
       const next = new Set(prev);
       if (next.has(perm)) next.delete(perm);
@@ -119,26 +198,27 @@ function RoleEditorPage({ id }: { id?: string }) {
 
   const applyTemplate = (value: string) => {
     setTemplate(value);
-    const source = allRoles.find((r) => r.id === value);
+    const source = allRoles.find((r) => String(r.id) === value);
     setSelectedPerms(new Set(source?.permissions ?? []));
   };
 
   // ─── Derived preview data ───
-  const coverage = Math.round((selectedPerms.size / ALL_PERMISSIONS.length) * 100);
+  const coverage = allPermissions.length ? Math.round((selectedPerms.size / allPermissions.length) * 100) : 0;
   const sensitiveCount = [...selectedPerms].filter((p) => SENSITIVE_PERMS.has(p)).length;
   const risk =
     sensitiveCount === 0 ? { label: 'Low', tone: 'text-emerald-600 bg-emerald-500/10' }
     : sensitiveCount <= 3 ? { label: 'Medium', tone: 'text-amber-600 bg-amber-500/10' }
     : { label: 'High', tone: 'text-destructive bg-destructive/10' };
 
-  const visibleNav = NAV_ITEMS.filter((item) => selectedPerms.has(item.permission));
+  const appPerms = toAppPermissions(selectedPerms);
+  const visibleNav = NAV_ITEMS.filter((item) => appPerms.has(item.permission));
 
-  const summary = PERMISSION_MODULES.flatMap((mod) => {
-    const level = getLevel(mod.module);
+  const summary = modules.flatMap((mod) => {
+    const level = getLevel(mod);
     if (level === 'none') return [];
     if (level === 'full') return [`Full access to ${mod.label}`];
     if (level === 'view') return [`View ${mod.label}`];
-    const labels = mod.permissions.filter((p) => selectedPerms.has(p.value)).map((p) => p.label);
+    const labels = mod.permissions.filter((p) => selectedPerms.has(p.name)).map((p) => p.label);
     return [`${mod.label}: ${labels.join(', ')}`];
   });
 
@@ -147,68 +227,52 @@ function RoleEditorPage({ id }: { id?: string }) {
 
   // ─── Save ───
   const validate = (): boolean => {
-    const errs: Record<string, string> = {};
-    if (!name.trim()) errs.name = 'Role name is required';
-    else if (name.trim().length < 2) errs.name = 'Name must be at least 2 characters';
-    else if (allRoles.some((r) => r.name.toLowerCase() === name.trim().toLowerCase() && r.id !== role?.id)) {
+    const errs: FormErrors = {};
+    const trimmed = name.trim();
+    if (!trimmed) errs.name = 'Role name is required';
+    else if (trimmed.length < 2) errs.name = 'Name must be at least 2 characters';
+    else if (allRoles.some((r) => r.name.toLowerCase() === trimmed.toLowerCase() && r.id !== role?.id)) {
       errs.name = 'A role with this name already exists';
     }
-    if (!description.trim()) errs.description = 'Description is required';
     if (selectedPerms.size === 0) errs.permissions = 'At least one permission must be assigned';
-    if (role?.name === 'Super Admin' && role.isSystem && !ALL_PERMISSIONS.every((p) => selectedPerms.has(p))) {
-      errs.permissions = 'The Super Admin system role must retain all permissions';
-    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  const handleSave = () => {
-    if (!validate() || !session) {
+  const handleSave = async () => {
+    if (!validate()) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-    setSaving(true);
+    const body = {
+      name: name.trim(),
+      description: description.trim(),
+      permissions: Array.from(selectedPerms),
+    };
     try {
-      const permArray = Array.from(selectedPerms);
       if (role) {
-        roleRepo.update(role.id, {
-          name: name.trim(),
-          description: description.trim(),
-          isActive,
-          permissions: permArray,
-        });
-        activityRepo.create({
-          actorId: session.user.id,
-          action: 'role_updated',
-          entityType: 'Role',
-          entityId: role.id,
-          entityName: name.trim(),
-          summary: `Updated role "${name.trim()}" (${permArray.length} permissions)`,
-        });
-        toast.success('Role updated', { description: `${name.trim()} has been saved with ${permArray.length} permissions.` });
+        await updateRole({ id: role.id, ...body }).unwrap();
+        toast.success('Role updated', { description: `${body.name} has been saved with ${body.permissions.length} permissions.` });
       } else {
-        const newRole = roleRepo.create({
-          name: name.trim(),
-          description: description.trim(),
-          permissions: permArray,
-          isSystem: false,
-          isActive,
-        });
-        activityRepo.create({
-          actorId: session.user.id,
-          action: 'role_created',
-          entityType: 'Role',
-          entityId: newRole.id,
-          entityName: newRole.name,
-          summary: `Created role "${newRole.name}" with ${permArray.length} permissions`,
-        });
-        toast.success('Role created', { description: `${name.trim()} has been created with ${permArray.length} permissions.` });
+        await createRole(body).unwrap();
+        toast.success('Role created', { description: `${body.name} has been created with ${body.permissions.length} permissions.` });
       }
       navigate('/roles');
-    } catch {
-      toast.error('Failed to save role');
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      const apiError = parseApiError(err, 'Failed to save role');
+      // Laravel keys array errors as `permissions.0`, so match by prefix
+      const fieldError = (field: string) =>
+        Object.entries(apiError.fieldErrors).find(([key]) => key === field || key.startsWith(`${field}.`))?.[1][0];
+      const serverErrors: FormErrors = {
+        name: fieldError('name'),
+        description: fieldError('description'),
+        permissions: fieldError('permissions'),
+      };
+      if (Object.values(serverErrors).some(Boolean)) {
+        setErrors(serverErrors);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      toast.error('Failed to save role', { description: apiError.message });
     }
   };
 
@@ -217,31 +281,10 @@ function RoleEditorPage({ id }: { id?: string }) {
     else navigate('/roles');
   };
 
-  // ─── Guards ───
-  if (!canEdit) {
-    return (
-      <EmptyState
-        icon={<Lock className="h-6 w-6" />}
-        title="You don't have access"
-        description={`You need the "${isNew ? 'roles.create' : 'roles.update'}" permission to use the role editor.`}
-      />
-    );
-  }
-
-  if (!isNew && !role) {
-    return (
-      <EmptyState
-        icon={<AlertTriangle className="h-6 w-6" />}
-        title="Role not found"
-        description="This role may have been deleted."
-      />
-    );
-  }
-
   return (
     <div className="animate-fade-in pb-24">
       <PageHeader
-        title={isNew ? 'Create New Role' : `Edit Role: ${role!.name}`}
+        title={isNew ? 'Create New Role' : `Edit Role: ${role.name}`}
         description={
           isNew
             ? 'Pick an access level for each module, and watch the preview on the right update as you go.'
@@ -249,7 +292,7 @@ function RoleEditorPage({ id }: { id?: string }) {
         }
         breadcrumbs={[
           { label: 'Roles & Permissions', href: '/roles' },
-          { label: isNew ? 'New Role' : role!.name },
+          { label: isNew ? 'New Role' : role.name },
         ]}
         actions={
           <Button variant="outline" onClick={handleCancel}>
@@ -276,10 +319,10 @@ function RoleEditorPage({ id }: { id?: string }) {
                     value={name}
                     onChange={(e) => { setName(e.target.value); setErrors({ ...errors, name: '' }); }}
                     placeholder="e.g. Project Manager"
-                    disabled={role?.isSystem}
+                    disabled={role?.is_system}
                   />
                   {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
-                  {role?.isSystem && <p className="text-xs text-muted-foreground">System role names cannot be changed.</p>}
+                  {role?.is_system && <p className="text-xs text-muted-foreground">System role names cannot be changed.</p>}
                 </div>
 
                 {isNew ? (
@@ -292,7 +335,7 @@ function RoleEditorPage({ id }: { id?: string }) {
                       <SelectContent>
                         <SelectItem value="blank">Blank role</SelectItem>
                         {allRoles.map((r) => (
-                          <SelectItem key={r.id} value={r.id}>
+                          <SelectItem key={r.id} value={String(r.id)}>
                             Copy of {r.name} ({r.permissions.length})
                           </SelectItem>
                         ))}
@@ -314,14 +357,14 @@ function RoleEditorPage({ id }: { id?: string }) {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="roleDesc">Description <span className="text-destructive">*</span></Label>
+                <Label htmlFor="roleDesc">Description</Label>
                 <Textarea
                   id="roleDesc"
                   value={description}
                   onChange={(e) => { setDescription(e.target.value); setErrors({ ...errors, description: '' }); }}
                   placeholder="Describe what this role can do..."
                   rows={2}
-                  disabled={role?.isSystem}
+                  disabled={role?.is_system}
                 />
                 {errors.description && <p className="text-xs text-destructive">{errors.description}</p>}
               </div>
@@ -349,7 +392,7 @@ function RoleEditorPage({ id }: { id?: string }) {
                 </CardDescription>
               </div>
               <div className="flex shrink-0 gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setSelectedPerms(new Set(ALL_PERMISSIONS))}>
+                <Button type="button" variant="outline" size="sm" onClick={() => setSelectedPerms(new Set(allPermissions))}>
                   All
                 </Button>
                 <Button type="button" variant="outline" size="sm" onClick={() => setSelectedPerms(new Set())}>
@@ -365,12 +408,12 @@ function RoleEditorPage({ id }: { id?: string }) {
                 </div>
               )}
 
-              {PERMISSION_MODULES.map((mod) => {
-                const level = getLevel(mod.module);
+              {modules.map((mod) => {
+                const level = getLevel(mod);
                 const Icon = MODULE_ICONS[mod.module];
-                const pickedCount = mod.permissions.filter((p) => selectedPerms.has(p.value)).length;
+                const pickedCount = mod.permissions.filter((p) => selectedPerms.has(p.name)).length;
                 const levels: { key: Exclude<AccessLevel, 'custom'>; label: string }[] =
-                  mod.permissions.length > 1
+                  mod.permissions.length > 1 && mod.permissions.some(isViewPerm)
                     ? [{ key: 'none', label: 'None' }, { key: 'view', label: 'View' }, { key: 'full', label: 'Full' }]
                     : [{ key: 'none', label: 'None' }, { key: 'full', label: 'Full' }];
 
@@ -405,7 +448,7 @@ function RoleEditorPage({ id }: { id?: string }) {
                           <button
                             key={l.key}
                             type="button"
-                            onClick={() => setLevel(mod.module, l.key)}
+                            onClick={() => setLevel(mod, l.key)}
                             className={cn(
                               'rounded-md px-3 py-1 text-xs font-medium transition-colors',
                               level === l.key
@@ -423,14 +466,14 @@ function RoleEditorPage({ id }: { id?: string }) {
                     {mod.permissions.length > 1 && (
                       <div className="mt-3 flex flex-wrap gap-2 pl-12">
                         {mod.permissions.map((perm) => {
-                          const checked = selectedPerms.has(perm.value);
-                          const sensitive = SENSITIVE_PERMS.has(perm.value);
+                          const checked = selectedPerms.has(perm.name);
+                          const sensitive = SENSITIVE_PERMS.has(perm.name);
                           return (
                             <button
-                              key={perm.value}
+                              key={perm.name}
                               type="button"
-                              onClick={() => togglePerm(perm.value)}
-                              title={perm.description}
+                              onClick={() => togglePerm(perm.name)}
+                              title={perm.name}
                               className={cn(
                                 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors',
                                 checked
@@ -460,7 +503,7 @@ function RoleEditorPage({ id }: { id?: string }) {
               <CoverageRing value={coverage} />
               <div className="min-w-0 flex-1 space-y-1.5">
                 <div className="text-sm font-semibold">
-                  {selectedPerms.size} of {ALL_PERMISSIONS.length} permissions
+                  {selectedPerms.size} of {allPermissions.length} permissions
                 </div>
                 <div className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', risk.tone)}>
                   <ShieldAlert className="h-3 w-3" />
@@ -536,13 +579,13 @@ function RoleEditorPage({ id }: { id?: string }) {
                 {added.map((p) => (
                   <div key={p} className="flex items-center gap-2 text-xs text-emerald-600">
                     <Plus className="h-3 w-3" />
-                    {MODULE_LABELS[getPermissionModule(p)]} · {PERMISSION_LABELS[p]}
+                    {permIndex.get(p) ?? p}
                   </div>
                 ))}
                 {removed.map((p) => (
                   <div key={p} className="flex items-center gap-2 text-xs text-destructive">
                     <Minus className="h-3 w-3" />
-                    {MODULE_LABELS[getPermissionModule(p)]} · {PERMISSION_LABELS[p]}
+                    {permIndex.get(p) ?? p}
                   </div>
                 ))}
               </CardContent>
@@ -606,7 +649,9 @@ function CoverageRing({ value }: { value: number }) {
   );
 }
 
-function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+function EmptyState({
+  icon, title, description, onRetry,
+}: { icon: React.ReactNode; title: string; description: string; onRetry?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
@@ -614,12 +659,20 @@ function EmptyState({ icon, title, description }: { icon: React.ReactNode; title
       </div>
       <h2 className="text-lg font-semibold">{title}</h2>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">{description}</p>
-      <Button asChild variant="outline" className="mt-6">
-        <Link to="/roles">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to roles
-        </Link>
-      </Button>
+      <div className="mt-6 flex gap-2">
+        {onRetry && (
+          <Button variant="outline" onClick={onRetry}>
+            <RotateCw className="mr-2 h-4 w-4" />
+            Retry
+          </Button>
+        )}
+        <Button asChild variant="outline">
+          <Link to="/roles">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to roles
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }

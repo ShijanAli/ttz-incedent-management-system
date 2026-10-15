@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo } from 'react';
 import type { User, Permission } from '@/lib/types';
-import { ALL_PERMISSIONS } from '@/lib/permissions';
+import { ALL_PERMISSIONS, toAppPermissions } from '@/lib/permissions';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import { baseApi } from '@/redux/api/base-api';
 import { useGetMeQuery, useLogoutMutation } from '@/redux/features/auth/auth-api';
@@ -34,16 +34,6 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-/** API permission names that differ from the app's permission names */
-const API_PERMISSION_ALIASES: Record<string, Permission[]> = {
-  'projects.edit': ['projects.update', 'projects.assign_members'],
-  'issues.edit': ['issues.update'],
-  'issues.pick': ['issues.assign'],
-  'issues.status': ['issues.change_status'],
-  'comments.create': ['issues.comment'],
-  'users.edit': ['users.view', 'users.update'],
-};
-
 /** Every signed-in user can reach these regardless of project access */
 const BASELINE_PERMISSIONS: Permission[] = ['dashboard.view', 'notifications.view', 'settings.view'];
 
@@ -53,14 +43,8 @@ function resolvePermissions(access: UserAccess | null): Permission[] {
   if (!access) return BASELINE_PERMISSIONS;
   if (access.is_super_admin) return ALL_PERMISSIONS;
 
-  const known = new Set<string>(ALL_PERMISSIONS);
-  const result = new Set<Permission>(BASELINE_PERMISSIONS);
-  for (const project of access.projects) {
-    for (const perm of project.permissions) {
-      if (known.has(perm)) result.add(perm as Permission);
-      API_PERMISSION_ALIASES[perm]?.forEach((p) => result.add(p));
-    }
-  }
+  const result = toAppPermissions(access.projects.flatMap((p) => p.permissions));
+  BASELINE_PERMISSIONS.forEach((p) => result.add(p));
   if (access.can_manage_users) {
     (['users.view', 'users.create', 'users.update', 'users.deactivate'] as Permission[]).forEach((p) => result.add(p));
   }

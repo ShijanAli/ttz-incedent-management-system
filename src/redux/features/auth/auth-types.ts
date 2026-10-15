@@ -6,6 +6,8 @@ export interface ApiUser {
   designation: string | null;
   status: 'active' | 'inactive' | (string & {});
   is_super_admin: boolean;
+  /** Sent on /auth/me; login sends it inside `access` instead */
+  can_manage_users?: boolean;
   must_change_password: boolean;
   last_login_at: string | null;
   created_at: string;
@@ -39,7 +41,8 @@ export interface AuthPayload extends AuthTokens {
   access: UserAccess;
 }
 
-export type MeResponse = ApiUser & { access: UserAccess };
+/** `access` is not always present on /auth/me */
+export type MeResponse = ApiUser & { access?: UserAccess };
 
 // ---- Requests ----
 

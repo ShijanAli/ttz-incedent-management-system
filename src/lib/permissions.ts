@@ -123,3 +123,24 @@ export function getModulePermissions(module: PermissionModule): Permission[] {
 export function getPermissionModule(perm: Permission): PermissionModule {
   return perm.split('.')[0] as PermissionModule;
 }
+
+/** API permission names that differ from the app's permission names */
+const API_PERMISSION_ALIASES: Record<string, Permission[]> = {
+  'projects.edit': ['projects.update', 'projects.assign_members'],
+  'issues.edit': ['issues.update'],
+  'issues.pick': ['issues.assign'],
+  'issues.status': ['issues.change_status'],
+  'comments.create': ['issues.comment'],
+  'users.edit': ['users.view', 'users.update'],
+};
+
+/** Translates backend permission names into the app permissions they unlock. */
+export function toAppPermissions(apiPermissions: Iterable<string>): Set<Permission> {
+  const known = new Set<string>(ALL_PERMISSIONS);
+  const result = new Set<Permission>();
+  for (const perm of apiPermissions) {
+    if (known.has(perm)) result.add(perm as Permission);
+    API_PERMISSION_ALIASES[perm]?.forEach((p) => result.add(p));
+  }
+  return result;
+}

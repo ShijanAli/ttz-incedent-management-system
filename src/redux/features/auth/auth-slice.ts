@@ -46,7 +46,12 @@ const authSlice = createSlice({
     userReceived(state, action: PayloadAction<MeResponse>) {
       const { access, ...user } = action.payload;
       state.user = user;
-      state.access = access;
+      // /auth/me may omit `access`; rebuild it from the user flags instead of wiping it
+      state.access = access ?? {
+        is_super_admin: user.is_super_admin,
+        can_manage_users: user.can_manage_users ?? state.access?.can_manage_users ?? false,
+        projects: state.access?.projects ?? [],
+      };
       state.mustChangePassword = user.must_change_password;
     },
     passwordChanged(state) {

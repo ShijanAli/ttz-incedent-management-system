@@ -13,6 +13,11 @@ export const ENDPOINTS = {
     VERIFY_FORGOT_OTP: '/api/auth/verify-forgot-otp',
     RESET_PASSWORD: '/api/auth/reset-password',
   },
+  ADMIN: {
+    PERMISSIONS: '/api/admin/permissions',
+    ROLES: '/api/admin/roles',
+    ROLE: (id: number | string) => `/api/admin/roles/${id}`,
+  },
 } as const;
 
 /** Requests that must never trigger the 401 -> refresh-token retry. */

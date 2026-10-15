@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { UserAvatar } from '@/components/shared/user-avatar';
+import { DeveloperDashboard } from '@/components/dashboard/developer-dashboard';
 import {
   ISSUE_STATUS_META, ISSUE_PRIORITY_META, formatDate, formatRelativeTime,
   isOverdue, calculateProjectProgress, ISSUE_STATUS_ORDER,
@@ -118,7 +119,13 @@ export default function DashboardPage() {
   if (!session || !data) return null;
 
   const isSuperAdmin = session.roleNames.includes('Super Admin');
-  const isDeveloper = session.roleNames.includes('Developer');
+  // API project roles vary ("Developer", "Frontend Developer", ...)
+  const isDeveloper = session.roleNames.some((r) => /developer/i.test(r));
+
+  if (isDeveloper && !isSuperAdmin) {
+    return <DeveloperDashboard />;
+  }
+
   const isAssigner = session.roleNames.includes('Issue Assigner');
   const isQA = session.roleNames.includes('QA Engineer');
   const isCustomer = !isSuperAdmin && !isDeveloper && !isAssigner && !isQA;
