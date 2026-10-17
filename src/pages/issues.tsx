@@ -1,20 +1,23 @@
-import { useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import {
   AlertCircle, AlertTriangle, Eye, FolderKanban, KanbanSquare, ListFilter, Loader2, MoreVertical, Pencil, Plus, RotateCw,
   Search, SlidersHorizontal, Trash2, Users as UsersIcon, X,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useTabParam } from '@/hooks/use-tab-param';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { parseApiError } from '@/lib/api-error';
 import {
   ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, ISSUE_TYPE_OPTIONS, formatDate, formatRelativeTime, isIssueClosed, isOverdue,
 } from '@/lib/shared-utils';
-import { sortStatuses } from '@/lib/project-utils';
+import { projectCan, sortStatuses, toStatusInputs } from '@/lib/project-utils';
 import { useGetIssuesInfiniteQuery, useGetProjectIssuesInfiniteQuery } from '@/redux/features/issues/issues-api';
 import type { IssueListFilters, IssueListItem } from '@/redux/features/issues/issues-types';
-import { useGetProjectStatusesQuery } from '@/redux/features/projects/projects-api';
+import {
+  useGetProjectQuery, useGetProjectStatusesQuery, useReplaceProjectStatusesMutation,
+} from '@/redux/features/projects/projects-api';
 import { useStatusCatalog } from '@/redux/features/projects/use-status-catalog';
 import type { IssuePriority, IssueSeverity, IssueType } from '@/lib/types';
 import { PageHeader } from '@/components/shared/page-header';
@@ -25,7 +28,7 @@ import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { useChangeMyIssueStatusMutation, useDeleteIssueMutation } from '@/redux/features/issues/issue-detail-api';
 import { toast } from 'sonner';
 import {
-  IssuePriorityBadge, IssueStatusBadge, IssueTypeBadge,
+  IssueCategoryBadge, IssuePriorityBadge, IssueStatusBadge,
 } from '@/components/issues/issue-badges';
 import { ProjectSelect } from '@/components/projects/project-select';
 import { InfiniteScrollTrigger } from '@/components/shared/infinite-scroll-trigger';
@@ -48,6 +51,7 @@ import {
 import { cn } from '@/lib/utils';
 
 const COLUMN_COUNT = 10;
+const ISSUE_VIEWS = ['list', 'board'] as const;
 const ALL = 'all';
 
 /** Raw filter state as the controls hold it; converted to API params below */
@@ -75,14 +79,58 @@ const EMPTY_FILTERS: FilterState = {
 /** Filters that live behind "More filters" */
 const ADVANCED_KEYS: (keyof FilterState)[] = ['issueType', 'severity', 'label', 'reporter', 'dueAfter', 'dueBefore'];
 
+/** URL query key per filter, e.g. ?project=13&status=4&priority=high */
+const FILTER_PARAMS: Record<keyof FilterState, string> = {
+  search: 'q', projectId: 'project', statusId: 'status', priority: 'priority', issueType: 'type', severity: 'severity',
+  label: 'label', assignee: 'assignee', reporter: 'reporter', dueAfter: 'due_after', dueBefore: 'due_before',
+};
+const FILTER_KEYS = Object.keys(FILTER_PARAMS) as (keyof FilterState)[];
+
+const readFilters = (params: URLSearchParams): FilterState =>
+  Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(FILTER_PARAMS[k]) ?? EMPTY_FILTERS[k]])) as unknown as FilterState;
+
+/**
+ * Filters live in the URL so a reload or a shared link keeps them. Defaults are left
+ * out of the URL, and changes replace the history entry instead of adding one per keystroke.
+ */
+function useUrlFilters() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(() => readFilters(searchParams), [searchParams]);
+
+  const setFilters = useCallback(
+    (next: FilterState | ((prev: FilterState) => FilterState)) => {
+      setSearchParams(
+        (prev) => {
+          const resolved = typeof next === 'function' ? next(readFilters(prev)) : next;
+          // Copy so params the filters don't own (e.g. ?view=board) survive
+          const params = new URLSearchParams(prev);
+          for (const k of FILTER_KEYS) {
+            if (resolved[k] === EMPTY_FILTERS[k]) params.delete(FILTER_PARAMS[k]);
+            else params.set(FILTER_PARAMS[k], resolved[k]);
+          }
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  return [filters, setFilters] as const;
+}
+
 const isSet = (key: keyof FilterState, value: string) => value !== EMPTY_FILTERS[key];
 const pick = <T extends string>(value: string): T | undefined => (value === ALL ? undefined : (value as T));
 
 export default function IssuesPage() {
   const { session, hasPermission, isSuperAdmin } = useAuth();
-  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showBoard, setShowBoard] = useState(false);
+  const [filters, setFilters] = useUrlFilters();
+  // Open "More filters" on load when the URL already sets one of them
+  const [showAdvanced, setShowAdvanced] = useState(() => ADVANCED_KEYS.some((k) => isSet(k, filters[k])));
+  // Kept in the URL (?view=board) so a reload or shared link opens the same view
+  const [view, setView] = useTabParam(ISSUE_VIEWS, 'list', 'view');
+  const showBoard = view === 'board';
+  const setShowBoard = (board: boolean) => setView(board ? 'board' : 'list');
   const [formOpen, setFormOpen] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -128,6 +176,11 @@ export default function IssuesPage() {
     useGetProjectIssuesInfiniteQuery({ projectId: boardProjectId, ...boardFilters }, { skip: !boardActive }),
   );
   const { data: boardStatuses = [] } = useGetProjectStatusesQuery(boardProjectId, { skip: !boardActive });
+  const orderedBoardStatuses = useMemo(() => sortStatuses(boardStatuses), [boardStatuses]);
+  // Reordering columns rewrites the project's workflow, so it needs the same right as the workflow editor
+  const { data: boardProject } = useGetProjectQuery(boardProjectId, { skip: !boardActive });
+  const canReorderColumns = projectCan(boardProject, 'projects.edit');
+  const [replaceStatuses] = useReplaceProjectStatusesMutation();
 
   // Whichever list is on screen drives the count, refresh, errors and paging
   const list = boardActive ? boardList : tableList;
@@ -336,7 +389,19 @@ export default function IssuesPage() {
             ) : (
               <IssueBoard
                 issues={boardList.items}
-                statuses={sortStatuses(boardStatuses)}
+                statuses={orderedBoardStatuses}
+                onReorderColumns={!canReorderColumns ? undefined : async (ordered) => {
+                  // The board hands back its own column objects; send the full statuses so flags are kept
+                  const byId = new Map(orderedBoardStatuses.map((s) => [s.id, s]));
+                  const statuses = ordered.map((s) => byId.get(s.id)).filter((s) => s !== undefined);
+                  try {
+                    await replaceStatuses({ projectId: boardProjectId, statuses: toStatusInputs(statuses) }).unwrap();
+                    toast.success('Column order saved');
+                  } catch (err) {
+                    toast.error("Couldn't reorder columns", { description: parseApiError(err).message });
+                    throw err;
+                  }
+                }}
                 // Without issues.status the board is read-only (no dragging)
                 onMove={!canChangeStatus ? undefined : async (issue, to) => {
                   try {
@@ -362,7 +427,7 @@ export default function IssuesPage() {
                     <TableHead className="w-[60px]">SL</TableHead>
                     <TableHead className="w-[90px]">Key</TableHead>
                     <TableHead>Summary</TableHead>
-                    <TableHead>Type</TableHead>
+                    <TableHead>Category</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Priority</TableHead>
                     <TableHead>Assignee</TableHead>
@@ -462,7 +527,7 @@ function IssueRow({ index, issue, canUpdate, canDelete, onEdit, onDelete }: Issu
           {issue.project && <div className="text-xs text-muted-foreground">{issue.project.name}</div>}
         </Link>
       </TableCell>
-      <TableCell><IssueTypeBadge issue={issue} /></TableCell>
+      <TableCell><IssueCategoryBadge issue={issue} /></TableCell>
       <TableCell className="w-[120px]"><IssueStatusBadge issue={issue} /></TableCell>
       <TableCell><IssuePriorityBadge priority={issue.priority} /></TableCell>
       <TableCell>

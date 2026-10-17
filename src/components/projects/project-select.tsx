@@ -6,6 +6,7 @@ import {
 import { InfiniteScrollTrigger } from '@/components/shared/infinite-scroll-trigger';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { getProjectColor } from '@/lib/project-utils';
+import { cn } from '@/lib/utils';
 import { useGetProjectsInfiniteQuery } from '@/redux/features/projects/projects-api';
 import type { ApiProject } from '@/redux/features/projects/projects-types';
 
@@ -35,6 +36,8 @@ export function ProjectSelect({
 }: ProjectSelectProps) {
   const list = useInfiniteList(useGetProjectsInfiniteQuery({ status: 'active' }));
   const projects = useMemo(() => (filter ? list.items.filter(filter) : list.items), [list.items, filter]);
+  // Full name on hover, since a long one is cut off in the trigger
+  const selectedName = projects.find((p) => String(p.id) === value)?.name;
 
   return (
     <Select
@@ -42,7 +45,8 @@ export function ProjectSelect({
       onValueChange={(v) => (v === ALL ? onChange('', undefined) : onChange(v, projects.find((p) => String(p.id) === v)))}
       disabled={disabled}
     >
-      <SelectTrigger id={id} className={className}>
+      {/* min-w-0 lets the selected name shrink and truncate instead of wrapping the trigger */}
+      <SelectTrigger id={id} className={cn('gap-2 [&>span]:min-w-0', className)} title={selectedName}>
         <SelectValue placeholder={list.showSkeleton ? 'Loading projects...' : placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -58,10 +62,10 @@ export function ProjectSelect({
           <div className="px-2 py-3 text-center text-xs text-muted-foreground">No projects available.</div>
         ) : (
           projects.map((p) => (
-            <SelectItem key={p.id} value={String(p.id)}>
-              <span className="flex items-center gap-2">
+            <SelectItem key={p.id} value={String(p.id)} title={p.name}>
+              <span className="flex min-w-0 items-center gap-2">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: getProjectColor(p) }} />
-                {p.name}
+                <span className="truncate">{p.name}</span>
               </span>
             </SelectItem>
           ))

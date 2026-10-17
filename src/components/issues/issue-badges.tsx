@@ -1,5 +1,7 @@
 import { StatusBadge } from '@/components/shared/status-badge';
-import { ISSUE_PRIORITY_META, ISSUE_SEVERITY_META, ISSUE_TYPE_META } from '@/lib/shared-utils';
+import {
+  ISSUE_PRIORITY_META, ISSUE_SEVERITY_META, ISSUE_SEVERITY_OPTIONS, getSeverityKey,
+} from '@/lib/shared-utils';
 import { cn } from '@/lib/utils';
 import type { IssueColoredRef, IssueListItem } from '@/redux/features/issues/issues-types';
 
@@ -22,11 +24,9 @@ export function IssueStatusBadge({ issue }: { issue: Pick<IssueListItem, 'status
   return issue.status ? <ColoredBadge item={issue.status} /> : <Dash />;
 }
 
-/** Category when set, otherwise the issue type */
-export function IssueTypeBadge({ issue }: { issue: Pick<IssueListItem, 'category' | 'issue_type'> }) {
-  if (issue.category) return <ColoredBadge item={issue.category} />;
-  const meta = issue.issue_type ? ISSUE_TYPE_META[issue.issue_type] : null;
-  return meta ? <StatusBadge label={meta.label} className={meta.badgeClass} /> : <Dash />;
+/** The issue's category (from the issue categories API), or a dash when it has none */
+export function IssueCategoryBadge({ issue }: { issue: Pick<IssueListItem, 'category'> }) {
+  return issue.category ? <ColoredBadge item={issue.category} /> : <Dash />;
 }
 
 export function IssuePriorityBadge({ priority }: { priority: IssueListItem['priority'] }) {
@@ -34,9 +34,20 @@ export function IssuePriorityBadge({ priority }: { priority: IssueListItem['prio
   return meta ? <StatusBadge label={meta.label} className={meta.badgeClass} /> : <Dash />;
 }
 
+/** Uses the API's label when it sends one; the description shows on hover */
 export function IssueSeverityBadge({ severity }: { severity: IssueListItem['severity'] }) {
-  const meta = severity ? ISSUE_SEVERITY_META[severity] : null;
-  return meta ? <StatusBadge label={meta.label} className={meta.badgeClass} /> : <Dash />;
+  const key = getSeverityKey(severity);
+  const meta = key ? ISSUE_SEVERITY_META[key] : null;
+  if (!key || !meta) return <Dash />;
+  const label = typeof severity === 'object' && severity ? severity.label : meta.label;
+  const description = typeof severity === 'object' && severity
+    ? severity.description
+    : ISSUE_SEVERITY_OPTIONS.find((o) => o.value === key)?.description;
+  return (
+    <span title={description}>
+      <StatusBadge label={label} className={meta.badgeClass} />
+    </span>
+  );
 }
 
 /** Thin progress bar with a percentage; amber when only some assignees are done */

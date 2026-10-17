@@ -8,6 +8,15 @@ export interface IssueColoredRef {
   color: string;
 }
 
+/** Severity as the issue detail API sends it */
+export interface IssueSeverityRef {
+  value: IssueSeverity;
+  /** e.g. "SEV4" */
+  label: string;
+  /** e.g. "Low — minor or cosmetic" */
+  description: string;
+}
+
 /** An issue row as the list endpoints return it */
 export interface IssueSummary {
   id: number;
@@ -16,7 +25,8 @@ export interface IssueSummary {
   title: string;
   issue_type: IssueType | null;
   priority: IssuePriority | null;
-  severity: IssueSeverity | null;
+  /** An object on the detail API; may still be the bare key elsewhere. Read it with getSeverityKey() */
+  severity: IssueSeverityRef | IssueSeverity | null;
   labels: string[];
   due_date: string | null;
   /** The issue's current workflow status */
@@ -92,7 +102,8 @@ export interface ApiIssue {
 export interface CreateIssueBody {
   title: string;
   description: string | null;
-  issue_type: IssueType;
+  /** From GET /admin/issue-categories; replaces the fixed `issue_type` */
+  issue_category_id: number;
   priority: IssuePriority;
   severity: IssueSeverity | null;
   /** Users to assign; an empty array leaves the issue unassigned */

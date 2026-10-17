@@ -16,12 +16,14 @@ import type {
   ApiProject,
   ChangeMemberRoleRequest,
   CreateProjectRequest,
+  CreateProjectStatusRequest,
   ProjectListParams,
   ProjectMember,
   ProjectStatus,
   RemoveProjectMemberRequest,
   ReplaceProjectStatusesRequest,
   UpdateProjectRequest,
+  UpdateProjectStatusRequest,
 } from './projects-types';
 import type { ActivityEntry } from '@/redux/features/activity/activity-types';
 
@@ -162,6 +164,32 @@ export const projectsApi = baseApi.injectEndpoints({
         PROJECT_LIST_TAG,
       ],
     }),
+
+    createProjectStatus: build.mutation<ApiResponse<ProjectStatus>, CreateProjectStatusRequest>({
+      query: ({ projectId, ...body }) => ({ url: ENDPOINTS.PROJECTS.STATUSES(projectId), method: 'POST', body }),
+      invalidatesTags: (_result, _error, { projectId }) => [
+        { type: 'ProjectStatuses', id: projectId },
+        { type: 'Project', id: projectId },
+        { type: 'ProjectActivity', id: projectId },
+        PROJECT_LIST_TAG,
+      ],
+    }),
+
+    /** Rename or recolor a status; issues show its name and color, so they refresh too */
+    updateProjectStatus: build.mutation<ApiResponse<ProjectStatus>, UpdateProjectStatusRequest>({
+      query: ({ projectId, statusId, ...body }) => ({
+        url: ENDPOINTS.PROJECTS.STATUS(projectId, statusId),
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { projectId }) => [
+        { type: 'ProjectStatuses', id: projectId },
+        { type: 'Project', id: projectId },
+        { type: 'ProjectActivity', id: projectId },
+        PROJECT_LIST_TAG,
+        'Issue',
+      ],
+    }),
   }),
 });
 
@@ -183,4 +211,6 @@ export const {
   useAttachProjectGroupMutation,
   useDetachProjectGroupMutation,
   useReplaceProjectStatusesMutation,
+  useCreateProjectStatusMutation,
+  useUpdateProjectStatusMutation,
 } = projectsApi;

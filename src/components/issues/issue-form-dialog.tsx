@@ -23,10 +23,9 @@ import {
 } from '@/components/ui/select';
 import { Loader2, X, AlertCircle, FolderKanban } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, ISSUE_TYPE_OPTIONS,
-} from '@/lib/shared-utils';
-import type { IssuePriority, IssueType, IssueSeverity } from '@/lib/types';
+import { ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, getSeverityKey } from '@/lib/shared-utils';
+import type { IssuePriority, IssueSeverity } from '@/lib/types';
+import { IssueCategorySelect } from '@/components/issues/issue-category-select';
 
 /** Only projects where the signed-in user may create issues */
 const canCreateIssueIn = (project: ApiProject) => projectCan(project, 'issues.create');
@@ -35,7 +34,7 @@ const canCreateIssueIn = (project: ApiProject) => projectCan(project, 'issues.cr
 const API_FIELD_TO_ERROR: Record<string, string> = {
   title: 'title',
   description: 'description',
-  issue_type: 'type',
+  issue_category_id: 'category',
   priority: 'priority',
   severity: 'severity',
   assignee_ids: 'assignee',
@@ -62,8 +61,8 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [projectId, setProjectId] = useState('');
-  // Existing issues may have no type or priority yet, so both allow "not set"
-  const [type, setType] = useState<IssueType | ''>('bug');
+  // Existing issues may have no category or priority yet, so both allow "not set"
+  const [categoryId, setCategoryId] = useState('');
   const [priority, setPriority] = useState<IssuePriority | ''>('medium');
   const [severity, setSeverity] = useState<IssueSeverity | ''>('');
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
@@ -84,9 +83,9 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
         setTitle(issue.title);
         setDescription(issue.description ?? '');
         setProjectId(String(issue.project.id));
-        setType(issue.issue_type ?? '');
+        setCategoryId(issue.category ? String(issue.category.id) : '');
         setPriority(issue.priority ?? '');
-        setSeverity(issue.severity ?? '');
+        setSeverity(getSeverityKey(issue.severity) ?? '');
         setAssigneeIds(issue.assignees.map((a) => a.user.id));
         setLabels(issue.labels);
         setDueDate(issue.due_date ?? '');
@@ -94,7 +93,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
         setTitle('');
         setDescription('');
         setProjectId(defaultProjectId || '');
-        setType('bug');
+        setCategoryId('');
         setPriority('medium');
         setSeverity('');
         setAssigneeIds([]);
@@ -152,8 +151,8 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
     if (!projectId) errs.project = 'Project is required';
     if (!title.trim()) errs.title = 'Title is required';
     else if (title.trim().length < 5) errs.title = 'Title must be at least 5 characters';
-    // Older issues may have no type/priority; only new issues must set them
-    if (!isEdit && !type) errs.type = 'Type is required';
+    // Older issues may have no category/priority; only new issues must set them
+    if (!isEdit && !categoryId) errs.category = 'Category is required';
     if (!isEdit && !priority) errs.priority = 'Priority is required';
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -183,7 +182,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
         projectId: apiProjectId,
         title: title.trim(),
         description: description.trim() || null,
-        issue_type: type as IssueType,
+        issue_category_id: Number(categoryId),
         priority: priority as IssuePriority,
         severity: severity || null,
         assignee_ids: canAssign ? assigneeIds : [],
@@ -204,9 +203,11 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
   const handleEdit = async (current: IssueDetail) => {
     const textChanged = title.trim() !== current.title || description.trim() !== (current.description ?? '');
     const triage = {
-      ...(type !== (current.issue_type ?? '') && { issue_type: type || null }),
+      ...(categoryId !== (current.category ? String(current.category.id) : '') && {
+        issue_category_id: categoryId ? Number(categoryId) : null,
+      }),
       ...(priority !== (current.priority ?? '') && { priority: priority || null }),
-      ...(severity !== (current.severity ?? '') && { severity: severity || null }),
+      ...(severity !== (getSeverityKey(current.severity) ?? '') && { severity: severity || null }),
       ...(dueDate !== (current.due_date ?? '') && { due_date: dueDate || null }),
       ...(!sameList(labels, current.labels) && { labels }),
       ...(canAssign && !sameList(assigneeIds, current.assignees.map((a) => a.user.id)) && { assignee_ids: assigneeIds }),
@@ -299,18 +300,17 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                 {errors.description && <p className="text-xs text-destructive">{errors.description}</p>}
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="issueType">Type <span className="text-destructive">*</span></Label>
-                  <Select value={type} onValueChange={(v) => { setType(v as IssueType); clearError('type'); }} disabled={saving || !canTriage}>
-                    <SelectTrigger id="issueType"><SelectValue placeholder="Not set" /></SelectTrigger>
-                    <SelectContent>
-                      {ISSUE_TYPE_OPTIONS.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.type && <p className="text-xs text-destructive">{errors.type}</p>}
+              {/* Category gets a full row: its inline "add custom category" form needs the width */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="issueCategory">Category <span className="text-destructive">*</span></Label>
+                  <IssueCategorySelect
+                    id="issueCategory"
+                    value={categoryId}
+                    onChange={(id) => { setCategoryId(id); clearError('category'); }}
+                    disabled={saving || !canTriage}
+                  />
+                  {errors.category && <p className="text-xs text-destructive">{errors.category}</p>}
                 </div>
 
                 <div className="space-y-1.5">

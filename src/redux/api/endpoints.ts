@@ -26,6 +26,8 @@ export const ENDPOINTS = {
     GROUP_MEMBER: (id: number | string, userId: number | string) => `/api/admin/groups/${id}/members/${userId}`,
     GROUP_PROJECTS: (id: number | string) => `/api/admin/groups/${id}/projects`,
     ISSUES: '/api/admin/issues',
+    ISSUE_CATEGORIES: '/api/admin/issue-categories',
+    ISSUE_CATEGORY: (id: number | string) => `/api/admin/issue-categories/${id}`,
   },
   MY: {
     ISSUES: '/api/my/issues',
@@ -61,6 +63,7 @@ export const ENDPOINTS = {
     MEMBERS: (id: number | string) => `/api/projects/${id}/members`,
     MEMBER: (id: number | string, userId: number | string) => `/api/projects/${id}/members/${userId}`,
     STATUSES: (id: number | string) => `/api/projects/${id}/statuses`,
+    STATUS: (id: number | string, statusId: number | string) => `/api/projects/${id}/statuses/${statusId}`,
     ISSUES: (id: number | string) => `/api/projects/${id}/issues`,
     GROUPS: (id: number | string) => `/api/projects/${id}/groups`,
     GROUP: (id: number | string, groupId: number | string) => `/api/projects/${id}/groups/${groupId}`,

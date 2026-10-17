@@ -16,6 +16,15 @@ export const ISSUE_SEVERITY_OPTIONS: { value: IssueSeverity; label: string; desc
   { value: 'sev4', label: 'SEV4', description: 'Low — minor or cosmetic' },
 ];
 
+/**
+ * The issue detail API sends severity as `{ value, label, description }`; older
+ * payloads (and requests) use the bare key. Returns the key either way.
+ */
+export function getSeverityKey(severity: IssueSeverity | { value: IssueSeverity } | null | undefined): IssueSeverity | null {
+  if (!severity) return null;
+  return typeof severity === 'string' ? severity : severity.value;
+}
+
 export const ISSUE_TYPE_OPTIONS: { value: IssueType; label: string }[] = [
   { value: 'bug', label: 'Bug' },
   { value: 'incident', label: 'Incident' },

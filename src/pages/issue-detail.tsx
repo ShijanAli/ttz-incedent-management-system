@@ -10,7 +10,9 @@ import { useTabParam } from '@/hooks/use-tab-param';
 import { useAppSelector } from '@/redux/hooks';
 import { selectAuth } from '@/redux/features/auth/auth-slice';
 import { parseApiError } from '@/lib/api-error';
-import { formatDate, getAvatarColor, isIssueClosed, isOverdue } from '@/lib/shared-utils';
+import {
+  ISSUE_SEVERITY_OPTIONS, formatDate, getAvatarColor, getSeverityKey, isIssueClosed, isOverdue,
+} from '@/lib/shared-utils';
 import { getProjectColor, getProjectInitials, sortStatuses } from '@/lib/project-utils';
 import {
   useChangeMyIssueStatusMutation,
@@ -28,7 +30,7 @@ import { IssueFormDialog } from '@/components/issues/issue-form-dialog';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { UserAvatar } from '@/components/shared/user-avatar';
 import {
-  IssuePriorityBadge, IssueProgress, IssueSeverityBadge, IssueStatusBadge, IssueTypeBadge,
+  ColoredBadge, IssuePriorityBadge, IssueProgress, IssueSeverityBadge, IssueStatusBadge,
 } from '@/components/issues/issue-badges';
 import { IssueComments } from '@/components/issues/issue-comments';
 import { IssueHistory } from '@/components/issues/issue-history';
@@ -130,6 +132,10 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
 
   const myAssignment = assignees.find((a) => a.user.id === myId);
   const overdue = issue.progress < 100 && !issue.closed_at && isOverdue(issue.due_date ?? undefined);
+  // The API sends the description with the severity; fall back to ours for a bare key
+  const severityDescription = typeof issue.severity === 'object' && issue.severity
+    ? issue.severity.description
+    : ISSUE_SEVERITY_OPTIONS.find((o) => o.value === getSeverityKey(issue.severity))?.description;
 
   const run = async (action: () => Promise<unknown>, success: string, failure: string) => {
     try {
@@ -335,9 +341,10 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
               </div>
 
               <div>
-                <Label className="text-xs text-muted-foreground mb-1 block">Type</Label>
-                <IssueTypeBadge issue={issue} />
+                <Label className="text-xs text-muted-foreground mb-1 block">Category</Label>
+                {issue.category ? <ColoredBadge item={issue.category} /> : <span className="text-sm text-muted-foreground">—</span>}
               </div>
+
 
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Priority</Label>
@@ -347,7 +354,10 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
               {issue.severity && (
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">Severity</Label>
-                  <IssueSeverityBadge severity={issue.severity} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <IssueSeverityBadge severity={issue.severity} />
+                    {severityDescription && <span className="text-sm text-muted-foreground">{severityDescription}</span>}
+                  </div>
                 </div>
               )}
 

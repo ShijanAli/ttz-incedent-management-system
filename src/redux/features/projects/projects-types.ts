@@ -125,6 +125,26 @@ export interface RemoveProjectMemberRequest {
   userId: number;
 }
 
+/** POST /projects/{id}/statuses: a brand-new status in this project's workflow */
+export interface CreateProjectStatusRequest {
+  projectId: number;
+  /** Up to 50 characters; the slug is made from it */
+  name: string;
+  /** #RRGGBB */
+  color: string;
+  /** 0-65535; left out, it goes after the last status */
+  sort_order?: number;
+  is_terminal?: boolean;
+}
+
+/** PATCH /projects/{id}/statuses/{statusId}; send only what changes */
+export interface UpdateProjectStatusRequest {
+  projectId: number;
+  statusId: number;
+  name?: string;
+  color?: string;
+}
+
 export interface ProjectStatusInput {
   status_id: number;
   sort_order: number;
