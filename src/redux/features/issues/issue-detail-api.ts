@@ -84,7 +84,8 @@ export const issueDetailApi = baseApi.injectEndpoints({
 
     deleteIssue: build.mutation<ApiResponse<unknown>, number>({
       query: (id) => ({ url: ENDPOINTS.ISSUES.ONE(id), method: 'DELETE' }),
-      invalidatesTags: (_result, _error, id) => issueChangedTags(id),
+      // Not the issue's own tags: the detail page is still mounted and would refetch a 404
+      invalidatesTags: [{ type: 'Issue', id: 'LIST' }, 'Project', 'ProjectActivity'],
     }),
 
     // ---- Status ----

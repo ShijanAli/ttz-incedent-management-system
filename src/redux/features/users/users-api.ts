@@ -33,7 +33,7 @@ export const usersApi = baseApi.injectEndpoints({
       infiniteQueryOptions: laravelInfiniteOptions<AdminUser, UserListParams>(),
       query: ({ queryArg, pageParam }) => ({
         url: ENDPOINTS.ADMIN.USERS,
-        params: { ...queryArg, page: pageParam, per_page: 5 },
+        params: { ...queryArg, page: pageParam },
       }),
       transformResponse: (res: PaginatedApiResponse<AdminUser>) =>
         toPaginated(res),
