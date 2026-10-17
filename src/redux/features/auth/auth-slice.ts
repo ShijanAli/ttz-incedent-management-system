@@ -38,7 +38,9 @@ const authSlice = createSlice({
       state.refreshToken = refresh_token;
       state.expiresAt = Date.now() + expires_in * 1000;
       if (remember !== undefined) state.remember = remember;
-      state.user = user;
+      // Refresh may leave out `permissions`; keep the ones /auth/me gave for the same user
+      const keptPermissions = state.user?.id === user.id ? state.user.permissions : undefined;
+      state.user = { ...user, permissions: user.permissions ?? keptPermissions };
       state.access = access;
       state.mustChangePassword = must_change_password || user.must_change_password;
     },

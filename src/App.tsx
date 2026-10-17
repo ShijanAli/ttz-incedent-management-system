@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router';
 import { Loader2 } from 'lucide-react';
 import AppLayout from '@/components/layout/app-layout';
+import { RequirePermission } from '@/components/shared/require-permission';
 
 const Home = lazy(() => import('@/pages/home'));
 const LoginPage = lazy(() => import('@/pages/login'));
@@ -44,19 +45,19 @@ export default function App() {
         <Route path="/change-password" element={<ChangePasswordPage />} />
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/projects" element={<ProjectsPage />} />
-          <Route path="/projects/:id" element={<ProjectDetailPage />} />
-          <Route path="/issues" element={<IssuesPage />} />
-          <Route path="/issues/:id" element={<IssueDetailPage />} />
-          <Route path="/groups" element={<GroupsPage />} />
-          <Route path="/groups/:id" element={<GroupDetailPage />} />
-          <Route path="/activity" element={<ActivityPage />} />
+          <Route path="/projects" element={<RequirePermission permission="projects.view"><ProjectsPage /></RequirePermission>} />
+          <Route path="/projects/:id" element={<RequirePermission permission="projects.view"><ProjectDetailPage /></RequirePermission>} />
+          <Route path="/issues" element={<RequirePermission permission="issues.view"><IssuesPage /></RequirePermission>} />
+          <Route path="/issues/:id" element={<RequirePermission permission="issues.view"><IssueDetailPage /></RequirePermission>} />
+          <Route path="/groups" element={<RequirePermission permission="groups.view"><GroupsPage /></RequirePermission>} />
+          <Route path="/groups/:id" element={<RequirePermission permission="groups.view"><GroupDetailPage /></RequirePermission>} />
+          <Route path="/activity" element={<RequirePermission permission="activity.view"><ActivityPage /></RequirePermission>} />
           <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/roles" element={<RolesPage />} />
-          <Route path="/roles/new" element={<RoleEditorPage />} />
-          <Route path="/roles/:id" element={<RoleEditorPage />} />
-          <Route path="/users" element={<UsersPage />} />
+          <Route path="/reports" element={<RequirePermission permission="reports.view"><ReportsPage /></RequirePermission>} />
+          <Route path="/roles" element={<RequirePermission permission="roles.view"><RolesPage /></RequirePermission>} />
+          <Route path="/roles/new" element={<RequirePermission permission="roles.create"><RoleEditorPage /></RequirePermission>} />
+          <Route path="/roles/:id" element={<RequirePermission permission="roles.view"><RoleEditorPage /></RequirePermission>} />
+          <Route path="/users" element={<RequirePermission permission="users.view"><UsersPage /></RequirePermission>} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/unauthorized" element={<AccessDeniedPage />} />
         </Route>

@@ -32,9 +32,29 @@ export const PERMISSION_MODULES: {
       { value: 'issues.update', label: 'Update', description: 'Edit issue details' },
       { value: 'issues.delete', label: 'Delete', description: 'Delete issues' },
       { value: 'issues.assign', label: 'Assign', description: 'Assign or reassign issues' },
+      { value: 'issues.pick', label: 'Pick', description: 'Pick up or drop issues yourself' },
       { value: 'issues.change_status', label: 'Change Status', description: 'Change issue workflow status' },
       { value: 'issues.comment', label: 'Comment', description: 'Add comments to issues' },
       { value: 'issues.approve', label: 'Approve', description: 'Approve completed issues' },
+    ],
+  },
+  {
+    module: 'comments',
+    label: 'Comments',
+    permissions: [
+      { value: 'comments.view', label: 'View', description: 'Read issue comments' },
+      { value: 'comments.create', label: 'Create', description: 'Add comments to issues' },
+      { value: 'comments.edit', label: 'Edit', description: 'Edit your own comments' },
+      { value: 'comments.delete', label: 'Delete', description: 'Delete your own comments' },
+    ],
+  },
+  {
+    module: 'attachments',
+    label: 'Attachments',
+    permissions: [
+      { value: 'attachments.view', label: 'View', description: 'See and download issue files' },
+      { value: 'attachments.create', label: 'Upload', description: 'Attach files to issues' },
+      { value: 'attachments.delete', label: 'Delete', description: 'Remove issue files' },
     ],
   },
   {
@@ -124,11 +144,13 @@ export function getPermissionModule(perm: Permission): PermissionModule {
   return perm.split('.')[0] as PermissionModule;
 }
 
-/** API permission names that differ from the app's permission names */
+/**
+ * API permission names that differ from the app's permission names. Names that
+ * match an app permission (e.g. `issues.pick`, `comments.delete`) need no entry.
+ */
 const API_PERMISSION_ALIASES: Record<string, Permission[]> = {
   'projects.edit': ['projects.update', 'projects.assign_members'],
   'issues.edit': ['issues.update'],
-  'issues.pick': ['issues.assign'],
   'issues.status': ['issues.change_status'],
   'comments.create': ['issues.comment'],
   'users.edit': ['users.view', 'users.update'],
@@ -136,8 +158,8 @@ const API_PERMISSION_ALIASES: Record<string, Permission[]> = {
 
 /**
  * Backend permissions per system role, mirroring GET /api/admin/roles.
- * Fallback only: /auth/me sends `default_role` without its permissions, and
- * non-admins cannot read the roles API. Remove once /auth/me returns `permissions`.
+ * Fallback only, for a session whose user payload has no `permissions`
+ * (/auth/me sends them; login and refresh may not).
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   Manager: [

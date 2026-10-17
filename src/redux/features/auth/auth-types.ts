@@ -9,8 +9,8 @@ export interface ApiUser {
   /** System-wide role name, e.g. "Developer"; drives the sidebar and dashboard */
   default_role?: string | null;
   /**
-   * Backend permission names for the default role. Not sent yet; when it is, it
-   * replaces the DEFAULT_ROLE_PERMISSIONS fallback.
+   * Backend permission names for the default role, sent by /auth/me. The source of
+   * truth for modules and actions; DEFAULT_ROLE_PERMISSIONS covers payloads without it.
    */
   permissions?: string[];
   is_super_admin: boolean;

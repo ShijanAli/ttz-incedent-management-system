@@ -21,11 +21,14 @@ import type { IssueComment } from '@/redux/features/issues/issues-types';
 interface IssueCommentsProps {
   issueId: number;
   canComment: boolean;
+  /** comments.edit / comments.delete; they still only apply to the user's own comments */
+  canEdit: boolean;
+  canDelete: boolean;
   /** Signed-in user; only authors may edit or delete their own comments */
   myId: number | undefined;
 }
 
-export function IssueComments({ issueId, canComment, myId }: IssueCommentsProps) {
+export function IssueComments({ issueId, canComment, canEdit, canDelete, myId }: IssueCommentsProps) {
   const list = useInfiniteList(useGetIssueCommentsInfiniteQuery(issueId));
   const [addComment, { isLoading: adding }] = useAddCommentMutation();
   const [editComment, { isLoading: savingEdit }] = useEditCommentMutation();
@@ -84,8 +87,9 @@ export function IssueComments({ issueId, canComment, myId }: IssueCommentsProps)
           <p className="text-sm text-muted-foreground text-center py-6">No comments yet. Be the first to comment.</p>
         ) : (
           list.items.map((c) => {
-            // canComment is off on closed issues, which also locks existing comments
-            const isMine = canComment && c.author?.id === myId;
+            const isMine = c.author?.id === myId;
+            const canEditThis = canEdit && isMine;
+            const canDeleteThis = canDelete && isMine;
             const isEditing = editing?.id === c.id;
             return (
               <div key={c.id} className="flex gap-3">
@@ -97,26 +101,30 @@ export function IssueComments({ issueId, canComment, myId }: IssueCommentsProps)
                       {formatRelativeTime(c.created_at)}
                     </span>
                     {c.edited_at && <span className="text-xs text-muted-foreground">(edited)</span>}
-                    {isMine && !isEditing && (
+                    {(canEditThis || canDeleteThis) && !isEditing && (
                       <div className="ml-auto flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground"
-                          onClick={() => setEditing({ id: c.id, body: c.body })}
-                          aria-label="Edit comment"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                          onClick={() => setConfirmDelete(c)}
-                          aria-label="Delete comment"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                        {canEditThis && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground"
+                            onClick={() => setEditing({ id: c.id, body: c.body })}
+                            aria-label="Edit comment"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        )}
+                        {canDeleteThis && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                            onClick={() => setConfirmDelete(c)}
+                            aria-label="Delete comment"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>

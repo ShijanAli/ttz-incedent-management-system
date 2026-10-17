@@ -4,7 +4,9 @@ export type ISODate = string;
 export type Permission =
   | 'dashboard.view'
   | 'projects.view' | 'projects.create' | 'projects.update' | 'projects.delete' | 'projects.assign_members'
-  | 'issues.view' | 'issues.create' | 'issues.update' | 'issues.delete' | 'issues.assign' | 'issues.change_status' | 'issues.comment' | 'issues.approve'
+  | 'issues.view' | 'issues.create' | 'issues.update' | 'issues.delete' | 'issues.assign' | 'issues.pick' | 'issues.change_status' | 'issues.comment' | 'issues.approve'
+  | 'comments.view' | 'comments.create' | 'comments.edit' | 'comments.delete'
+  | 'attachments.view' | 'attachments.create' | 'attachments.delete'
   | 'users.view' | 'users.create' | 'users.update' | 'users.deactivate'
   | 'roles.view' | 'roles.create' | 'roles.update' | 'roles.delete' | 'roles.assign_permissions'
   | 'groups.view' | 'groups.create' | 'groups.update' | 'groups.delete' | 'groups.manage_members' | 'groups.send_message'
@@ -12,7 +14,9 @@ export type Permission =
   | 'notifications.view' | 'settings.view' | 'settings.update'
   | 'activity.view' | 'activity.export';
 
-export type PermissionModule = 'dashboard' | 'projects' | 'issues' | 'users' | 'roles' | 'groups' | 'reports' | 'notifications' | 'settings' | 'activity';
+export type PermissionModule =
+  | 'dashboard' | 'projects' | 'issues' | 'comments' | 'attachments' | 'users' | 'roles' | 'groups' | 'reports'
+  | 'notifications' | 'settings' | 'activity';
 
 export interface Role {
   id: UUID;

@@ -140,6 +140,7 @@ export default function IssuesPage() {
   // The API still checks each issue's own abilities; these only decide what the menu offers
   const canUpdate = hasPermission('issues.update');
   const canDelete = hasPermission('issues.delete');
+  const canChangeStatus = hasPermission('issues.change_status');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<IssueListItem | null>(null);
   const [deleteIssue] = useDeleteIssueMutation();
@@ -336,7 +337,8 @@ export default function IssuesPage() {
               <IssueBoard
                 issues={boardList.items}
                 statuses={sortStatuses(boardStatuses)}
-                onMove={async (issue, to) => {
+                // Without issues.status the board is read-only (no dragging)
+                onMove={!canChangeStatus ? undefined : async (issue, to) => {
                   try {
                     // Moving to a final status finishes the work; otherwise keep the current progress
                     await changeMyStatus({

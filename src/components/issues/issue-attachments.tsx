@@ -18,12 +18,14 @@ import type { IssueAttachment } from '@/redux/features/issues/issues-types';
 interface IssueAttachmentsProps {
   issueId: number;
   canUpload: boolean;
-  /** Editors may remove any file; everyone else only their own */
-  canEdit: boolean;
+  /** attachments.delete; without it no file can be removed */
+  canDelete: boolean;
+  /** Issue editors may remove any file; everyone else only their own */
+  canDeleteAny: boolean;
   myId: number | undefined;
 }
 
-export function IssueAttachments({ issueId, canUpload, canEdit, myId }: IssueAttachmentsProps) {
+export function IssueAttachments({ issueId, canUpload, canDelete, canDeleteAny, myId }: IssueAttachmentsProps) {
   const { data: attachments = [], isLoading, error, refetch } = useGetIssueAttachmentsQuery(issueId);
   const [uploadAttachment] = useUploadAttachmentMutation();
   const [deleteAttachment] = useDeleteAttachmentMutation();
@@ -87,8 +89,7 @@ export function IssueAttachments({ issueId, canUpload, canEdit, myId }: IssueAtt
           <p className="text-sm text-muted-foreground text-center py-6">No files attached.</p>
         ) : (
           attachments.map((a) => {
-            // canUpload is off on closed issues, which also locks the uploader's own files
-            const canRemove = canEdit || (canUpload && a.uploaded_by?.id === myId);
+            const canRemove = canDelete && (canDeleteAny || a.uploaded_by?.id === myId);
             return (
               <div key={a.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
                 <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">

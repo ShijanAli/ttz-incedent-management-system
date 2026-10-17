@@ -82,19 +82,34 @@ export default function IssueDetailPage() {
 
 function IssueDetailView({ issue }: { issue: IssueDetail }) {
   const navigate = useNavigate();
-  const { session, isSuperAdmin } = useAuth();
+  const { session, isSuperAdmin, hasPermission } = useAuth();
   const defaultRole = useAppSelector(selectAuth).user?.default_role;
   const myId = session ? Number(session.user.id) : undefined;
-  const can = issue.abilities;
   // Only reporters (by default role) and super admins confirm a fix or send it back
   const canReview = isSuperAdmin || defaultRole === 'Reporter';
   const closed = isIssueClosed(issue);
-  // Closed issues are read-only: no comments, files or assignee changes
-  const canComment = can.can_comment && !closed;
-  const canAssign = can.can_assign && !closed;
-  const canUpload = can.can_upload && !closed;
-  const canEditFiles = can.can_edit && !closed;
-  const [tab, setTab] = useTabParam(ISSUE_TABS, 'comments');
+
+  // An action needs the user's permission (/auth/me) and the issue's own ability;
+  // closed issues are read-only on top of that
+  const open = !closed;
+  const abilities = issue.abilities;
+  const can = {
+    pick: abilities.can_pick && hasPermission('issues.pick'),
+    unpick: abilities.can_unpick && hasPermission('issues.pick'),
+    edit: open && (abilities.can_edit || abilities.can_triage) && hasPermission('issues.update'),
+    delete: open && abilities.can_delete && hasPermission('issues.delete'),
+    changeStatus: abilities.can_change_own_status && hasPermission('issues.change_status'),
+    assign: open && abilities.can_assign && hasPermission('issues.assign'),
+    viewComments: hasPermission('comments.view'),
+    comment: open && abilities.can_comment && hasPermission('comments.create'),
+    editComment: open && hasPermission('comments.edit'),
+    deleteComment: open && hasPermission('comments.delete'),
+    viewFiles: hasPermission('attachments.view'),
+    upload: open && abilities.can_upload && hasPermission('attachments.create'),
+    deleteFiles: open && hasPermission('attachments.delete'),
+  };
+  const tabs = ISSUE_TABS.filter((t) => (t === 'comments' ? can.viewComments : t === 'attachments' ? can.viewFiles : true));
+  const [tab, setTab] = useTabParam(tabs, tabs[0]);
 
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -103,9 +118,9 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
 
   // Fresh assignee list (the issue payload embeds one too, used until it loads)
   const { data: assignees = issue.assignees } = useGetIssueAssigneesQuery(issue.id);
-  const needsStatuses = can.can_change_own_status || canAssign;
+  const needsStatuses = can.changeStatus || can.assign;
   const { data: statusList = [] } = useGetProjectStatusesQuery(issue.project.id, { skip: !needsStatuses });
-  const { data: members = [] } = useGetProjectMembersQuery(issue.project.id, { skip: !canAssign });
+  const { data: members = [] } = useGetProjectMembersQuery(issue.project.id, { skip: !can.assign });
   const statuses = sortStatuses(statusList);
 
   const [deleteIssue] = useDeleteIssueMutation();
@@ -143,22 +158,22 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
         breadcrumbs={[{ label: 'Issues', href: '/issues' }, { label: issue.code }]}
         actions={
           <div className="flex items-center gap-2">
-            {can.can_pick && (
+            {can.pick && (
               <Button onClick={() => run(() => pickIssue(issue.id).unwrap(), 'You picked up this issue', 'Failed to pick up')} disabled={picking}>
                 {picking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Hand className="mr-2 h-4 w-4" />} Pick up
               </Button>
             )}
-            {can.can_unpick && (
+            {can.unpick && (
               <Button variant="outline" onClick={() => run(() => unpickIssue(issue.id).unwrap(), 'You dropped this issue', 'Failed to drop')} disabled={unpicking}>
                 {unpicking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut className="mr-2 h-4 w-4" />} Drop
               </Button>
             )}
-            {!closed && (can.can_edit || can.can_triage) && (
+            {can.edit && (
               <Button variant="outline" onClick={() => setEditOpen(true)}>
                 <Pencil className="mr-2 h-4 w-4" /> Edit
               </Button>
             )}
-            {!closed && can.can_delete && (
+            {can.delete && (
               <Button variant="outline" onClick={() => setConfirmDelete(true)} className="text-red-600 hover:text-red-700">
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </Button>
@@ -186,31 +201,51 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
             <CardContent className="p-4">
               <Tabs value={tab} onValueChange={setTab}>
                 <TabsList>
-                  <TabsTrigger value="comments" className="gap-1.5">
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    Comments ({issue.comment_count})
-                  </TabsTrigger>
+                  {can.viewComments && (
+                    <TabsTrigger value="comments" className="gap-1.5">
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      Comments ({issue.comment_count})
+                    </TabsTrigger>
+                  )}
                   <TabsTrigger value="history" className="gap-1.5">
                     <HistoryIcon className="h-3.5 w-3.5" />
                     History ({issue.status_history.length})
                   </TabsTrigger>
-                  <TabsTrigger value="attachments" className="gap-1.5">
-                    <Paperclip className="h-3.5 w-3.5" />
-                    Files ({issue.attachment_count})
-                  </TabsTrigger>
+                  {can.viewFiles && (
+                    <TabsTrigger value="attachments" className="gap-1.5">
+                      <Paperclip className="h-3.5 w-3.5" />
+                      Files ({issue.attachment_count})
+                    </TabsTrigger>
+                  )}
                 </TabsList>
 
-                <TabsContent value="comments" className="mt-4">
-                  <IssueComments issueId={issue.id} canComment={canComment} myId={myId} />
-                </TabsContent>
+                {can.viewComments && (
+                  <TabsContent value="comments" className="mt-4">
+                    <IssueComments
+                      issueId={issue.id}
+                      canComment={can.comment}
+                      canEdit={can.editComment}
+                      canDelete={can.deleteComment}
+                      myId={myId}
+                    />
+                  </TabsContent>
+                )}
 
                 <TabsContent value="history" className="mt-4">
                   <IssueHistory issueId={issue.id} />
                 </TabsContent>
 
-                <TabsContent value="attachments" className="mt-4">
-                  <IssueAttachments issueId={issue.id} canUpload={canUpload} canEdit={canEditFiles} myId={myId} />
-                </TabsContent>
+                {can.viewFiles && (
+                  <TabsContent value="attachments" className="mt-4">
+                    <IssueAttachments
+                      issueId={issue.id}
+                      canUpload={can.upload}
+                      canDelete={can.deleteFiles}
+                      canDeleteAny={abilities.can_edit}
+                      myId={myId}
+                    />
+                  </TabsContent>
+                )}
               </Tabs>
             </CardContent>
           </Card>
@@ -232,7 +267,7 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
                 <IssueProgress issue={issue} />
               </div>
 
-              {can.can_change_own_status && statuses.length > 0 && (
+              {can.changeStatus && statuses.length > 0 && (
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">
                     Change status{myAssignment?.status ? ` (yours: ${myAssignment.status.name}, ${myAssignment.progress}%)` : ''}
@@ -333,7 +368,7 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
                 <IssueAssignees
                   issueId={issue.id}
                   assignees={assignees}
-                  canAssign={canAssign}
+                  canAssign={can.assign}
                   members={members}
                   statuses={statuses}
                 />
