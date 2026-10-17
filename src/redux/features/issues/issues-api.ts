@@ -1,4 +1,5 @@
 import { baseApi } from '@/redux/api/base-api';
+import { alwaysFresh } from '@/redux/api/fresh';
 import { ENDPOINTS } from '@/redux/api/endpoints';
 import { laravelInfiniteOptions, provideInfiniteListTags, type PageParam } from '@/redux/api/infinite';
 import {
@@ -59,8 +60,8 @@ export const issuesApi = baseApi.injectEndpoints({
   }),
 });
 
-export const {
-  useGetIssuesInfiniteQuery,
-  useGetProjectIssuesInfiniteQuery,
-  useCreateIssueMutation,
-} = issuesApi;
+// Issues change under the user, so every list mount loads fresh data
+export const useGetIssuesInfiniteQuery = alwaysFresh(issuesApi.useGetIssuesInfiniteQuery);
+export const useGetProjectIssuesInfiniteQuery = alwaysFresh(issuesApi.useGetProjectIssuesInfiniteQuery);
+
+export const { useCreateIssueMutation } = issuesApi;

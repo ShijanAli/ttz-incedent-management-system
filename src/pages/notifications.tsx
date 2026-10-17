@@ -1,41 +1,41 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router';
+import { toast } from 'sonner';
+import { AlertTriangle, Bell, BellOff, CheckCheck, Loader2, RotateCw } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { notificationRepo } from '@/lib/repository';
+import { useInfiniteList } from '@/hooks/use-infinite-list';
+import { parseApiError } from '@/lib/api-error';
+import { formatRelativeTime } from '@/lib/shared-utils';
+import { cn } from '@/lib/utils';
+import {
+  useGetNotificationsInfiniteQuery,
+  useGetUnreadNotificationCountQuery,
+  useMarkAllNotificationsReadMutation,
+  useMarkNotificationReadMutation,
+} from '@/redux/features/notifications/notifications-api';
+import { getNotificationMeta } from '@/components/notifications/notification-meta';
 import { PageHeader } from '@/components/shared/page-header';
+import { InfiniteScrollTrigger } from '@/components/shared/infinite-scroll-trigger';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Bell, CheckCheck, BellOff, MessageSquare, UserPlus, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { formatRelativeTime } from '@/lib/shared-utils';
-import type { NotificationType } from '@/lib/types';
-
-const NOTIF_ICONS: Record<string, { icon: typeof Bell; color: string }> = {
-  issue_assigned: { icon: UserPlus, color: 'text-blue-600 bg-blue-50' },
-  issue_status_changed: { icon: RefreshCw, color: 'text-amber-600 bg-amber-50' },
-  issue_commented: { icon: MessageSquare, color: 'text-violet-600 bg-violet-50' },
-  project_membership: { icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50' },
-  group_message: { icon: MessageSquare, color: 'text-cyan-600 bg-cyan-50' },
-  issue_deadline: { icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
-  role_changed: { icon: Bell, color: 'text-orange-600 bg-orange-50' },
-};
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function NotificationsPage() {
   const { session, hasPermission } = useAuth();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const canView = hasPermission('notifications.view');
 
-  const [notifications, setNotifications] = useState(() =>
-    session ? notificationRepo.byUser(session.user.id) : []
+  const list = useInfiniteList(
+    useGetNotificationsInfiniteQuery(undefined, { skip: !canView }),
   );
-
-  const refresh = useCallback(() => {
-    if (session) setNotifications(notificationRepo.byUser(session.user.id));
-  }, [session]);
+  const { data: unreadCount = 0 } = useGetUnreadNotificationCountQuery(undefined, { skip: !canView });
+  const [markRead] = useMarkNotificationReadMutation();
+  const [markAllRead, { isLoading: markingAll }] = useMarkAllNotificationsReadMutation();
 
   if (!session) return null;
 
-  if (!hasPermission('notifications.view')) {
+  if (!canView) {
     return (
       <div className="animate-fade-in">
         <PageHeader title="Notifications" breadcrumbs={[{ label: 'Notifications' }]} />
@@ -50,19 +50,24 @@ export default function NotificationsPage() {
     );
   }
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
-  const filtered = filter === 'unread' ? notifications.filter((n) => !n.isRead) : notifications;
-  const sorted = [...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  // The API has no unread filter, so "Unread" narrows the pages loaded so far (scrolling loads more)
+  const visible = filter === 'unread' ? list.items.filter((n) => !n.read_at) : list.items;
 
-  const markRead = (id: string) => {
-    notificationRepo.markRead(id);
-    refresh();
+  const handleMarkRead = async (id: string) => {
+    try {
+      await markRead(id).unwrap();
+    } catch (err) {
+      toast.error('Failed to mark as read', { description: parseApiError(err).message });
+    }
   };
 
-  const markAllRead = () => {
-    notificationRepo.markAllRead(session.user.id);
-    refresh();
-    toast.success('All notifications marked as read');
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllRead().unwrap();
+      toast.success('All notifications marked as read');
+    } catch (err) {
+      toast.error('Failed to mark all as read', { description: parseApiError(err).message });
+    }
   };
 
   return (
@@ -72,33 +77,63 @@ export default function NotificationsPage() {
         description="Stay up to date on issues, assignments, and activity"
         breadcrumbs={[{ label: 'Notifications' }]}
         actions={
-          unreadCount > 0 && (
-            <Button variant="outline" onClick={markAllRead}>
-              <CheckCheck className="mr-2 h-4 w-4" /> Mark all read
+          <div className="flex items-center gap-2">
+            {unreadCount > 0 && (
+              <Button variant="outline" onClick={handleMarkAllRead} disabled={markingAll}>
+                {markingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCheck className="mr-2 h-4 w-4" />}
+                Mark all read
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={list.refresh}
+              disabled={list.isFetching}
+              aria-label="Refresh notifications"
+              title="Refresh"
+            >
+              <RotateCw className={cn('h-4 w-4', list.isRefreshing && 'animate-spin')} />
             </Button>
-          )
+          </div>
         }
       />
 
       <div className="mb-4 flex items-center gap-2">
-        <Button
-          variant={filter === 'all' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilter('all')}
-        >
-          All ({notifications.length})
+        <Button variant={filter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('all')}>
+          All ({list.total})
         </Button>
-        <Button
-          variant={filter === 'unread' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilter('unread')}
-        >
+        <Button variant={filter === 'unread' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('unread')}>
           Unread ({unreadCount})
         </Button>
       </div>
 
       <div className="space-y-2">
-        {sorted.length === 0 ? (
+        {list.showSkeleton ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="flex items-start gap-3 p-4">
+                <Skeleton className="h-9 w-9 rounded-lg" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : list.isError ? (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-3 py-12 text-sm">
+              <span className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-4 w-4" />
+                {parseApiError(list.error, 'Failed to load notifications.').message}
+              </span>
+              <Button variant="outline" size="sm" onClick={list.refresh} disabled={list.isFetching}>
+                <RotateCw className="mr-2 h-3.5 w-3.5" /> Retry
+              </Button>
+            </CardContent>
+          </Card>
+        ) : visible.length === 0 && !list.trigger.hasMore ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16">
               <BellOff className="mb-4 h-10 w-10 text-muted-foreground" />
@@ -113,32 +148,43 @@ export default function NotificationsPage() {
             </CardContent>
           </Card>
         ) : (
-          sorted.map((n) => {
-            const iconMeta = NOTIF_ICONS[n.type] || { icon: Bell, color: 'text-muted-foreground bg-muted' };
-            const Icon = iconMeta.icon;
+          visible.map((n) => {
+            const meta = getNotificationMeta(n.data.event);
+            const Icon = meta.icon;
+            const unread = !n.read_at;
             return (
-              <Card key={n.id} className={`transition-colors ${!n.isRead ? 'border-primary/30 bg-primary/[0.02]' : ''}`}>
+              <Card key={n.id} className={cn('transition-colors', unread && 'border-primary/30 bg-primary/[0.02]')}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
-                    <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconMeta.color}`}>
+                    <div className={cn('mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', meta.color)}>
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{n.title}</span>
-                        {!n.isRead && <Badge className="h-1.5 w-1.5 rounded-full bg-primary p-0" />}
+                        <span className="text-sm font-medium">{meta.label}</span>
+                        {n.data.issue_code && (
+                          <span className="font-mono text-xs text-muted-foreground">{n.data.issue_code}</span>
+                        )}
+                        {unread && <Badge className="h-1.5 w-1.5 rounded-full bg-primary p-0" />}
                       </div>
-                      <p className="mt-0.5 text-sm text-muted-foreground">{n.body}</p>
+                      {n.data.issue_title && <p className="mt-0.5 truncate text-sm">{n.data.issue_title}</p>}
+                      <p className="mt-0.5 text-sm text-muted-foreground">{n.data.message}</p>
                       <div className="mt-1.5 flex items-center gap-3">
-                        <span className="text-xs text-muted-foreground">{formatRelativeTime(n.createdAt)}</span>
-                        {n.link && (
-                          <Link to={n.link} className="text-xs text-primary hover:underline">
+                        <span className="text-xs text-muted-foreground" title={new Date(n.created_at).toLocaleString()}>
+                          {formatRelativeTime(n.created_at)}
+                        </span>
+                        {n.data.path && (
+                          <Link
+                            to={n.data.path}
+                            onClick={() => { if (unread) void handleMarkRead(n.id); }}
+                            className="text-xs text-primary hover:underline"
+                          >
                             View details
                           </Link>
                         )}
-                        {!n.isRead && (
+                        {unread && (
                           <button
-                            onClick={() => markRead(n.id)}
+                            onClick={() => handleMarkRead(n.id)}
                             className="text-xs text-muted-foreground hover:text-foreground"
                           >
                             Mark as read
@@ -153,6 +199,12 @@ export default function NotificationsPage() {
           })
         )}
       </div>
+
+      <InfiniteScrollTrigger
+        {...list.trigger}
+        disabled={list.trigger.disabled || list.showSkeleton}
+        endMessage={list.items.length > 0 ? 'No more notifications' : undefined}
+      />
     </div>
   );
 }

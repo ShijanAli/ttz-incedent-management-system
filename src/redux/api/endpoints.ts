@@ -49,6 +49,12 @@ export const ENDPOINTS = {
     ONE: (id: number | string) => `/api/attachments/${id}`,
     DOWNLOAD: (id: number | string) => `/api/attachments/${id}/download`,
   },
+  NOTIFICATIONS: {
+    LIST: '/api/notifications',
+    UNREAD_COUNT: '/api/notifications/unread-count',
+    READ: (id: string) => `/api/notifications/${id}/read`,
+    READ_ALL: '/api/notifications/read-all',
+  },
   PROJECTS: {
     LIST: '/api/projects',
     ONE: (id: number | string) => `/api/projects/${id}`,

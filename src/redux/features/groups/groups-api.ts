@@ -1,4 +1,5 @@
 import { baseApi } from '@/redux/api/base-api';
+import { alwaysFresh } from '@/redux/api/fresh';
 import { ENDPOINTS } from '@/redux/api/endpoints';
 import { laravelInfiniteOptions, provideInfiniteListTags, type PageParam } from '@/redux/api/infinite';
 import {
@@ -112,14 +113,16 @@ export const groupsApi = baseApi.injectEndpoints({
   }),
 });
 
+// Groups and their members change under the user, so every mount loads fresh data
+export const useGetGroupsInfiniteQuery = alwaysFresh(groupsApi.useGetGroupsInfiniteQuery);
+export const useGetGroupQuery = alwaysFresh(groupsApi.useGetGroupQuery);
+export const useGetGroupProjectsQuery = alwaysFresh(groupsApi.useGetGroupProjectsQuery);
+export const useGetGroupMembersQuery = alwaysFresh(groupsApi.useGetGroupMembersQuery);
+
 export const {
-  useGetGroupsInfiniteQuery,
-  useGetGroupQuery,
   useCreateGroupMutation,
   useUpdateGroupMutation,
   useDeleteGroupMutation,
-  useGetGroupProjectsQuery,
-  useGetGroupMembersQuery,
   useAddGroupMemberMutation,
   useChangeGroupMemberRoleMutation,
   useRemoveGroupMemberMutation,

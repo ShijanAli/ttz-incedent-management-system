@@ -1,4 +1,5 @@
 import { baseApi } from '@/redux/api/base-api';
+import { alwaysFresh } from '@/redux/api/fresh';
 import { ENDPOINTS } from '@/redux/api/endpoints';
 import { laravelInfiniteOptions, provideInfiniteListTags, type PageParam } from '@/redux/api/infinite';
 import {
@@ -164,20 +165,22 @@ export const projectsApi = baseApi.injectEndpoints({
   }),
 });
 
+// Projects, their members and activity change under the user, so every mount loads fresh data
+export const useGetProjectsInfiniteQuery = alwaysFresh(projectsApi.useGetProjectsInfiniteQuery);
+export const useGetProjectQuery = alwaysFresh(projectsApi.useGetProjectQuery);
+export const useGetProjectMembersQuery = alwaysFresh(projectsApi.useGetProjectMembersQuery);
+export const useGetProjectActivityInfiniteQuery = alwaysFresh(projectsApi.useGetProjectActivityInfiniteQuery);
+export const useGetProjectGroupsQuery = alwaysFresh(projectsApi.useGetProjectGroupsQuery);
+export const useGetProjectStatusesQuery = alwaysFresh(projectsApi.useGetProjectStatusesQuery);
+
 export const {
-  useGetProjectsInfiniteQuery,
-  useGetProjectQuery,
   useCreateProjectMutation,
   useUpdateProjectMutation,
   useDeleteProjectMutation,
-  useGetProjectMembersQuery,
   useAddProjectMemberMutation,
   useChangeProjectMemberRoleMutation,
   useRemoveProjectMemberMutation,
-  useGetProjectActivityInfiniteQuery,
-  useGetProjectGroupsQuery,
   useAttachProjectGroupMutation,
   useDetachProjectGroupMutation,
-  useGetProjectStatusesQuery,
   useReplaceProjectStatusesMutation,
 } = projectsApi;

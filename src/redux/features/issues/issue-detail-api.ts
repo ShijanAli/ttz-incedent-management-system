@@ -1,5 +1,6 @@
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query';
 import { baseApi } from '@/redux/api/base-api';
+import { alwaysFresh } from '@/redux/api/fresh';
 import { ENDPOINTS } from '@/redux/api/endpoints';
 import { laravelInfiniteOptions, type PageParam } from '@/redux/api/infinite';
 import {
@@ -215,25 +216,27 @@ export const issueDetailApi = baseApi.injectEndpoints({
   }),
 });
 
+// Other people work on the same issue, so every mount loads fresh data
+export const useGetIssueQuery = alwaysFresh(issueDetailApi.useGetIssueQuery);
+export const useGetIssueHistoryInfiniteQuery = alwaysFresh(issueDetailApi.useGetIssueHistoryInfiniteQuery);
+export const useGetIssueAssigneesQuery = alwaysFresh(issueDetailApi.useGetIssueAssigneesQuery);
+export const useGetIssueCommentsInfiniteQuery = alwaysFresh(issueDetailApi.useGetIssueCommentsInfiniteQuery);
+export const useGetIssueAttachmentsQuery = alwaysFresh(issueDetailApi.useGetIssueAttachmentsQuery);
+
 export const {
-  useGetIssueQuery,
   useUpdateIssueMutation,
   useTriageIssueMutation,
   useDeleteIssueMutation,
-  useGetIssueHistoryInfiniteQuery,
   useChangeMyIssueStatusMutation,
   useOverrideAssigneeStatusMutation,
   useReviewIssueMutation,
-  useGetIssueAssigneesQuery,
   useAssignIssueMutation,
   useUnassignIssueMutation,
   usePickIssueMutation,
   useUnpickIssueMutation,
-  useGetIssueCommentsInfiniteQuery,
   useAddCommentMutation,
   useEditCommentMutation,
   useDeleteCommentMutation,
-  useGetIssueAttachmentsQuery,
   useUploadAttachmentMutation,
   useDeleteAttachmentMutation,
   useDownloadAttachmentMutation,
