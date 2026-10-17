@@ -97,6 +97,14 @@ export function isOverdue(dueDate?: string, status?: string): boolean {
   return new Date(dueDate) < new Date();
 }
 
+/**
+ * A closed issue is read-only (no edit/delete). The detail API sends `closed_at`;
+ * the list doesn't, so fall back to the "Closed" status name there.
+ */
+export function isIssueClosed(issue: { closed_at?: string | null; status: { name: string } | null }): boolean {
+  return Boolean(issue.closed_at) || issue.status?.name.toLowerCase() === 'closed';
+}
+
 export function calculateProjectProgress(projectId: string, issues: { projectId: string; status: string }[]): number {
   const projectIssues = issues.filter((i) => i.projectId === projectId);
   if (projectIssues.length === 0) return 0;

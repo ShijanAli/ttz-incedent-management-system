@@ -7,8 +7,10 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useTabParam } from '@/hooks/use-tab-param';
+import { useAppSelector } from '@/redux/hooks';
+import { selectAuth } from '@/redux/features/auth/auth-slice';
 import { parseApiError } from '@/lib/api-error';
-import { formatDate, getAvatarColor, isOverdue } from '@/lib/shared-utils';
+import { formatDate, getAvatarColor, isIssueClosed, isOverdue } from '@/lib/shared-utils';
 import { getProjectColor, getProjectInitials, sortStatuses } from '@/lib/project-utils';
 import {
   useChangeMyIssueStatusMutation,
@@ -80,9 +82,18 @@ export default function IssueDetailPage() {
 
 function IssueDetailView({ issue }: { issue: IssueDetail }) {
   const navigate = useNavigate();
-  const { session } = useAuth();
+  const { session, isSuperAdmin } = useAuth();
+  const defaultRole = useAppSelector(selectAuth).user?.default_role;
   const myId = session ? Number(session.user.id) : undefined;
   const can = issue.abilities;
+  // Only reporters (by default role) and super admins confirm a fix or send it back
+  const canReview = isSuperAdmin || defaultRole === 'Reporter';
+  const closed = isIssueClosed(issue);
+  // Closed issues are read-only: no comments, files or assignee changes
+  const canComment = can.can_comment && !closed;
+  const canAssign = can.can_assign && !closed;
+  const canUpload = can.can_upload && !closed;
+  const canEditFiles = can.can_edit && !closed;
   const [tab, setTab] = useTabParam(ISSUE_TABS, 'comments');
 
   const [editOpen, setEditOpen] = useState(false);
@@ -92,9 +103,9 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
 
   // Fresh assignee list (the issue payload embeds one too, used until it loads)
   const { data: assignees = issue.assignees } = useGetIssueAssigneesQuery(issue.id);
-  const needsStatuses = can.can_change_own_status || can.can_assign;
+  const needsStatuses = can.can_change_own_status || canAssign;
   const { data: statusList = [] } = useGetProjectStatusesQuery(issue.project.id, { skip: !needsStatuses });
-  const { data: members = [] } = useGetProjectMembersQuery(issue.project.id, { skip: !can.can_assign });
+  const { data: members = [] } = useGetProjectMembersQuery(issue.project.id, { skip: !canAssign });
   const statuses = sortStatuses(statusList);
 
   const [deleteIssue] = useDeleteIssueMutation();
@@ -142,12 +153,12 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
                 {unpicking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut className="mr-2 h-4 w-4" />} Drop
               </Button>
             )}
-            {(can.can_edit || can.can_triage) && (
+            {!closed && (can.can_edit || can.can_triage) && (
               <Button variant="outline" onClick={() => setEditOpen(true)}>
                 <Pencil className="mr-2 h-4 w-4" /> Edit
               </Button>
             )}
-            {can.can_delete && (
+            {!closed && can.can_delete && (
               <Button variant="outline" onClick={() => setConfirmDelete(true)} className="text-red-600 hover:text-red-700">
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </Button>
@@ -190,7 +201,7 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
                 </TabsList>
 
                 <TabsContent value="comments" className="mt-4">
-                  <IssueComments issueId={issue.id} canComment={can.can_comment} myId={myId} />
+                  <IssueComments issueId={issue.id} canComment={canComment} myId={myId} />
                 </TabsContent>
 
                 <TabsContent value="history" className="mt-4">
@@ -198,7 +209,7 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
                 </TabsContent>
 
                 <TabsContent value="attachments" className="mt-4">
-                  <IssueAttachments issueId={issue.id} canUpload={can.can_upload} canEdit={can.can_edit} myId={myId} />
+                  <IssueAttachments issueId={issue.id} canUpload={canUpload} canEdit={canEditFiles} myId={myId} />
                 </TabsContent>
               </Tabs>
             </CardContent>
@@ -243,7 +254,7 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
               )}
 
               {issue.awaiting_review && (
-                can.can_review ? (
+                canReview ? (
                   <div className="space-y-2">
                     <p className="text-xs text-muted-foreground">All assignees are done. Check the fix and confirm it, or send it back.</p>
                     <Button onClick={() => setReview('confirm')} className="w-full">
@@ -322,7 +333,7 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
                 <IssueAssignees
                   issueId={issue.id}
                   assignees={assignees}
-                  canAssign={can.can_assign}
+                  canAssign={canAssign}
                   members={members}
                   statuses={statuses}
                 />

@@ -87,7 +87,8 @@ export function IssueAttachments({ issueId, canUpload, canEdit, myId }: IssueAtt
           <p className="text-sm text-muted-foreground text-center py-6">No files attached.</p>
         ) : (
           attachments.map((a) => {
-            const canRemove = canEdit || a.uploaded_by?.id === myId;
+            // canUpload is off on closed issues, which also locks the uploader's own files
+            const canRemove = canEdit || (canUpload && a.uploaded_by?.id === myId);
             return (
               <div key={a.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
                 <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">

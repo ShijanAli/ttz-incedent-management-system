@@ -9,7 +9,7 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { parseApiError } from '@/lib/api-error';
 import {
-  ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, ISSUE_TYPE_OPTIONS, formatDate, formatRelativeTime, isOverdue,
+  ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, ISSUE_TYPE_OPTIONS, formatDate, formatRelativeTime, isIssueClosed, isOverdue,
 } from '@/lib/shared-utils';
 import { sortStatuses } from '@/lib/project-utils';
 import { useGetIssuesInfiniteQuery, useGetProjectIssuesInfiniteQuery } from '@/redux/features/issues/issues-api';
@@ -444,6 +444,8 @@ function IssueRow({ index, issue, canUpdate, canDelete, onEdit, onDelete }: Issu
   const overdue = issue.progress < 100 && isOverdue(issue.due_date ?? undefined);
   // The list has no updated_at yet, so fall back to when the issue was created
   const updatedAt = issue.updated_at ?? issue.created_at;
+  // Closed issues are read-only
+  const closed = isIssueClosed(issue);
   return (
     <TableRow className="cursor-pointer hover:bg-muted/50" {...{ [ROW_INDEX_ATTR]: index }}>
       <TableCell className="text-sm tabular-nums text-muted-foreground">{index + 1}</TableCell>
@@ -500,12 +502,12 @@ function IssueRow({ index, issue, canUpdate, canDelete, onEdit, onDelete }: Issu
                 <Eye className="mr-2 h-4 w-4" /> View issue
               </Link>
             </DropdownMenuItem>
-            {canUpdate && (
+            {canUpdate && !closed && (
               <DropdownMenuItem onClick={() => onEdit(issue)}>
                 <Pencil className="mr-2 h-4 w-4" /> Edit issue
               </DropdownMenuItem>
             )}
-            {canDelete && (
+            {canDelete && !closed && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => onDelete(issue)} className="text-red-600">

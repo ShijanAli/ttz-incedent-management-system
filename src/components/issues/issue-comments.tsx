@@ -84,7 +84,8 @@ export function IssueComments({ issueId, canComment, myId }: IssueCommentsProps)
           <p className="text-sm text-muted-foreground text-center py-6">No comments yet. Be the first to comment.</p>
         ) : (
           list.items.map((c) => {
-            const isMine = c.author?.id === myId;
+            // canComment is off on closed issues, which also locks existing comments
+            const isMine = canComment && c.author?.id === myId;
             const isEditing = editing?.id === c.id;
             return (
               <div key={c.id} className="flex gap-3">
