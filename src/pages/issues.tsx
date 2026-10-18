@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useSearchParams } from 'react-router';
 import {
   AlertCircle, AlertTriangle, Eye, FolderKanban, KanbanSquare, ListFilter, Loader2, MoreVertical, Pencil, Plus, RotateCw,
   Search, SlidersHorizontal, Trash2, Users as UsersIcon, X,
@@ -9,6 +9,7 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useTabParam } from '@/hooks/use-tab-param';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { parseApiError } from '@/lib/api-error';
+import { rememberIssuesSearch } from '@/lib/last-issues-url';
 import {
   ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, ISSUE_TYPE_OPTIONS, formatDate, formatRelativeTime, isIssueClosed, isOverdue,
 } from '@/lib/shared-utils';
@@ -125,6 +126,9 @@ const pick = <T extends string>(value: string): T | undefined => (value === ALL 
 export default function IssuesPage() {
   const { session, hasPermission, isSuperAdmin } = useAuth();
   const [filters, setFilters] = useUrlFilters();
+  // Lets an issue's breadcrumb come back to this exact view and filters
+  const { search: locationSearch } = useLocation();
+  useEffect(() => rememberIssuesSearch(locationSearch), [locationSearch]);
   // Open "More filters" on load when the URL already sets one of them
   const [showAdvanced, setShowAdvanced] = useState(() => ADVANCED_KEYS.some((k) => isSet(k, filters[k])));
   // Kept in the URL (?view=board) so a reload or shared link opens the same view
@@ -181,6 +185,8 @@ export default function IssuesPage() {
   const { data: boardProject } = useGetProjectQuery(boardProjectId, { skip: !boardActive });
   const canReorderColumns = projectCan(boardProject, 'projects.edit');
   const [replaceStatuses] = useReplaceProjectStatusesMutation();
+  const canCreate = hasPermission('issues.create');
+  const canCreateOnBoard = canCreate && projectCan(boardProject, 'issues.create');
 
   // Whichever list is on screen drives the count, refresh, errors and paging
   const list = boardActive ? boardList : tableList;
@@ -189,7 +195,6 @@ export default function IssuesPage() {
   const activeCount = (Object.keys(filters) as (keyof FilterState)[]).filter((k) => isSet(k, filters[k])).length;
   const advancedCount = ADVANCED_KEYS.filter((k) => isSet(k, filters[k])).length;
 
-  const canCreate = hasPermission('issues.create');
   // The API still checks each issue's own abilities; these only decide what the menu offers
   const canUpdate = hasPermission('issues.update');
   const canDelete = hasPermission('issues.delete');
@@ -390,6 +395,7 @@ export default function IssuesPage() {
               <IssueBoard
                 issues={boardList.items}
                 statuses={orderedBoardStatuses}
+                onCreate={canCreateOnBoard ? () => setFormOpen(true) : undefined}
                 onReorderColumns={!canReorderColumns ? undefined : async (ordered) => {
                   // The board hands back its own column objects; send the full statuses so flags are kept
                   const byId = new Map(orderedBoardStatuses.map((s) => [s.id, s]));
@@ -474,7 +480,13 @@ export default function IssuesPage() {
       {!showBoard && <ScrollPositionIndicator containerRef={tableRef} total={list.total} />}
 
       {/* The list refreshes itself after a create, edit or delete (cache invalidation) */}
-      <IssueFormDialog open={formOpen} onOpenChange={setFormOpen} onSaved={() => undefined} />
+      {/* With a project filter set (e.g. the board), new issues start in that project */}
+      <IssueFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        defaultProjectId={filters.projectId || undefined}
+        onSaved={() => undefined}
+      />
       <EditIssueDialog issueId={editingId} onClose={() => setEditingId(null)} />
 
       <ConfirmDialog

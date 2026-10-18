@@ -13,6 +13,7 @@ export const ENDPOINTS = {
     VERIFY_FORGOT_OTP: '/api/auth/verify-forgot-otp',
     RESET_PASSWORD: '/api/auth/reset-password',
   },
+  PROFILE: '/api/profile',
   ADMIN: {
     PERMISSIONS: '/api/admin/permissions',
     ROLES: '/api/admin/roles',

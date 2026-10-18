@@ -6,6 +6,10 @@ export interface ApiUser {
   designation: string | null;
   status: 'active' | 'inactive' | (string & {});
   department?: string | null;
+  bio?: string | null;
+  /** Profile photo URL; the backend may send it under either key */
+  photo_url?: string | null;
+  photo?: string | null;
   /** System-wide role name, e.g. "Developer"; drives the sidebar and dashboard */
   default_role?: string | null;
   /**
@@ -82,6 +86,18 @@ export interface VerifyForgotOtpRequest {
 export interface VerifyForgotOtpResponse {
   token?: string;
   reset_token?: string;
+}
+
+/** Sent as JSON (PATCH) without a photo, or multipart (POST) when `photo` is set */
+export interface UpdateProfileRequest {
+  name: string;
+  /** Not sent for now; the profile form keeps email read-only */
+  email?: string;
+  phone: string;
+  designation: string;
+  department: string;
+  bio: string;
+  photo?: File;
 }
 
 export interface ResetPasswordRequest {

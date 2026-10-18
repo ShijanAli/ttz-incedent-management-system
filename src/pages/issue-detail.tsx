@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams, useNavigate } from 'react-router';
+import { Link, useLocation, useParams, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import {
   Pencil, Trash2, Paperclip, CheckCircle2, AlertCircle, History as HistoryIcon, MessageSquare, Hand,
@@ -10,6 +10,7 @@ import { useTabParam } from '@/hooks/use-tab-param';
 import { useAppSelector } from '@/redux/hooks';
 import { selectAuth } from '@/redux/features/auth/auth-slice';
 import { parseApiError } from '@/lib/api-error';
+import { lastIssuesUrl } from '@/lib/last-issues-url';
 import {
   ISSUE_SEVERITY_OPTIONS, formatDate, getAvatarColor, getSeverityKey, isIssueClosed, isOverdue,
 } from '@/lib/shared-utils';
@@ -65,12 +66,12 @@ export default function IssueDetailPage() {
     const missing = !Number.isFinite(issueId) || apiError.status === 404 || apiError.status === 403;
     return (
       <div className="animate-fade-in">
-        <PageHeader title="Issue not found" breadcrumbs={[{ label: 'Issues', href: '/issues' }, { label: 'Not Found' }]} />
+        <PageHeader title="Issue not found" breadcrumbs={[{ label: 'Issues', href: lastIssuesUrl() }, { label: 'Not Found' }]} />
         <Card className="p-8 text-center text-muted-foreground">
           {missing ? 'The issue you are looking for does not exist or you do not have access to it.' : apiError.message}
           <div className="mt-4 flex justify-center gap-2">
             {!missing && <Button variant="outline" onClick={() => refetch()}>Retry</Button>}
-            <Button variant="outline" onClick={() => navigate('/issues')}>
+            <Button variant="outline" onClick={() => navigate(lastIssuesUrl())}>
               Back to Issues
             </Button>
           </div>
@@ -84,6 +85,7 @@ export default function IssueDetailPage() {
 
 function IssueDetailView({ issue }: { issue: IssueDetail }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { session, isSuperAdmin, hasPermission } = useAuth();
   const defaultRole = useAppSelector(selectAuth).user?.default_role;
   const myId = session ? Number(session.user.id) : undefined;
@@ -150,7 +152,10 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
     try {
       await deleteIssue(issue.id).unwrap();
       toast.success('Issue deleted', { description: `${issue.code} has been deleted.` });
-      navigate('/issues', { replace: true });
+      // Return to wherever the user came from (e.g. the board with its project filter);
+      // a direct link has no in-app history, so fall back to the issue list
+      if (location.key !== 'default') navigate(-1);
+      else navigate(lastIssuesUrl(), { replace: true });
     } catch (err) {
       toast.error('Failed to delete issue', { description: parseApiError(err).message });
     }
@@ -161,7 +166,7 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
       <PageHeader
         title={issue.code}
         description={issue.title}
-        breadcrumbs={[{ label: 'Issues', href: '/issues' }, { label: issue.code }]}
+        breadcrumbs={[{ label: 'Issues', href: lastIssuesUrl() }, { label: issue.code }]}
         actions={
           <div className="flex items-center gap-2">
             {can.pick && (

@@ -9,9 +9,18 @@ import type {
   LoginRequest,
   MeResponse,
   ResetPasswordRequest,
+  UpdateProfileRequest,
   VerifyForgotOtpRequest,
   VerifyForgotOtpResponse,
 } from './auth-types';
+
+/** Multipart body for a profile update that includes a new photo */
+function toProfileFormData({ photo, ...fields }: UpdateProfileRequest) {
+  const form = new FormData();
+  Object.entries(fields).forEach(([key, value]) => { if (value !== undefined) form.append(key, value); });
+  if (photo) form.append('photo', photo);
+  return form;
+}
 
 export const authApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
@@ -63,6 +72,15 @@ export const authApi = baseApi.injectEndpoints({
       invalidatesTags: (result) => (result ? ['Me'] : []),
     }),
 
+    /** PATCH with JSON for field changes; POST with multipart when a photo is uploaded */
+    updateProfile: build.mutation<ApiResponse<unknown>, UpdateProfileRequest>({
+      query: (req) =>
+        req.photo
+          ? { url: ENDPOINTS.PROFILE, method: 'POST', body: toProfileFormData(req) }
+          : { url: ENDPOINTS.PROFILE, method: 'PATCH', body: req },
+      invalidatesTags: (result) => (result ? ['Me', 'User'] : []),
+    }),
+
     /** Takes the token explicitly because local auth state is cleared before this request runs. */
     logout: build.mutation<ApiResponse<null>, string>({
       query: (accessToken) => ({
@@ -90,6 +108,7 @@ export const {
   useLoginMutation,
   useGetMeQuery,
   useChangePasswordMutation,
+  useUpdateProfileMutation,
   useLogoutMutation,
   useForgotPasswordMutation,
   useVerifyForgotOtpMutation,

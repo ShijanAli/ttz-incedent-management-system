@@ -6,7 +6,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AlertCircle, GripVertical, MessageSquare, Paperclip, Users as UsersIcon } from 'lucide-react';
+import { AlertCircle, GripVertical, MessageSquare, Paperclip, Plus, Users as UsersIcon } from 'lucide-react';
 import { ColoredBadge, IssuePriorityBadge, IssueProgress } from '@/components/issues/issue-badges';
 import { formatDate, isOverdue } from '@/lib/shared-utils';
 import { cn } from '@/lib/utils';
@@ -52,13 +52,18 @@ interface IssueBoardProps {
    * Reject to put the columns back. Omit to keep the column order fixed.
    */
   onReorderColumns?: (ordered: BoardStatus[]) => Promise<unknown>;
+  /**
+   * Shows a "Create issue" button at the bottom of the first column. New issues start
+   * in the project's default status, so it lives where they land. Omit to hide it.
+   */
+  onCreate?: () => void;
 }
 
 /**
  * Board view: one column per status. Cards can be dragged between columns when
  * `onMove` is given; columns can be reordered by their grip when `onReorderColumns` is.
  */
-export function IssueBoard({ issues, statuses, onMove, onReorderColumns }: IssueBoardProps) {
+export function IssueBoard({ issues, statuses, onMove, onReorderColumns, onCreate }: IssueBoardProps) {
   // Cards moved but not yet confirmed by fresh data: issueId -> target status
   const [pendingMoves, setPendingMoves] = useState<Map<number, BoardStatus>>(new Map());
   // Column order saved but not yet confirmed by fresh statuses
@@ -173,24 +178,36 @@ export function IssueBoard({ issues, statuses, onMove, onReorderColumns }: Issue
     >
       <SortableContext items={sortableIds} strategy={horizontalListSortingStrategy}>
         <div className="flex gap-4 overflow-x-auto pb-2">
-          {columns.map(({ status, items }) => (
-            <BoardColumn
-              key={status.id}
-              status={status}
-              count={items.length}
-              droppable={Boolean(onMove)}
-              sortable={canReorder && sortableIds.includes(columnDndId(status.id))}
-            >
-              {items.length === 0 && (
-                <p className="rounded-lg border border-dashed py-6 text-center text-xs text-muted-foreground">
-                  {onMove ? 'Drop issues here' : 'No issues'}
-                </p>
-              )}
-              {items.map((issue) => (
-                <DraggableCard key={issue.id} issue={issue} draggable={Boolean(onMove)} pending={pendingMoves.has(issue.id)} />
-              ))}
-            </BoardColumn>
-          ))}
+          {columns.map(({ status, items }, index) => {
+            const showCreate = Boolean(onCreate) && index === 0;
+            return (
+              <BoardColumn
+                key={status.id}
+                status={status}
+                count={items.length}
+                droppable={Boolean(onMove)}
+                sortable={canReorder && sortableIds.includes(columnDndId(status.id))}
+              >
+                {items.length === 0 && !showCreate && (
+                  <p className="rounded-lg border border-dashed py-6 text-center text-xs text-muted-foreground">
+                    {onMove ? 'Drop issues here' : 'No issues'}
+                  </p>
+                )}
+                {items.map((issue) => (
+                  <DraggableCard key={issue.id} issue={issue} draggable={Boolean(onMove)} pending={pendingMoves.has(issue.id)} />
+                ))}
+                {showCreate && (
+                  <button
+                    type="button"
+                    onClick={onCreate}
+                    className="flex w-full items-center gap-1.5 rounded-lg px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Plus className="h-4 w-4" /> Create issue
+                  </button>
+                )}
+              </BoardColumn>
+            );
+          })}
         </div>
       </SortableContext>
 

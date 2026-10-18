@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { userRepo, activityRepo } from '@/lib/repository';
+import { useUpdateProfileMutation } from '@/redux/features/auth/auth-api';
+import { parseApiError } from '@/lib/api-error';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -9,38 +10,43 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { UserAvatar } from '@/components/shared/user-avatar';
-import { Camera, Check, Loader2, Pencil, Save, Trash2, Upload, User as UserIcon } from 'lucide-react';
+import { Camera, Loader2, Pencil, Save, Trash2, Upload, User as UserIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 
-const AVATAR_COLORS = ['#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#7c3aed', '#db2777', '#475569'];
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-const AVATAR_PX = 256;
+const AVATAR_PX = 512;
 
-/**
- * Center-crops the image to a square and scales it down, so the stored
- * data URL stays small enough for localStorage (~15–30 KB).
- */
-function resizeImage(file: File, size: number): Promise<string> {
+/** Center-crops the image to a square and scales it down before upload. */
+function resizeImage(file: File, size: number): Promise<File> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
+      URL.revokeObjectURL(url);
       const side = Math.min(img.width, img.height);
       const canvas = document.createElement('canvas');
       canvas.width = size;
       canvas.height = size;
       const ctx = canvas.getContext('2d');
       if (!ctx) {
-        URL.revokeObjectURL(url);
         reject(new Error('Canvas not supported'));
         return;
       }
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, size, size);
       ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL('image/jpeg', 0.85));
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error('Could not encode image'));
+            return;
+          }
+          const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+          resolve(new File([blob], name, { type: 'image/jpeg' }));
+        },
+        'image/jpeg',
+        0.85,
+      );
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
@@ -50,24 +56,48 @@ function resizeImage(file: File, size: number): Promise<string> {
   });
 }
 
-export function ProfileCard() {
-  const { session, refreshSession } = useAuth();
-  const user = session!.user;
+type FormState = {
+  name: string;
+  email: string;
+  designation: string;
+  department: string;
+  phone: string;
+  bio: string;
+};
 
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({
+/** Backend field names that map onto form fields */
+const FIELD_KEYS: readonly (keyof FormState | 'photo')[] = ['name', 'email', 'designation', 'department', 'phone', 'bio', 'photo'];
+
+export function ProfileCard() {
+  const { session } = useAuth();
+  const user = session!.user;
+  const [updateProfile, { isLoading: saving }] = useUpdateProfileMutation();
+
+  const initialForm = (): FormState => ({
     name: user.name,
     email: user.email,
-    title: user.title ?? '',
+    designation: user.title ?? '',
     department: user.department ?? '',
     phone: user.phone ?? '',
     bio: user.bio ?? '',
-    avatarColor: user.avatarColor,
-    avatarUrl: user.avatarUrl ?? '',
   });
+
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<FormState>(initialForm);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [processing, setProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Release the preview blob URL when it is replaced or the card unmounts
+  useEffect(() => () => { if (photoPreview) URL.revokeObjectURL(photoPreview); }, [photoPreview]);
+
+  const setPhoto = (file: File | null) => {
+    setPhotoFile(file);
+    setPhotoPreview(file ? URL.createObjectURL(file) : null);
+    setErrors((e) => ({ ...e, photo: '' }));
+  };
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
@@ -81,7 +111,7 @@ export function ProfileCard() {
     }
     setProcessing(true);
     try {
-      set('avatarUrl', await resizeImage(file, AVATAR_PX));
+      setPhoto(await resizeImage(file, AVATAR_PX));
     } catch {
       toast.error('Could not read that image');
     } finally {
@@ -90,24 +120,21 @@ export function ProfileCard() {
     }
   };
 
-  const set = (key: keyof typeof form, value: string) => {
+  const set = (key: keyof FormState, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
     setErrors((e) => ({ ...e, [key]: '' }));
   };
 
   const startEdit = () => {
-    setForm({
-      name: user.name,
-      email: user.email,
-      title: user.title ?? '',
-      department: user.department ?? '',
-      phone: user.phone ?? '',
-      bio: user.bio ?? '',
-      avatarColor: user.avatarColor,
-      avatarUrl: user.avatarUrl ?? '',
-    });
+    setForm(initialForm());
+    setPhoto(null);
     setErrors({});
     setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setPhoto(null);
+    setEditing(false);
   };
 
   const validate = (): boolean => {
@@ -115,43 +142,41 @@ export function ProfileCard() {
     if (!form.name.trim()) errs.name = 'Name is required';
     else if (form.name.trim().length < 2) errs.name = 'Name must be at least 2 characters';
 
-    if (!form.email.trim()) errs.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errs.email = 'Invalid email format';
-    else {
-      const existing = userRepo.findByEmail(form.email.trim());
-      if (existing && existing.id !== user.id) errs.email = 'An account with this email already exists';
-    }
-
     if (form.phone.trim() && !/^[+\d][\d\s-]{5,}$/.test(form.phone.trim())) errs.phone = 'Invalid phone number';
 
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  const save = () => {
+  const save = async () => {
     if (!validate()) return;
-    userRepo.update(user.id, {
-      name: form.name.trim(),
-      email: form.email.trim(),
-      title: form.title.trim() || undefined,
-      department: form.department.trim() || undefined,
-      phone: form.phone.trim() || undefined,
-      bio: form.bio.trim() || undefined,
-      avatarColor: form.avatarColor,
-      avatarUrl: form.avatarUrl || undefined,
-    });
-    activityRepo.create({
-      actorId: user.id,
-      action: 'user_updated',
-      entityType: 'User',
-      entityId: user.id,
-      entityName: form.name.trim(),
-      summary: `Updated own profile`,
-    });
-    refreshSession();
-    setEditing(false);
-    toast.success('Profile updated');
+    try {
+      await updateProfile({
+        // Email is left out of profile updates for now (read-only field)
+        name: form.name.trim(),
+        phone: form.phone.trim(),
+        designation: form.designation.trim(),
+        department: form.department.trim(),
+        bio: form.bio.trim(),
+        photo: photoFile ?? undefined,
+      }).unwrap();
+      setPhoto(null);
+      setEditing(false);
+      toast.success('Profile updated');
+    } catch (err) {
+      const apiError = parseApiError(err, 'Could not update profile');
+      const fieldErrs: Record<string, string> = {};
+      for (const key of FIELD_KEYS) {
+        const message = apiError.fieldErrors[key]?.[0];
+        if (message) fieldErrs[key] = message;
+      }
+      setErrors(fieldErrs);
+      if (fieldErrs.photo) toast.error(fieldErrs.photo);
+      else if (Object.keys(fieldErrs).length === 0) toast.error(apiError.message);
+    }
   };
+
+  const avatarImage = photoPreview ?? user.avatarUrl;
 
   return (
     <Card>
@@ -178,11 +203,12 @@ export function ProfileCard() {
               onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
+              disabled={saving}
               className="group relative shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label="Upload profile photo"
               title="Click or drop an image"
             >
-              <UserAvatar name={form.name || user.name} color={form.avatarColor} image={form.avatarUrl || undefined} size="xl" />
+              <UserAvatar name={form.name || user.name} color={user.avatarColor} image={avatarImage} size="xl" />
               <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100">
                 {processing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
               </span>
@@ -197,12 +223,12 @@ export function ProfileCard() {
             </div>
             {editing && (
               <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" size="sm" disabled={processing} onClick={() => fileInputRef.current?.click()}>
+                <Button type="button" variant="outline" size="sm" disabled={processing || saving} onClick={() => fileInputRef.current?.click()}>
                   <Upload className="mr-2 h-3.5 w-3.5" />
-                  {form.avatarUrl ? 'Change photo' : 'Upload photo'}
+                  {avatarImage ? 'Change photo' : 'Upload photo'}
                 </Button>
-                {form.avatarUrl && (
-                  <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => set('avatarUrl', '')}>
+                {photoFile && (
+                  <Button type="button" variant="ghost" size="sm" disabled={saving} className="text-destructive hover:text-destructive" onClick={() => setPhoto(null)}>
                     <Trash2 className="mr-2 h-3.5 w-3.5" /> Remove
                   </Button>
                 )}
@@ -224,37 +250,14 @@ export function ProfileCard() {
               JPG, PNG, WebP or GIF up to 5 MB. Cropped to a square automatically.
             </p>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">
-                Avatar color {form.avatarUrl && <span className="font-normal text-muted-foreground">(used when no photo is set)</span>}
-              </Label>
-              <div className="flex flex-wrap gap-2">
-                {AVATAR_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => set('avatarColor', color)}
-                    className={cn(
-                      'flex h-7 w-7 items-center justify-center rounded-full ring-offset-2 ring-offset-background transition-shadow',
-                      form.avatarColor === color && 'ring-2 ring-foreground'
-                    )}
-                    style={{ backgroundColor: color }}
-                    aria-label={`Use color ${color}`}
-                  >
-                    {form.avatarColor === color && <Check className="h-3.5 w-3.5 text-white" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <Separator />
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field id="pf-name" label="Full name" required value={form.name} error={errors.name} onChange={(v) => set('name', v)} />
-              <Field id="pf-email" label="Email" required type="email" value={form.email} error={errors.email} onChange={(v) => set('email', v)} />
-              <Field id="pf-title" label="Title" value={form.title} placeholder="e.g. Support Engineer" onChange={(v) => set('title', v)} />
-              <Field id="pf-dept" label="Department" value={form.department} placeholder="e.g. Operations" onChange={(v) => set('department', v)} />
-              <Field id="pf-phone" label="Phone" value={form.phone} error={errors.phone} placeholder="+880 1XXX-XXXXXX" onChange={(v) => set('phone', v)} />
+              <Field id="pf-email" label="Email" type="email" value={form.email} disabled onChange={(v) => set('email', v)} />
+              <Field id="pf-title" label="Designation" value={form.designation} error={errors.designation} placeholder="e.g. Support Engineer" onChange={(v) => set('designation', v)} />
+              <Field id="pf-dept" label="Department" value={form.department} error={errors.department} placeholder="e.g. Operations" onChange={(v) => set('department', v)} />
+              <Field id="pf-phone" label="Phone" value={form.phone} error={errors.phone} placeholder="01XXXXXXXXX" onChange={(v) => set('phone', v)} />
             </div>
 
             <div className="space-y-1.5">
@@ -267,15 +270,19 @@ export function ProfileCard() {
                 placeholder="A short line about you..."
                 onChange={(e) => set('bio', e.target.value)}
               />
-              <p className="text-right text-xs text-muted-foreground">{form.bio.length}/280</p>
+              <div className="flex justify-between gap-2">
+                <p className="text-xs text-destructive">{errors.bio}</p>
+                <p className="text-xs text-muted-foreground">{form.bio.length}/280</p>
+              </div>
             </div>
 
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setEditing(false)}>
+              <Button variant="outline" className="flex-1" disabled={saving} onClick={cancelEdit}>
                 Cancel
               </Button>
-              <Button className="flex-1" onClick={save}>
-                <Save className="mr-2 h-4 w-4" /> Save Profile
+              <Button className="flex-1" disabled={saving || processing} onClick={save}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Profile
               </Button>
             </div>
           </>
@@ -283,7 +290,7 @@ export function ProfileCard() {
           <>
             <Separator />
             <div className="grid grid-cols-2 gap-4">
-              <ReadOnly label="Title" value={user.title} />
+              <ReadOnly label="Designation" value={user.title} />
               <ReadOnly label="Department" value={user.department} />
               <ReadOnly label="Phone" value={user.phone} />
               <div>
@@ -309,7 +316,7 @@ export function ProfileCard() {
 }
 
 function Field({
-  id, label, value, onChange, error, required, type = 'text', placeholder,
+  id, label, value, onChange, error, required, disabled, type = 'text', placeholder,
 }: {
   id: string;
   label: string;
@@ -317,6 +324,7 @@ function Field({
   onChange: (v: string) => void;
   error?: string;
   required?: boolean;
+  disabled?: boolean;
   type?: string;
   placeholder?: string;
 }) {
@@ -325,7 +333,7 @@ function Field({
       <Label htmlFor={id}>
         {label} {required && <span className="text-destructive">*</span>}
       </Label>
-      <Input id={id} type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      <Input id={id} type={type} value={value} placeholder={placeholder} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );

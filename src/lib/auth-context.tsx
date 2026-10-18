@@ -74,6 +74,8 @@ function toSessionUser(user: ApiUser): User {
     title: user.designation ?? undefined,
     department: user.department ?? undefined,
     phone: user.phone ?? undefined,
+    bio: user.bio ?? undefined,
+    avatarUrl: user.photo_url ?? user.photo ?? undefined,
     createdAt: user.created_at,
     lastActiveAt: user.last_login_at ?? undefined,
   };
