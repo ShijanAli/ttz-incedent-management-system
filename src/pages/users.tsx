@@ -14,6 +14,7 @@ import {
 import { isUserDisabled, type AdminUser } from '@/redux/features/users/users-types';
 import { PageHeader } from '@/components/shared/page-header';
 import { UserAvatar } from '@/components/shared/user-avatar';
+import { UserHoverCard } from '@/components/shared/user-hover-card';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { InfiniteScrollTrigger } from '@/components/shared/infinite-scroll-trigger';
 import { TableSkeletonRows } from '@/components/shared/table-skeleton-rows';
@@ -289,7 +290,9 @@ export default function UsersPage() {
                         <TableCell className="text-sm tabular-nums text-muted-foreground">{index + 1}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3">
-                            <UserAvatar name={user.name} color={getAvatarColor(user.id)} size="sm" />
+                            <UserHoverCard user={user}>
+                              <UserAvatar name={user.name} color={getAvatarColor(user.id)} image={user.photo_url ?? undefined} size="sm" />
+                            </UserHoverCard>
                             <div>
                               <div className="font-medium">{user.name}</div>
                               <div className="text-xs text-muted-foreground">{user.designation || '—'}</div>

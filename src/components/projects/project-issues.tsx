@@ -5,6 +5,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { TableSkeletonRows } from '@/components/shared/table-skeleton-rows';
+import { AvatarStack } from '@/components/shared/avatar-stack';
 import { InfiniteScrollTrigger } from '@/components/shared/infinite-scroll-trigger';
 import { IssuePriorityBadge, IssueStatusBadge } from '@/components/issues/issue-badges';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
@@ -63,8 +64,9 @@ export function ProjectIssues({ projectId }: { projectId: number }) {
                       <TableCell><IssueStatusBadge issue={issue} /></TableCell>
                       <TableCell><IssuePriorityBadge priority={issue.priority} /></TableCell>
                       <TableCell>
-                        {/* The list only carries a count of assignees */}
-                        {issue.assignee_count > 0 ? (
+                        {issue.assignees?.length ? (
+                          <AvatarStack people={issue.assignees} />
+                        ) : issue.assignee_count > 0 ? (
                           <span className="text-xs">
                             {issue.assignee_count} assignee{issue.assignee_count !== 1 ? 's' : ''}
                           </span>

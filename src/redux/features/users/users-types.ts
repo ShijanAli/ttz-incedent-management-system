@@ -13,7 +13,6 @@ export interface AdminUser extends Omit<ApiUser, 'can_manage_users' | 'status'> 
   status: UserStatus;
   /** Role name, e.g. "Developer" */
   default_role: string | null;
-  /** Not returned by the backend yet; the UI renders blanks until it is */
   department?: string | null;
 }
 
