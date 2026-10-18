@@ -8,6 +8,7 @@ import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable 
 import { CSS } from '@dnd-kit/utilities';
 import { AlertCircle, GripVertical, MessageSquare, Paperclip, Plus, Users as UsersIcon } from 'lucide-react';
 import { ColoredBadge, IssuePriorityBadge, IssueProgress } from '@/components/issues/issue-badges';
+import { AvatarStack } from '@/components/shared/avatar-stack';
 import { formatDate, isOverdue } from '@/lib/shared-utils';
 import { cn } from '@/lib/utils';
 import type { IssueColoredRef, IssueSummary } from '@/redux/features/issues/issues-types';
@@ -321,7 +322,11 @@ function IssueCard({ issue, showGrip, className }: { issue: BoardIssue; showGrip
         <IssueProgress issue={issue} />
       </div>
       <div className="mt-2.5 flex items-center gap-3 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1" title="Assignees"><UsersIcon className="h-3 w-3" />{issue.assignee_count}</span>
+        {issue.assignees?.length ? (
+          <AvatarStack people={issue.assignees} size="xs" />
+        ) : (
+          <span className="flex items-center gap-1" title="Assignees"><UsersIcon className="h-3 w-3" />{issue.assignee_count}</span>
+        )}
         <span className="flex items-center gap-1" title="Comments"><MessageSquare className="h-3 w-3" />{issue.comment_count}</span>
         <span className="flex items-center gap-1" title="Attachments"><Paperclip className="h-3 w-3" />{issue.attachment_count}</span>
         {issue.due_date && (

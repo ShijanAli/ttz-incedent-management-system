@@ -9,6 +9,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { UserAvatar } from '@/components/shared/user-avatar';
+import { UserHoverCard } from '@/components/shared/user-hover-card';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { ColoredBadge } from '@/components/issues/issue-badges';
 import { StatusUpdateDialog } from '@/components/issues/status-update-dialog';
@@ -71,7 +72,9 @@ export function IssueAssignees({ issueId, assignees, canAssign, members, statuse
         <div className="space-y-2">
           {assignees.map((a) => (
             <div key={a.user.id} className="flex items-center gap-2">
-              <UserAvatar name={a.user.name} color={getAvatarColor(a.user.id)} size="xs" />
+              <UserHoverCard user={a.user}>
+                <UserAvatar name={a.user.name} color={getAvatarColor(a.user.id)} image={a.user.photo_url ?? undefined} size="xs" />
+              </UserHoverCard>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <span className="truncate text-sm">{a.user.name}</span>

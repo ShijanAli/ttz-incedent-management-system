@@ -32,6 +32,7 @@ import {
   IssueCategoryBadge, IssuePriorityBadge, IssueStatusBadge,
 } from '@/components/issues/issue-badges';
 import { ProjectSelect } from '@/components/projects/project-select';
+import { AvatarStack } from '@/components/shared/avatar-stack';
 import { InfiniteScrollTrigger } from '@/components/shared/infinite-scroll-trigger';
 import { TableSkeletonRows } from '@/components/shared/table-skeleton-rows';
 import { ROW_INDEX_ATTR, ScrollPositionIndicator } from '@/components/shared/scroll-position-indicator';
@@ -539,8 +540,9 @@ function IssueRow({ index, issue, canUpdate, canDelete, onEdit, onDelete }: Issu
       <TableCell className="w-[120px]"><IssueStatusBadge issue={issue} /></TableCell>
       <TableCell><IssuePriorityBadge priority={issue.priority} /></TableCell>
       <TableCell>
-        {/* The list only carries a count; names come with the issue detail API */}
-        {issue.assignee_count > 0 ? (
+        {issue.assignees?.length ? (
+          <AvatarStack people={issue.assignees} />
+        ) : issue.assignee_count > 0 ? (
           <span className="flex items-center gap-1.5 text-sm">
             <UsersIcon className="h-3.5 w-3.5 text-muted-foreground" />
             {issue.assignee_count} assignee{issue.assignee_count !== 1 ? 's' : ''}

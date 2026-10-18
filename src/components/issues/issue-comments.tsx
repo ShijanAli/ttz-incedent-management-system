@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/shared/user-avatar';
+import { UserHoverCard } from '@/components/shared/user-hover-card';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { InfiniteScrollTrigger } from '@/components/shared/infinite-scroll-trigger';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
@@ -93,7 +94,11 @@ export function IssueComments({ issueId, canComment, canEdit, canDelete, myId }:
             const isEditing = editing?.id === c.id;
             return (
               <div key={c.id} className="flex gap-3">
-                {c.author && <UserAvatar name={c.author.name} color={getAvatarColor(c.author.id)} size="sm" />}
+                {c.author && (
+                  <UserHoverCard user={c.author}>
+                    <UserAvatar name={c.author.name} color={getAvatarColor(c.author.id)} image={c.author.photo_url ?? undefined} size="sm" />
+                  </UserHoverCard>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-sm font-medium">{c.author?.name || 'Unknown'}</span>

@@ -30,6 +30,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { IssueFormDialog } from '@/components/issues/issue-form-dialog';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { UserAvatar } from '@/components/shared/user-avatar';
+import { UserHoverCard } from '@/components/shared/user-hover-card';
 import {
   ColoredBadge, IssuePriorityBadge, IssueProgress, IssueSeverityBadge, IssueStatusBadge,
 } from '@/components/issues/issue-badges';
@@ -133,6 +134,8 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
   const [changeMyStatus] = useChangeMyIssueStatusMutation();
 
   const myAssignment = assignees.find((a) => a.user.id === myId);
+  // The newer `reporter` carries the photo; older payloads only have `reported_by`
+  const reporter = issue.reporter ?? issue.reported_by;
   const overdue = issue.progress < 100 && !issue.closed_at && isOverdue(issue.due_date ?? undefined);
   // The API sends the description with the severity; fall back to ours for a bare key
   const severityDescription = typeof issue.severity === 'object' && issue.severity
@@ -368,10 +371,12 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
 
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Reporter</Label>
-                {issue.reported_by ? (
+                {reporter ? (
                   <div className="flex items-center gap-2">
-                    <UserAvatar name={issue.reported_by.name} color={getAvatarColor(issue.reported_by.id)} size="xs" />
-                    <span className="text-sm">{issue.reported_by.name}</span>
+                    <UserHoverCard user={reporter}>
+                      <UserAvatar name={reporter.name} color={getAvatarColor(reporter.id)} image={reporter.photo_url ?? undefined} size="xs" />
+                    </UserHoverCard>
+                    <span className="text-sm">{reporter.name}</span>
                   </div>
                 ) : (
                   <span className="text-sm text-muted-foreground">—</span>

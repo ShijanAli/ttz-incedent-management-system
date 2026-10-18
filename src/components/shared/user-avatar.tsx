@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { getInitials } from '@/lib/shared-utils';
 import { cn } from '@/lib/utils';
 
@@ -18,12 +19,16 @@ const SIZE_CLASSES = {
 };
 
 export function UserAvatar({ name, color, image, size = 'sm', className }: UserAvatarProps) {
-  if (image) {
+  // Photo URLs are signed and expire; fall back to initials when one fails to load
+  const [failedImage, setFailedImage] = useState<string | null>(null);
+
+  if (image && image !== failedImage) {
     return (
       <img
         src={image}
         alt={name}
         title={name}
+        onError={() => setFailedImage(image)}
         className={cn('shrink-0 rounded-full object-cover', SIZE_CLASSES[size], className)}
       />
     );

@@ -17,6 +17,19 @@ export interface IssueSeverityRef {
   description: string;
 }
 
+/** A person (assignee or reporter) as the issue list embeds them */
+export interface IssuePerson {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  department: string | null;
+  designation: string | null;
+  bio: string | null;
+  /** Signed, expiring URL; null when no photo is set */
+  photo_url: string | null;
+}
+
 /** An issue row as the list endpoints return it */
 export interface IssueSummary {
   id: number;
@@ -37,6 +50,9 @@ export interface IssueSummary {
   /** 0-100 */
   progress: number;
   assignee_count: number;
+  /** Optional so older payloads (and cached pages) without it still render */
+  assignees?: IssuePerson[];
+  reporter?: IssuePerson | null;
   comment_count: number;
   attachment_count: number;
   created_at: string;
@@ -131,6 +147,8 @@ export interface IssueUser {
   designation: string | null;
   status: string;
   email: string;
+  /** Signed, expiring URL; null or absent when no photo is set */
+  photo_url?: string | null;
 }
 
 /** One person working on an issue, with their own status and progress */
@@ -193,7 +211,7 @@ export interface IssueAbilities {
 }
 
 /** GET /issues/{id} */
-export interface IssueDetail extends Omit<IssueSummary, 'assignee_count'> {
+export interface IssueDetail extends Omit<IssueSummary, 'assignee_count' | 'assignees'> {
   description: string | null;
   project: { id: number; name: string };
   reported_by: IssueUser | null;
