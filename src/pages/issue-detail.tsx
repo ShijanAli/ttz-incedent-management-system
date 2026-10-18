@@ -442,10 +442,12 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
         title="Change my status"
         description="Update where you are on this issue. The overall status follows everyone's progress."
         statuses={statuses}
-        initial={{ status_id: statusDialog?.status_id ?? myAssignment?.status?.id, progress: myAssignment?.progress ?? 0 }}
-        onSubmit={async (body) => {
+        initial={{ status_id: statusDialog?.status_id ?? myAssignment?.status?.id }}
+        // Progress follows the status on the backend
+        hideProgress
+        onSubmit={async ({ status_id, note }) => {
           try {
-            await changeMyStatus({ issueId: issue.id, ...body }).unwrap();
+            await changeMyStatus({ issueId: issue.id, status_id, note }).unwrap();
             toast.success('Status updated');
           } catch (err) {
             toast.error('Failed to update status', { description: parseApiError(err).message });

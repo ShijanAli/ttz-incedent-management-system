@@ -411,12 +411,8 @@ export default function IssuesPage() {
                 // Without issues.status the board is read-only (no dragging)
                 onMove={!canChangeStatus ? undefined : async (issue, to) => {
                   try {
-                    // Moving to a final status finishes the work; otherwise keep the current progress
-                    await changeMyStatus({
-                      issueId: issue.id,
-                      status_id: to.id,
-                      progress: to.is_terminal ? 100 : issue.progress,
-                    }).unwrap();
+                    // The backend works out progress from the new status
+                    await changeMyStatus({ issueId: issue.id, status_id: to.id }).unwrap();
                     toast.success(`${issue.code} moved to ${to.name}`);
                   } catch (err) {
                     toast.error(`Couldn't move ${issue.code}`, { description: parseApiError(err).message });

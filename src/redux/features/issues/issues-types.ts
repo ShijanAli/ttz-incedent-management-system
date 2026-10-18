@@ -233,12 +233,13 @@ export interface TriageIssueRequest {
 /** Body shared by "change my status" and "override an assignee's status" */
 export interface StatusUpdateBody {
   status_id: number;
-  /** 0-100 */
-  progress: number;
+  /** 0-100; left out where the backend works it out from the status */
+  progress?: number;
   note?: string;
 }
 
-export interface ChangeMyStatusRequest extends StatusUpdateBody {
+/** The backend sets my progress from the status, so none is sent */
+export interface ChangeMyStatusRequest extends Omit<StatusUpdateBody, 'progress'> {
   issueId: number;
 }
 

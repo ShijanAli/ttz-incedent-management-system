@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { UserAvatar } from '@/components/shared/user-avatar';
+import { PasswordInput } from '@/components/auth/password-input';
 import { Camera, Loader2, Pencil, Save, Trash2, Upload, User as UserIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -59,6 +60,8 @@ function resizeImage(file: File, size: number): Promise<File> {
 type FormState = {
   name: string;
   email: string;
+  /** Only asked for when the email changes */
+  current_password: string;
   designation: string;
   department: string;
   phone: string;
@@ -66,7 +69,9 @@ type FormState = {
 };
 
 /** Backend field names that map onto form fields */
-const FIELD_KEYS: readonly (keyof FormState | 'photo')[] = ['name', 'email', 'designation', 'department', 'phone', 'bio', 'photo'];
+const FIELD_KEYS: readonly (keyof FormState | 'photo')[] = [
+  'name', 'email', 'current_password', 'designation', 'department', 'phone', 'bio', 'photo',
+];
 
 export function ProfileCard() {
   const { session } = useAuth();
@@ -76,6 +81,7 @@ export function ProfileCard() {
   const initialForm = (): FormState => ({
     name: user.name,
     email: user.email,
+    current_password: '',
     designation: user.title ?? '',
     department: user.department ?? '',
     phone: user.phone ?? '',
@@ -89,6 +95,8 @@ export function ProfileCard() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [processing, setProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Changing the email must be confirmed with the current password
+  const emailChanged = form.email.trim().toLowerCase() !== user.email.toLowerCase();
 
   // Release the preview blob URL when it is replaced or the card unmounts
   useEffect(() => () => { if (photoPreview) URL.revokeObjectURL(photoPreview); }, [photoPreview]);
@@ -142,6 +150,10 @@ export function ProfileCard() {
     if (!form.name.trim()) errs.name = 'Name is required';
     else if (form.name.trim().length < 2) errs.name = 'Name must be at least 2 characters';
 
+    if (!form.email.trim()) errs.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errs.email = 'Invalid email format';
+    if (emailChanged && !form.current_password) errs.current_password = 'Enter your current password to change the email';
+
     if (form.phone.trim() && !/^[+\d][\d\s-]{5,}$/.test(form.phone.trim())) errs.phone = 'Invalid phone number';
 
     setErrors(errs);
@@ -152,8 +164,9 @@ export function ProfileCard() {
     if (!validate()) return;
     try {
       await updateProfile({
-        // Email is left out of profile updates for now (read-only field)
         name: form.name.trim(),
+        email: form.email.trim(),
+        current_password: emailChanged ? form.current_password : undefined,
         phone: form.phone.trim(),
         designation: form.designation.trim(),
         department: form.department.trim(),
@@ -254,7 +267,26 @@ export function ProfileCard() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field id="pf-name" label="Full name" required value={form.name} error={errors.name} onChange={(v) => set('name', v)} />
-              <Field id="pf-email" label="Email" type="email" value={form.email} disabled onChange={(v) => set('email', v)} />
+              <Field id="pf-email" label="Email" required type="email" value={form.email} error={errors.email} onChange={(v) => set('email', v)} />
+              {emailChanged && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="pf-current-password">
+                    Current password <span className="text-destructive">*</span>
+                  </Label>
+                  <PasswordInput
+                    id="pf-current-password"
+                    autoComplete="current-password"
+                    value={form.current_password}
+                    disabled={saving}
+                    onChange={(e) => set('current_password', e.target.value)}
+                  />
+                  {errors.current_password ? (
+                    <p className="text-xs text-destructive">{errors.current_password}</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Required to change your email address.</p>
+                  )}
+                </div>
+              )}
               <Field id="pf-title" label="Designation" value={form.designation} error={errors.designation} placeholder="e.g. Support Engineer" onChange={(v) => set('designation', v)} />
               <Field id="pf-dept" label="Department" value={form.department} error={errors.department} placeholder="e.g. Operations" onChange={(v) => set('department', v)} />
               <Field id="pf-phone" label="Phone" value={form.phone} error={errors.phone} placeholder="01XXXXXXXXX" onChange={(v) => set('phone', v)} />

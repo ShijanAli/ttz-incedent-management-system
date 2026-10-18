@@ -91,8 +91,9 @@ export interface VerifyForgotOtpResponse {
 /** Sent as JSON (PATCH) without a photo, or multipart (POST) when `photo` is set */
 export interface UpdateProfileRequest {
   name: string;
-  /** Not sent for now; the profile form keeps email read-only */
-  email?: string;
+  email: string;
+  /** Required by the backend only when `email` changes */
+  current_password?: string;
   phone: string;
   designation: string;
   department: string;

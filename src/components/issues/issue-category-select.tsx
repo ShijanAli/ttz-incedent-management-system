@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Check, Loader2, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { parseApiError } from '@/lib/api-error';
+import { useAuth } from '@/lib/auth-context';
 import {
   useCreateIssueCategoryMutation,
   useGetIssueCategoriesQuery,
@@ -26,12 +27,14 @@ interface IssueCategorySelectProps {
 }
 
 /**
- * Category picker for the issue form, backed by GET /admin/issue-categories. The
- * "Add custom category" button at the bottom of the list opens a small inline form;
- * the new category is selected as soon as it is created.
+ * Category picker for the issue form, backed by GET /issue-categories (or the admin
+ * list for super admins). Super admins also get an "Add custom category" button that
+ * opens a small inline form; the new category is selected as soon as it is created.
  */
 export function IssueCategorySelect({ id, value, onChange, disabled }: IssueCategorySelectProps) {
-  const { data: categories = [], isLoading, isError, error, refetch } = useGetIssueCategoriesQuery();
+  // Categories are managed through the admin API, so only super admins can add one
+  const { isSuperAdmin } = useAuth();
+  const { data: categories = [], isLoading, isError, error, refetch } = useGetIssueCategoriesQuery({ admin: isSuperAdmin });
   const [createCategory, { isLoading: creating }] = useCreateIssueCategoryMutation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -100,18 +103,22 @@ export function IssueCategorySelect({ id, value, onChange, disabled }: IssueCate
               </SelectItem>
             ))
           )}
-          <SelectSeparator />
-          <button
-            type="button"
-            onClick={openAddForm}
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-medium text-primary outline-none hover:bg-accent focus-visible:bg-accent"
-          >
-            <Plus className="h-4 w-4" /> Add custom category
-          </button>
+          {isSuperAdmin && (
+            <>
+              <SelectSeparator />
+              <button
+                type="button"
+                onClick={openAddForm}
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-medium text-primary outline-none hover:bg-accent focus-visible:bg-accent"
+              >
+                <Plus className="h-4 w-4" /> Add custom category
+              </button>
+            </>
+          )}
         </SelectContent>
       </Select>
 
-      {adding && (
+      {isSuperAdmin && adding && (
         <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
           <div className="flex gap-2">
             <Input

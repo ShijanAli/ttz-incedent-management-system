@@ -20,13 +20,15 @@ interface StatusUpdateDialogProps {
   description: string;
   /** The project's workflow statuses, in order */
   statuses: IssueColoredRef[];
-  initial: { status_id?: number; progress: number };
+  initial: { status_id?: number; progress?: number };
+  /** Hide the progress input and leave progress out of the body (the backend sets it) */
+  hideProgress?: boolean;
   onSubmit: (body: StatusUpdateBody) => Promise<unknown>;
 }
 
 /** Status + progress + note, shared by "change my status" and "override an assignee's status" */
 export function StatusUpdateDialog({
-  open, onOpenChange, title, description, statuses, initial, onSubmit,
+  open, onOpenChange, title, description, statuses, initial, hideProgress, onSubmit,
 }: StatusUpdateDialogProps) {
   const [statusId, setStatusId] = useState('');
   const [progress, setProgress] = useState(0);
@@ -36,7 +38,7 @@ export function StatusUpdateDialog({
   useEffect(() => {
     if (!open) return;
     setStatusId(initial.status_id ? String(initial.status_id) : '');
-    setProgress(initial.progress);
+    setProgress(initial.progress ?? 0);
     setNote('');
   }, [open, initial.status_id, initial.progress]);
 
@@ -45,7 +47,11 @@ export function StatusUpdateDialog({
     if (!statusId) return;
     setSaving(true);
     try {
-      await onSubmit({ status_id: Number(statusId), progress, ...(note.trim() && { note: note.trim() }) });
+      await onSubmit({
+        status_id: Number(statusId),
+        ...(!hideProgress && { progress }),
+        ...(note.trim() && { note: note.trim() }),
+      });
       onOpenChange(false);
     } catch {
       // The caller reports the error; keep the dialog open so nothing typed is lost
@@ -79,7 +85,7 @@ export function StatusUpdateDialog({
             </Select>
           </div>
 
-          <div className="space-y-2">
+          {!hideProgress && <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="statusUpdateProgress">Progress</Label>
               <div className="flex items-center gap-1">
@@ -104,7 +110,7 @@ export function StatusUpdateDialog({
               disabled={saving}
               aria-label="Progress"
             />
-          </div>
+          </div>}
 
           <div className="space-y-1.5">
             <Label htmlFor="statusUpdateNote">Note</Label>

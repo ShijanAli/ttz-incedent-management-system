@@ -11,8 +11,9 @@ const LIST_TAG = { type: 'IssueCategory' as const, id: 'LIST' };
 
 export const issueCategoriesApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    getIssueCategories: build.query<IssueCategory[], void>({
-      query: () => ENDPOINTS.ADMIN.ISSUE_CATEGORIES,
+    /** `admin: true` uses the admin list (super admins only); everyone else reads the shared list */
+    getIssueCategories: build.query<IssueCategory[], { admin: boolean }>({
+      query: ({ admin }) => (admin ? ENDPOINTS.ADMIN.ISSUE_CATEGORIES : ENDPOINTS.ISSUE_CATEGORIES),
       transformResponse: (res: ApiResponse<IssueCategory[]>) => res.data,
       providesTags: [LIST_TAG],
     }),

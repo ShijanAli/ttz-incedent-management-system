@@ -33,6 +33,8 @@ export const ENDPOINTS = {
   MY: {
     ISSUES: '/api/my/issues',
   },
+  /** Read-only list for every signed-in user; managing categories stays under ADMIN */
+  ISSUE_CATEGORIES: '/api/issue-categories',
   ISSUES: {
     ONE: (id: number | string) => `/api/issues/${id}`,
     HISTORY: (id: number | string) => `/api/issues/${id}/history`,
