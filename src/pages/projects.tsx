@@ -7,11 +7,12 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
+import { useProjectCan } from '@/hooks/use-project-can';
 import { parseApiError } from '@/lib/api-error';
 import { formatDate, isOverdue } from '@/lib/shared-utils';
 import {
   PROJECT_PRIORITY_OPTIONS, PROJECT_STATUS_FILTER_OPTIONS, getProjectColor, getProjectInitials, getProjectPriorityMeta,
-  getProjectProgress, getProjectStateMeta, projectCan,
+  getProjectProgress, getProjectStateMeta,
 } from '@/lib/project-utils';
 import { useGetProjectsInfiniteQuery } from '@/redux/features/projects/projects-api';
 import type { ApiProject, ProjectPriority } from '@/redux/features/projects/projects-types';
@@ -24,6 +25,7 @@ import { InfiniteScrollTrigger } from '@/components/shared/infinite-scroll-trigg
 import { TableSkeletonRows } from '@/components/shared/table-skeleton-rows';
 import { ROW_INDEX_ATTR, ScrollPositionIndicator } from '@/components/shared/scroll-position-indicator';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { AvatarStack } from '@/components/shared/avatar-stack';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -272,7 +274,8 @@ function ProjectRow({ index, project, onEdit, onAction }: ProjectRowProps) {
   const priorityMeta = getProjectPriorityMeta(project.priority);
   const initials = getProjectInitials(project);
 
-  // Actions follow the signed-in user's permissions in this project
+  // Actions follow the signed-in user's permissions in this project (super admins can do everything)
+  const projectCan = useProjectCan();
   const canEdit = projectCan(project, 'projects.edit');
   const canDelete = projectCan(project, 'projects.delete');
 
@@ -304,10 +307,14 @@ function ProjectRow({ index, project, onEdit, onAction }: ProjectRowProps) {
         )}
       </TableCell>
       <TableCell>
-        <div className="flex items-center gap-1 text-sm">
-          <UsersIcon className="h-3.5 w-3.5 text-muted-foreground" />
-          {project.member_count}
-        </div>
+        {project.members.length > 0 ? (
+          <AvatarStack people={project.members.map((m) => m.user)} />
+        ) : (
+          <div className="flex items-center gap-1 text-sm">
+            <UsersIcon className="h-3.5 w-3.5 text-muted-foreground" />
+            {project.member_count}
+          </div>
+        )}
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2" title={`${project.issue_counts.closed} of ${project.issue_counts.total} issues closed`}>

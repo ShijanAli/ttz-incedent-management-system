@@ -107,7 +107,7 @@ function toDefaults(project: ApiProject | null, catalog: ProjectStatus[]): Proje
     color: project?.color ?? PROJECT_COLORS[0],
     start_date: project?.start_date ?? '',
     due_date: project?.due_date ?? '',
-    status_ids: project ? sortStatuses(project.statuses).map((s) => s.id) : catalog.map((s) => s.id),
+    status_ids: project ? sortStatuses(project.statuses ?? []).map((s) => s.id) : catalog.map((s) => s.id),
     members: directMembers.map((m) => ({
       user_id: m.user.id,
       name: m.user.name,
@@ -160,7 +160,7 @@ function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
   // Statuses the project already uses stay listed even if no loaded project shares them
   const statusOptions = useMemo(() => {
     const byId = new Map(catalog.map((s) => [s.id, s]));
-    project?.statuses.forEach((s) => { if (!byId.has(s.id)) byId.set(s.id, s); });
+    project?.statuses?.forEach((s) => { if (!byId.has(s.id)) byId.set(s.id, s); });
     return sortStatuses([...byId.values()]);
   }, [catalog, project]);
 
@@ -183,6 +183,8 @@ function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
   };
 
   const syncStatuses = async (current: ApiProject, nextIds: number[]) => {
+    // Without the project's statuses (list data) we can't tell what changed, so don't overwrite the workflow
+    if (!current.statuses) return;
     const currentIds = sortStatuses(current.statuses).map((s) => s.id);
     if (currentIds.length === nextIds.length && currentIds.every((id, i) => id === nextIds[i])) return;
     // Keep the existing flags for statuses that stay; new ones go in catalog order

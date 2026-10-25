@@ -29,6 +29,8 @@ export const ENDPOINTS = {
     ISSUES: '/api/admin/issues',
     ISSUE_CATEGORIES: '/api/admin/issue-categories',
     ISSUE_CATEGORY: (id: number | string) => `/api/admin/issue-categories/${id}`,
+    /** Global workflow statuses projects pick from */
+    STATUSES: '/api/admin/statuses',
   },
   MY: {
     ISSUES: '/api/my/issues',

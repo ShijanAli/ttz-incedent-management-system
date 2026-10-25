@@ -10,14 +10,16 @@ import { useTabParam } from '@/hooks/use-tab-param';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { parseApiError } from '@/lib/api-error';
 import { rememberIssuesSearch } from '@/lib/last-issues-url';
+import { lastBoardProject, rememberBoardProject } from '@/lib/last-board-project';
 import {
   ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, ISSUE_TYPE_OPTIONS, formatDate, formatRelativeTime, isIssueClosed, isOverdue,
 } from '@/lib/shared-utils';
-import { projectCan, sortStatuses, toStatusInputs } from '@/lib/project-utils';
+import { sortStatuses, toStatusInputs } from '@/lib/project-utils';
+import { useProjectCan } from '@/hooks/use-project-can';
 import { useGetIssuesInfiniteQuery, useGetProjectIssuesInfiniteQuery } from '@/redux/features/issues/issues-api';
 import type { IssueListFilters, IssueListItem } from '@/redux/features/issues/issues-types';
 import {
-  useGetProjectQuery, useGetProjectStatusesQuery, useReplaceProjectStatusesMutation,
+  useGetProjectQuery, useGetProjectsInfiniteQuery, useGetProjectStatusesQuery, useReplaceProjectStatusesMutation,
 } from '@/redux/features/projects/projects-api';
 import { useStatusCatalog } from '@/redux/features/projects/use-status-catalog';
 import type { IssuePriority, IssueSeverity, IssueType } from '@/lib/types';
@@ -153,6 +155,25 @@ export default function IssuesPage() {
   const isTyping = filters.search.trim() !== search || filters.label.trim() !== label;
 
   const myId = session ? Number(session.user.id) : undefined;
+
+  // Whichever project the user picks becomes "the one they're working on"
+  useEffect(() => {
+    if (session && filters.projectId) rememberBoardProject(session.user.id, filters.projectId);
+  }, [session, filters.projectId]);
+
+  // The board needs a project: open the last one worked on, or the first project for a new account.
+  // Same args as ProjectSelect, so this shares its cached list instead of fetching again.
+  const projectList = useInfiniteList(useGetProjectsInfiniteQuery({ status: 'active' }, { skip: !showBoard }));
+  useEffect(() => {
+    if (!showBoard || filters.projectId || !session || projectList.showSkeleton) return;
+    const projects = projectList.items;
+    if (projects.length === 0) return;
+    const last = lastBoardProject(session.user.id);
+    // A remembered project that was archived or left falls back to the first one
+    const pick = projects.find((p) => String(p.id) === last) ?? projects[0];
+    setFilters((prev) => ({ ...prev, projectId: String(pick.id), statusId: ALL }));
+  }, [showBoard, filters.projectId, session, projectList.showSkeleton, projectList.items, setFilters]);
+
   const params = useMemo<IssueListFilters>(() => ({
     search: search || undefined,
     label: label || undefined,
@@ -183,6 +204,7 @@ export default function IssuesPage() {
   const { data: boardStatuses = [] } = useGetProjectStatusesQuery(boardProjectId, { skip: !boardActive });
   const orderedBoardStatuses = useMemo(() => sortStatuses(boardStatuses), [boardStatuses]);
   // Reordering columns rewrites the project's workflow, so it needs the same right as the workflow editor
+  const projectCan = useProjectCan();
   const { data: boardProject } = useGetProjectQuery(boardProjectId, { skip: !boardActive });
   const canReorderColumns = projectCan(boardProject, 'projects.edit');
   const [replaceStatuses] = useReplaceProjectStatusesMutation();
@@ -249,7 +271,8 @@ export default function IssuesPage() {
               <ProjectSelect
                 value={filters.projectId}
                 onChange={(id) => update('projectId', id)}
-                allLabel="All projects"
+                // The board always shows one project, so "All projects" is list-only
+                allLabel={showBoard ? undefined : 'All projects'}
                 className="lg:w-[180px]"
               />
               <StatusFilter

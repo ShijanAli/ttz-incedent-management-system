@@ -63,9 +63,14 @@ export function getProjectProgress(project: Pick<ApiProject, 'issue_counts'>): n
   return total > 0 ? Math.round((closed / total) * 100) : 0;
 }
 
-/** Checks a backend permission name against what the signed-in user has in this project */
-export function projectCan(project: Pick<ApiProject, 'my_permissions'> | undefined, permission: string): boolean {
-  return project?.my_permissions.includes(permission) ?? false;
+/**
+ * Checks a backend permission name against what the signed-in user has in this project.
+ * The list response has no `my_permissions`, so there it falls back to the role's defaults.
+ */
+export function projectCan(project: Pick<ApiProject, 'my_permissions' | 'my_role'> | undefined, permission: string): boolean {
+  if (!project) return false;
+  const permissions = project.my_permissions ?? DEFAULT_ROLE_PERMISSIONS[project.my_role] ?? [];
+  return permissions.includes(permission);
 }
 
 /** Whether a member's role grants a backend permission (system roles only) */
@@ -75,20 +80,6 @@ export function memberRoleHas(member: ProjectMember, permission: string): boolea
 
 export function sortStatuses<T extends Pick<ProjectStatus, 'sort_order'>>(statuses: T[]): T[] {
   return [...statuses].sort((a, b) => a.sort_order - b.sort_order);
-}
-
-/**
- * Every status seen across the given projects, de-duplicated by id. There is no
- * global status API yet, so this is the pool new projects can choose from.
- */
-export function collectStatusCatalog(projects: Pick<ApiProject, 'statuses'>[]): ProjectStatus[] {
-  const byId = new Map<number, ProjectStatus>();
-  for (const project of projects) {
-    for (const status of project.statuses) {
-      if (!byId.has(status.id)) byId.set(status.id, { ...status, count: undefined });
-    }
-  }
-  return sortStatuses([...byId.values()]);
 }
 
 /**

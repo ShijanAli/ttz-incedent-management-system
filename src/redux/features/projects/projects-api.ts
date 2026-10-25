@@ -14,6 +14,7 @@ import type {
   DetachProjectGroupRequest,
   ProjectGroupSummary,
   ApiProject,
+  CatalogStatus,
   ChangeMemberRoleRequest,
   CreateProjectRequest,
   CreateProjectStatusRequest,
@@ -28,6 +29,7 @@ import type {
 import type { ActivityEntry } from '@/redux/features/activity/activity-types';
 
 const PROJECT_LIST_TAG = { type: 'Project', id: 'LIST' } as const;
+const STATUS_CATALOG_TAG = 'StatusCatalog' as const;
 
 /** Everything that shows a project's members or member count */
 const memberTags = (projectId: number) => [
@@ -150,6 +152,18 @@ export const projectsApi = baseApi.injectEndpoints({
       providesTags: (_result, _error, projectId) => [{ type: 'ProjectStatuses', id: projectId }],
     }),
 
+    /** Global statuses a project's workflow picks from (inactive ones are left out) */
+    getStatusCatalog: build.query<ProjectStatus[], void>({
+      query: () => ENDPOINTS.ADMIN.STATUSES,
+      transformResponse: (res: ApiResponse<CatalogStatus[]>) =>
+        res.data
+          .filter((s) => s.is_active)
+          // The catalog has no flags; a project's workflow sets those when the status is added
+          .map(({ id, name, slug, color, sort_order }) => ({ id, name, slug, color, sort_order, is_initial: false, is_terminal: false }))
+          .sort((a, b) => a.sort_order - b.sort_order),
+      providesTags: [STATUS_CATALOG_TAG],
+    }),
+
     /** Replaces the whole workflow: order, initial and terminal flags */
     replaceProjectStatuses: build.mutation<ApiResponse<unknown>, ReplaceProjectStatusesRequest>({
       query: ({ projectId, statuses }) => ({
@@ -172,6 +186,7 @@ export const projectsApi = baseApi.injectEndpoints({
         { type: 'Project', id: projectId },
         { type: 'ProjectActivity', id: projectId },
         PROJECT_LIST_TAG,
+        STATUS_CATALOG_TAG,
       ],
     }),
 
@@ -187,6 +202,7 @@ export const projectsApi = baseApi.injectEndpoints({
         { type: 'Project', id: projectId },
         { type: 'ProjectActivity', id: projectId },
         PROJECT_LIST_TAG,
+        STATUS_CATALOG_TAG,
         'Issue',
       ],
     }),
@@ -194,6 +210,7 @@ export const projectsApi = baseApi.injectEndpoints({
 });
 
 // Projects, their members and activity change under the user, so every mount loads fresh data
+export const { useGetStatusCatalogQuery } = projectsApi;
 export const useGetProjectsInfiniteQuery = alwaysFresh(projectsApi.useGetProjectsInfiniteQuery);
 export const useGetProjectQuery = alwaysFresh(projectsApi.useGetProjectQuery);
 export const useGetProjectMembersQuery = alwaysFresh(projectsApi.useGetProjectMembersQuery);

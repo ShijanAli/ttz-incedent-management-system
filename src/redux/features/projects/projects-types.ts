@@ -19,11 +19,30 @@ export interface ProjectStatus {
   count?: number;
 }
 
+/** A global status from GET /api/admin/statuses; projects pick their workflow from these */
+export interface CatalogStatus {
+  id: number;
+  /** Always null for global statuses */
+  project_id: number | null;
+  name: string;
+  slug: string;
+  color: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface ProjectMemberUser {
   id: number;
   name: string;
   designation: string | null;
   status: string;
+  /** Contact details for the hover card; optional so payloads without them still render */
+  email?: string | null;
+  phone?: string | null;
+  department?: string | null;
+  bio?: string | null;
+  photo_url?: string | null;
 }
 
 /** "direct" members can be edited; "group" members come in through a group */
@@ -57,15 +76,20 @@ export interface ApiProject {
   due_date: string | null;
   /** Lifecycle status (planning, active, ...). Not to be confused with the workflow `statuses`. */
   status: ProjectState | null;
-  statuses: ProjectStatus[];
+  /** Left out of the list response (GET /projects); only the single project sends it */
+  statuses?: ProjectStatus[];
   members: ProjectMember[];
-  groups: ProjectGroupSummary[];
+  /** Left out of the list response (GET /projects); only the single project sends it */
+  groups?: ProjectGroupSummary[];
   member_count: number;
   issue_counts: ProjectIssueCounts;
   /** The signed-in user's role in this project, e.g. "Super admin" */
   my_role: string;
-  /** Backend permission names the signed-in user has in this project */
-  my_permissions: string[];
+  /**
+   * Backend permission names the signed-in user has in this project. Left out of the
+   * list response, where projectCan falls back to what `my_role` grants.
+   */
+  my_permissions?: string[];
   created_at: string;
 
   // ---- Not returned by the backend yet; sent on save so they work once supported ----

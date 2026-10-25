@@ -5,13 +5,14 @@ import {
   Target, Trash2, Users as UsersIcon,
 } from 'lucide-react';
 import { useTabParam } from '@/hooks/use-tab-param';
+import { useProjectCan } from '@/hooks/use-project-can';
 import { parseApiError } from '@/lib/api-error';
 import {
   formatDate,
 } from '@/lib/shared-utils';
 import {
   getProjectColor, getProjectInitials, getProjectPriorityMeta, getProjectProgress, getProjectStateMeta,
-  memberRoleHas, projectCan, sortStatuses,
+  memberRoleHas, sortStatuses,
 } from '@/lib/project-utils';
 import { useGetProjectQuery } from '@/redux/features/projects/projects-api';
 import type { ApiProject } from '@/redux/features/projects/projects-types';
@@ -85,6 +86,7 @@ function ProjectDetail({ project }: { project: ApiProject }) {
   const [tab, setTab] = useTabParam(PROJECT_TABS, 'overview');
 
   const archived = project.status === ARCHIVED_STATE;
+  const projectCan = useProjectCan();
   const canEdit = projectCan(project, 'projects.edit');
   const canDelete = projectCan(project, 'projects.delete');
   const canManageMembers = projectCan(project, 'users.edit');
@@ -93,7 +95,7 @@ function ProjectDetail({ project }: { project: ApiProject }) {
   const stateMeta = getProjectStateMeta(project.status);
   const priorityMeta = getProjectPriorityMeta(project.priority);
   const progress = getProjectProgress(project);
-  const statuses = sortStatuses(project.statuses);
+  const statuses = sortStatuses(project.statuses ?? []);
   const developers = project.members.filter((m) => m.role === 'Developer').length;
   const assigners = project.members.filter((m) => memberRoleHas(m, 'issues.assign')).length;
   const counts = project.issue_counts;
@@ -195,7 +197,7 @@ function ProjectDetail({ project }: { project: ApiProject }) {
           <TabsTrigger value="members">Members ({project.member_count})</TabsTrigger>
           <TabsTrigger value="workflow">Workflow ({statuses.length})</TabsTrigger>
           <TabsTrigger value="issues">Issues ({counts.total})</TabsTrigger>
-          <TabsTrigger value="groups">Groups ({project.groups.length})</TabsTrigger>
+          <TabsTrigger value="groups">Groups ({project.groups?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
 

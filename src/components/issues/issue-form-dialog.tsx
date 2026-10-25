@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
-import { projectCan } from '@/lib/project-utils';
+import { useProjectCan } from '@/hooks/use-project-can';
 import { ProjectSelect } from '@/components/projects/project-select';
 import { MemberMultiSelect } from '@/components/members/member-multi-select';
 import { useGetProjectMembersQuery, useGetProjectQuery } from '@/redux/features/projects/projects-api';
@@ -27,8 +27,6 @@ import { ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, getSeverityKey } from '@/l
 import type { IssuePriority, IssueSeverity } from '@/lib/types';
 import { IssueCategorySelect } from '@/components/issues/issue-category-select';
 
-/** Only projects where the signed-in user may create issues */
-const canCreateIssueIn = (project: ApiProject) => projectCan(project, 'issues.create');
 
 /** API field name -> form error key */
 const API_FIELD_TO_ERROR: Record<string, string> = {
@@ -55,6 +53,9 @@ const sameList = <T,>(a: T[], b: T[]) => a.length === b.length && [...a].sort().
 
 export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, onSaved }: IssueFormDialogProps) {
   const { session } = useAuth();
+  const projectCan = useProjectCan();
+  // Only projects where the signed-in user may create issues
+  const canCreateIssueIn = useCallback((p: ApiProject) => projectCan(p, 'issues.create'), [projectCan]);
   const [createIssue, { isLoading: creating }] = useCreateIssueMutation();
   const [updateIssue, { isLoading: updating }] = useUpdateIssueMutation();
   const [triageIssue, { isLoading: triaging }] = useTriageIssueMutation();
