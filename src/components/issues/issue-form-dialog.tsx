@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import { Loader2, X, AlertCircle, FolderKanban } from 'lucide-react';
 import { toast } from 'sonner';
-import { ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, getSeverityKey } from '@/lib/shared-utils';
+import { ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, getSeverityKey, isMyReport } from '@/lib/shared-utils';
 import type { IssuePriority, IssueSeverity } from '@/lib/types';
 import { IssueCategorySelect } from '@/components/issues/issue-category-select';
 
@@ -79,9 +79,11 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
 
   const isEdit = !!issue;
   const saving = creating || updating || triaging;
-  // In edit mode each part of the form follows what the API says this user may change
-  const canEditText = !issue || issue.abilities.can_edit;
-  const canTriage = !issue || issue.abilities.can_triage;
+  // In edit mode each part of the form follows what the API says this user may change.
+  // The reporter may change everything they filled in when creating it.
+  const reportedByMe = !!issue && isMyReport(issue, session ? Number(session.user.id) : undefined);
+  const canEditText = !issue || issue.abilities.can_edit || reportedByMe;
+  const canTriage = !issue || issue.abilities.can_triage || reportedByMe;
 
   useEffect(() => {
     if (open) {

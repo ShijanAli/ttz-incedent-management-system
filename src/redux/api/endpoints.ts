@@ -14,6 +14,8 @@ export const ENDPOINTS = {
     RESET_PASSWORD: '/api/auth/reset-password',
   },
   PROFILE: '/api/profile',
+  /** Counters, breakdowns and latest activity across the user's projects */
+  DASHBOARD: '/api/dashboard',
   ADMIN: {
     PERMISSIONS: '/api/admin/permissions',
     ROLES: '/api/admin/roles',
@@ -77,6 +79,7 @@ export const ENDPOINTS = {
     GROUPS: (id: number | string) => `/api/projects/${id}/groups`,
     GROUP: (id: number | string, groupId: number | string) => `/api/projects/${id}/groups/${groupId}`,
     ACTIVITY: (id: number | string) => `/api/projects/${id}/activity`,
+    DASHBOARD: (id: number | string) => `/api/projects/${id}/dashboard`,
   },
 } as const;
 

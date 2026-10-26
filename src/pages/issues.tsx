@@ -12,7 +12,8 @@ import { parseApiError } from '@/lib/api-error';
 import { rememberIssuesSearch } from '@/lib/last-issues-url';
 import { lastBoardProject, rememberBoardProject } from '@/lib/last-board-project';
 import {
-  ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, ISSUE_TYPE_OPTIONS, formatDate, formatRelativeTime, isIssueClosed, isOverdue,
+  ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, ISSUE_TYPE_OPTIONS, formatDate, formatRelativeTime, isIssueClosed, isMyReport,
+  isOverdue,
 } from '@/lib/shared-utils';
 import { sortStatuses, toStatusInputs } from '@/lib/project-utils';
 import { useProjectCan } from '@/hooks/use-project-can';
@@ -478,8 +479,9 @@ export default function IssuesPage() {
                         key={issue.id}
                         index={index}
                         issue={issue}
-                        canUpdate={canUpdate}
-                        canDelete={canDelete}
+                        // Reporters may edit and delete their own issues whatever their role
+                        canUpdate={canUpdate || isMyReport(issue, myId)}
+                        canDelete={canDelete || isMyReport(issue, myId)}
                         onEdit={(i) => setEditingId(i.id)}
                         onDelete={setConfirmDelete}
                       />

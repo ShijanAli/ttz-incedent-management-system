@@ -13,7 +13,7 @@ import { selectAuth } from '@/redux/features/auth/auth-slice';
 import { parseApiError } from '@/lib/api-error';
 import { lastIssuesUrl } from '@/lib/last-issues-url';
 import {
-  ISSUE_SEVERITY_OPTIONS, formatDate, getAvatarColor, getSeverityKey, isIssueClosed, isOverdue,
+  ISSUE_SEVERITY_OPTIONS, formatDate, getAvatarColor, getSeverityKey, isIssueClosed, isMyReport, isOverdue,
 } from '@/lib/shared-utils';
 import { getProjectColor, getProjectInitials, sortStatuses } from '@/lib/project-utils';
 import {
@@ -99,11 +99,13 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
   // closed issues are read-only on top of that
   const open = !closed;
   const abilities = issue.abilities;
+  // The reporter can always edit or delete their own issue, whatever their role
+  const reportedByMe = isMyReport(issue, myId);
   const can = {
     pick: abilities.can_pick && hasPermission('issues.pick'),
     unpick: abilities.can_unpick && hasPermission('issues.pick'),
-    edit: open && (abilities.can_edit || abilities.can_triage) && hasPermission('issues.update'),
-    delete: open && abilities.can_delete && hasPermission('issues.delete'),
+    edit: open && (reportedByMe || ((abilities.can_edit || abilities.can_triage) && hasPermission('issues.update'))),
+    delete: open && (reportedByMe || (abilities.can_delete && hasPermission('issues.delete'))),
     changeStatus: abilities.can_change_own_status && hasPermission('issues.change_status'),
     assign: open && abilities.can_assign && hasPermission('issues.assign'),
     viewComments: hasPermission('comments.view'),

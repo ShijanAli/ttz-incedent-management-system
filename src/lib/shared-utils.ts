@@ -110,6 +110,18 @@ export function isOverdue(dueDate?: string, status?: string): boolean {
  * A closed issue is read-only (no edit/delete). The detail API sends `closed_at`;
  * the list doesn't, so fall back to the "Closed" status name there.
  */
+/**
+ * Whoever reported an issue may edit or delete it, whatever their role. Reads the newer
+ * `reporter` and falls back to `reported_by` (the detail API's older field).
+ */
+export function isMyReport(
+  issue: { reporter?: { id: number } | null; reported_by?: { id: number } | null },
+  myId: number | undefined,
+): boolean {
+  const reporterId = issue.reporter?.id ?? issue.reported_by?.id;
+  return myId !== undefined && reporterId === myId;
+}
+
 export function isIssueClosed(issue: { closed_at?: string | null; status: { name: string } | null }): boolean {
   return Boolean(issue.closed_at) || issue.status?.name.toLowerCase() === 'closed';
 }
