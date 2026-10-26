@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { Bell, Search, LogOut, User as UserIcon, Settings as SettingsIcon, ChevronDown, Loader2 } from 'lucide-react';
+import { Bell, LogOut, User as UserIcon, ChevronDown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
-import { userRepo, projectRepo, issueRepo } from '@/lib/repository';
 import { parseApiError } from '@/lib/api-error';
 import { formatRelativeTime } from '@/lib/shared-utils';
 import { cn } from '@/lib/utils';
@@ -16,6 +15,7 @@ import {
 } from '@/redux/features/notifications/notifications-api';
 import { getNotificationMeta } from '@/components/notifications/notification-meta';
 import { UserAvatar } from '@/components/shared/user-avatar';
+import { GlobalSearch } from '@/components/layout/global-search';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -32,9 +32,6 @@ const UNREAD_POLL_MS = 60_000;
 export function Topbar() {
   const navigate = useNavigate();
   const { session, logout, hasPermission } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
 
   const canViewNotifications = hasPermission('notifications.view');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -62,16 +59,6 @@ export function Topbar() {
     }
   };
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setSearchOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   if (!session) return null;
 
   const handleLogout = () => {
@@ -79,105 +66,13 @@ export function Topbar() {
     navigate('/login');
   };
 
-  const searchResults = (() => {
-    if (!searchQuery.trim() || searchQuery.length < 2) return { projects: [], issues: [] };
-    const q = searchQuery.toLowerCase();
-
-    const visibleProjects = projectRepo.all().filter((p) => {
-      if (p.status === 'archived') return false;
-      if (session.roleNames.includes('Super Admin')) return true;
-      return p.memberIds.includes(session.user.id);
-    });
-
-    const visibleIssues = issueRepo.all().filter((i) => {
-      const proj = projectRepo.find(i.projectId);
-      if (!proj) return false;
-      if (proj.status === 'archived') return false;
-      if (!session.roleNames.includes('Super Admin') && !proj.memberIds.includes(session.user.id)) return false;
-      return true;
-    });
-
-    return {
-      projects: visibleProjects
-        .filter((p) => p.name.toLowerCase().includes(q) || p.key.toLowerCase().includes(q))
-        .slice(0, 5),
-      issues: visibleIssues
-        .filter((i) => i.title.toLowerCase().includes(q) || i.key.toLowerCase().includes(q))
-        .slice(0, 5),
-    };
-  })();
-
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur lg:px-6">
       {/* Spacer for mobile menu button */}
       <div className="w-10 lg:hidden" />
 
-      {/* Search */}
-      <div ref={searchRef} className="relative flex-1 max-w-md">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search projects, issues..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setSearchOpen(true);
-            }}
-            onFocus={() => setSearchOpen(true)}
-            className="h-9 w-full rounded-lg border bg-muted/40 pl-9 pr-4 text-sm outline-none transition-colors focus:border-primary focus:bg-background"
-          />
-        </div>
-        {searchOpen && searchQuery.length >= 2 && (
-          <div className="absolute left-0 right-0 top-full mt-2 rounded-lg border bg-popover shadow-lg z-50">
-            <ScrollArea className="max-h-[400px]">
-              <div className="p-2">
-                {searchResults.projects.length === 0 && searchResults.issues.length === 0 ? (
-                  <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                    No results found for &quot;{searchQuery}&quot;
-                  </div>
-                ) : (
-                  <>
-                    {searchResults.projects.length > 0 && (
-                      <div className="mb-2">
-                        <div className="px-3 py-1 text-xs font-semibold text-muted-foreground">Projects</div>
-                        {searchResults.projects.map((p) => (
-                          <Link
-                            key={p.id}
-                            to={`/projects/${p.id}`}
-                            onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
-                            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent"
-                          >
-                            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: p.color }} />
-                            <span className="font-medium">{p.name}</span>
-                            <span className="text-muted-foreground">{p.key}</span>
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                    {searchResults.issues.length > 0 && (
-                      <div>
-                        <div className="px-3 py-1 text-xs font-semibold text-muted-foreground">Issues</div>
-                        {searchResults.issues.map((i) => (
-                          <Link
-                            key={i.id}
-                            to={`/issues/${i.id}`}
-                            onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
-                            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent"
-                          >
-                            <span className="font-mono text-xs text-muted-foreground">{i.key}</span>
-                            <span className="truncate">{i.title}</span>
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-        )}
-      </div>
+      {/* Search: suggestions come from the projects and issues APIs */}
+      <GlobalSearch />
 
       <div className="flex-1" />
 
