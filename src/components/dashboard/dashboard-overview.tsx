@@ -62,15 +62,31 @@ const SORT_LABELS: Record<SortKey, string> = {
 const ISSUES_PER_PROJECT = 5;
 
 /**
- * Whose issues each project card lists. Reporters raise issues rather than work on
- * them, so they see what they reported; everyone else sees what's assigned to them.
+ * Whose issues each project card lists. Super admins oversee everything, so they see
+ * every open issue; reporters raise issues rather than work on them, so they see what
+ * they reported; everyone else sees what's assigned to them.
  */
-type IssueFocus = 'assigned' | 'reported';
+type IssueFocus = 'all' | 'assigned' | 'reported';
 
 const FOCUS_TEXT: Record<IssueFocus, { empty: string; more: string }> = {
+  all: { empty: 'No open issues in this project.', more: 'the open issues' },
   assigned: { empty: 'No open issues assigned to you in this project.', more: 'your open issues' },
   reported: { empty: 'No open issues reported by you in this project.', more: 'the open issues you reported' },
 };
+
+/** The list filter for each focus; "all" sends no person filter at all */
+function focusFilter(focus: IssueFocus, myId: number) {
+  if (focus === 'assigned') return { assignee_id: myId };
+  if (focus === 'reported') return { reported_by: myId };
+  return {};
+}
+
+/** The issues page filtered the same way as the card */
+function focusIssuesUrl(focus: IssueFocus, projectId: number) {
+  if (focus === 'assigned') return issuesUrl({ project: projectId, assignee: 'me' });
+  if (focus === 'reported') return issuesUrl({ project: projectId, reporter: 'me' });
+  return issuesUrl({ project: projectId });
+}
 const ACTIVITY_LIMIT = 8;
 
 function greeting(date = new Date()): string {
@@ -109,7 +125,7 @@ function sortProjects(projects: DashboardProject[], sortBy: SortKey): DashboardP
 export function DashboardOverview() {
   const { session, isSuperAdmin } = useAuth();
   const defaultRole = useAppSelector(selectAuth).user?.default_role;
-  const focus: IssueFocus = !isSuperAdmin && defaultRole === 'Reporter' ? 'reported' : 'assigned';
+  const focus: IssueFocus = isSuperAdmin ? 'all' : defaultRole === 'Reporter' ? 'reported' : 'assigned';
   const [sortBy, setSortBy] = useState<SortKey>('open');
   // ?project=13 shows that project's dashboard; kept in the URL so a reload stays on it
   const [searchParams, setSearchParams] = useSearchParams();
@@ -194,7 +210,7 @@ export function DashboardOverview() {
           {/* My projects */}
           <section className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold tracking-tight">{data.scope.project ? 'Project' : 'My Projects'}</h2>
+              <h2 className="text-xl font-semibold tracking-tight">{data.scope.project ? 'Project' : isSuperAdmin ? 'Projects' : 'My Projects'}</h2>
               {data.projects.length > 1 && (
                 <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}>
                   <SelectTrigger className="h-9 w-[200px] bg-card">
@@ -231,7 +247,7 @@ export function DashboardOverview() {
                   project={p}
                   myId={Number(session.user.id)}
                   focus={focus}
-                  // Super admins aren't always project members, so /my/issues could miss their issues
+                  // Super admins read the admin list, which covers projects they aren't a member of
                   scope={isSuperAdmin ? 'admin' : 'my'}
                 />
               ))
@@ -245,8 +261,7 @@ export function DashboardOverview() {
   );
 }
 
-/** One workflow status, tinted with its own color from the API */
-/** Opens the issues page filtered to this status (and the selected project, if any) */
+/** One workflow status, tinted with its own color; opens the issues page filtered to it */
 function StatusCard({ status, to }: { status: DashboardStatusCount; to: string }) {
   const Icon = STATUS_ICONS[status.slug] ?? CircleDot;
   const c = status.color;
@@ -499,8 +514,7 @@ function RecentActivityCard({ activity }: { activity: DashboardActivity[] }) {
   );
 }
 
-/** A project with the open issues assigned to me in it */
-/** A project with my open issues in it (assigned to me, or reported by me for reporters) */
+/** A project with its open issues: all of them, assigned to me, or reported by me (see IssueFocus) */
 function ProjectIssuesCard({ project, myId, focus, scope }: {
   project: DashboardProject;
   myId: number;
@@ -512,14 +526,15 @@ function ProjectIssuesCard({ project, myId, focus, scope }: {
   const { data, isLoading, isError } = useGetIssuesInfiniteQuery({
     scope,
     project_id: project.id,
-    ...(focus === 'reported' ? { reported_by: myId } : { assignee_id: myId }),
-    per_page: ISSUES_PER_PROJECT + 5,
+    ...focusFilter(focus, myId),
+    // The card only shows a handful, so fetch just that one page
+    per_page: ISSUES_PER_PROJECT,
   });
-  const issues = (data?.pages.flatMap((p) => p.items) ?? []).filter((i) => !isIssueClosed(i));
-  const visible = issues.slice(0, ISSUES_PER_PROJECT);
-  const viewAll = issuesUrl(
-    focus === 'reported' ? { project: project.id, reporter: 'me' } : { project: project.id, assignee: 'me' },
-  );
+  // Only the first page is ever loaded; the list has no "open only" filter, so closed ones are dropped here
+  const firstPage = data?.pages[0];
+  const visible = (firstPage?.items ?? []).filter((i) => !isIssueClosed(i));
+  const total = firstPage?.meta.total ?? 0;
+  const viewAll = focusIssuesUrl(focus, project.id);
   const overdue = isOverdue(project.due_date ?? undefined);
 
   return (
@@ -571,7 +586,7 @@ function ProjectIssuesCard({ project, myId, focus, scope }: {
                   <tr key={i}><td colSpan={6} className="px-4 py-3"><Skeleton className="h-5 w-full" /></td></tr>
                 ))
               ) : isError ? (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-destructive">Failed to load your issues.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-destructive">Failed to load issues.</td></tr>
               ) : visible.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
@@ -607,9 +622,9 @@ function ProjectIssuesCard({ project, myId, focus, scope }: {
           </table>
         </div>
 
-        {issues.length > ISSUES_PER_PROJECT && (
+        {total > ISSUES_PER_PROJECT && (
           <p className="text-xs text-muted-foreground">
-            Showing {ISSUES_PER_PROJECT} of {FOCUS_TEXT[focus].more}.{' '}
+            Showing the latest of {FOCUS_TEXT[focus].more} ({total} in total).{' '}
             <Link to={viewAll} className="font-medium text-primary hover:underline">View all</Link>
           </p>
         )}
