@@ -333,7 +333,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                 </div>
 
                 {/* Set once when the issue is reported, so only the create form asks for it */}
-                {!isEdit && (
+                {/* {!isEdit && (
                   <div className="space-y-1.5">
                     <Label htmlFor="issueSource">Source</Label>
                     <Select value={source} onValueChange={(v) => { setSource(v as IssueSource); clearError('source'); }} disabled={saving}>
@@ -346,7 +346,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                     </Select>
                     {errors.source && <p className="text-xs text-destructive">{errors.source}</p>}
                   </div>
-                )}
+                )} */}
 
                 <div className="space-y-1.5">
                   <Label htmlFor="issuePriority">Priority <span className="text-destructive">*</span></Label>

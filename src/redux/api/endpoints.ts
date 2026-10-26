@@ -80,6 +80,10 @@ export const ENDPOINTS = {
     GROUP: (id: number | string, groupId: number | string) => `/api/projects/${id}/groups/${groupId}`,
     ACTIVITY: (id: number | string) => `/api/projects/${id}/activity`,
     DASHBOARD: (id: number | string) => `/api/projects/${id}/dashboard`,
+    /** Field-level audit trail; same filters as AUDIT_EXPORT */
+    AUDIT: (id: number | string) => `/api/projects/${id}/audit`,
+    /** CSV download of the audit trail */
+    AUDIT_EXPORT: (id: number | string) => `/api/projects/${id}/audit/export`,
   },
 } as const;
 
