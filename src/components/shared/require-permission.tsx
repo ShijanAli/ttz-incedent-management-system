@@ -8,3 +8,10 @@ export function RequirePermission({ permission, children }: { permission: Permis
   if (!hasPermission(permission)) return <Navigate to="/unauthorized" replace />;
   return <>{children}</>;
 }
+
+/** Route guard for pages only super admins may open (they manage system-wide data) */
+export function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
+  const { isSuperAdmin } = useAuth();
+  if (!isSuperAdmin) return <Navigate to="/unauthorized" replace />;
+  return <>{children}</>;
+}

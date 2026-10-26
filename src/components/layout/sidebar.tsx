@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router';
 import { ChevronLeft, ChevronRight, ShieldCheck } from 'lucide-react';
-import { NAV_ITEMS } from '@/lib/nav-config';
+import { NAV_ITEMS, SUPER_ADMIN_NAV_ITEMS } from '@/lib/nav-config';
 import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { useSidebar } from '@/components/layout/sidebar-context';
 
 export function Sidebar() {
   const { pathname } = useLocation();
-  const { session, hasPermission } = useAuth();
+  const { session, hasPermission, isSuperAdmin } = useAuth();
   const { collapsed, toggleCollapsed } = useSidebar();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -17,7 +17,14 @@ export function Sidebar() {
     setMobileOpen(false);
   }, [pathname]);
 
-  const visibleItems = NAV_ITEMS.filter((item) => hasPermission(item.permission));
+  const visibleItems: { label: string; href: string; icon: (typeof NAV_ITEMS)[number]['icon'] }[] =
+    NAV_ITEMS.filter((item) => hasPermission(item.permission));
+  if (isSuperAdmin) {
+    for (const extra of SUPER_ADMIN_NAV_ITEMS) {
+      const at = visibleItems.findIndex((item) => item.href === extra.after);
+      visibleItems.splice(at === -1 ? visibleItems.length : at + 1, 0, extra);
+    }
+  }
 
   if (!session) return null;
 

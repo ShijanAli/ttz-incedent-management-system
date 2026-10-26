@@ -137,6 +137,8 @@ export interface CreateIssueBody {
   due_date: string | null;
   /** Optional; "internal" when left out */
   source?: IssueSource;
+  /** The complaining customer; only with source "customer_complaint" */
+  customer_id?: number;
 }
 
 export interface CreateIssueRequest extends CreateIssueBody {
@@ -228,6 +230,8 @@ export interface IssueDetail extends Omit<IssueSummary, 'assignee_count' | 'assi
   project: { id: number; name: string };
   reported_by: IssueUser | null;
   source?: { value: IssueSource | (string & {}); label: string } | null;
+  /** Set on customer complaints */
+  customer?: { id: number; name: string; code?: string | null } | null;
   closed_at: string | null;
   /** All assignees are done and the reporter needs to confirm or send it back */
   awaiting_review: boolean;

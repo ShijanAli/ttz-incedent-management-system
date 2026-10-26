@@ -359,6 +359,23 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
                 {issue.category ? <ColoredBadge item={issue.category} /> : <span className="text-sm text-muted-foreground">—</span>}
               </div>
 
+              {issue.source && (
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Source</Label>
+                  <span className="text-sm">{issue.source.label}</span>
+                </div>
+              )}
+
+              {issue.customer && (
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Customer</Label>
+                  <span className="text-sm">
+                    {issue.customer.name}
+                    {issue.customer.code && <span className="ml-1.5 font-mono text-xs text-muted-foreground">{issue.customer.code}</span>}
+                  </span>
+                </div>
+              )}
+
 
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Priority</Label>

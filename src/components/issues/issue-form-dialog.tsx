@@ -9,6 +9,7 @@ import type { ApiProject } from '@/redux/features/projects/projects-types';
 import { useCreateIssueMutation } from '@/redux/features/issues/issues-api';
 import { useTriageIssueMutation, useUpdateIssueMutation } from '@/redux/features/issues/issue-detail-api';
 import { ISSUE_SOURCE_OPTIONS, type IssueDetail, type IssueSource } from '@/redux/features/issues/issues-types';
+import { CustomerSelect } from '@/components/customers/customer-select';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -39,6 +40,7 @@ const API_FIELD_TO_ERROR: Record<string, string> = {
   labels: 'labels',
   due_date: 'dueDate',
   source: 'source',
+  customer_id: 'customer',
 };
 
 interface IssueFormDialogProps {
@@ -77,6 +79,9 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
   const [labelInput, setLabelInput] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [source, setSource] = useState<IssueSource>('internal');
+  // Only used (and sent) when the source is a customer complaint
+  const [customerId, setCustomerId] = useState('');
+  const isComplaint = source === 'customer_complaint';
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isEdit = !!issue;
@@ -110,6 +115,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
         setLabels([]);
         setDueDate('');
         setSource('internal');
+        setCustomerId('');
       }
       setLabelInput('');
       setErrors({});
@@ -167,6 +173,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
     // Older issues may have no category/priority; only new issues must set them
     if (!isEdit && !categoryId) errs.category = 'Category is required';
     if (!isEdit && !priority) errs.priority = 'Priority is required';
+    if (!isEdit && isComplaint && !customerId) errs.customer = 'Pick the customer who raised the complaint';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -202,6 +209,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
         labels,
         due_date: dueDate || null,
         source,
+        ...(isComplaint && { customer_id: Number(customerId) }),
       }).unwrap();
       toast.success('Issue created', { description: `"${title.trim()}" was added to ${project?.name ?? 'the project'}.` });
       close();
@@ -333,10 +341,19 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                 </div>
 
                 {/* Set once when the issue is reported, so only the create form asks for it */}
-                {/* {!isEdit && (
+                {!isEdit && (
                   <div className="space-y-1.5">
                     <Label htmlFor="issueSource">Source</Label>
-                    <Select value={source} onValueChange={(v) => { setSource(v as IssueSource); clearError('source'); }} disabled={saving}>
+                    <Select
+                      value={source}
+                      onValueChange={(v) => {
+                        setSource(v as IssueSource);
+                        clearError('source');
+                        // A customer only belongs to complaints
+                        if (v !== 'customer_complaint') { setCustomerId(''); clearError('customer'); }
+                      }}
+                      disabled={saving}
+                    >
                       <SelectTrigger id="issueSource"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {ISSUE_SOURCE_OPTIONS.map((o) => (
@@ -346,7 +363,20 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                     </Select>
                     {errors.source && <p className="text-xs text-destructive">{errors.source}</p>}
                   </div>
-                )} */}
+                )}
+
+                {!isEdit && isComplaint && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="issueCustomer">Customer <span className="text-destructive">*</span></Label>
+                    <CustomerSelect
+                      id="issueCustomer"
+                      value={customerId}
+                      onChange={(id) => { setCustomerId(id); clearError('customer'); }}
+                      disabled={saving}
+                    />
+                    {errors.customer && <p className="text-xs text-destructive">{errors.customer}</p>}
+                  </div>
+                )}
 
                 <div className="space-y-1.5">
                   <Label htmlFor="issuePriority">Priority <span className="text-destructive">*</span></Label>

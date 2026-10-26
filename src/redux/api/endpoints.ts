@@ -33,12 +33,16 @@ export const ENDPOINTS = {
     ISSUE_CATEGORY: (id: number | string) => `/api/admin/issue-categories/${id}`,
     /** Global workflow statuses projects pick from */
     STATUSES: '/api/admin/statuses',
+    CUSTOMERS: '/api/admin/customers',
+    CUSTOMER: (id: number | string) => `/api/admin/customers/${id}`,
   },
   MY: {
     ISSUES: '/api/my/issues',
   },
   /** Active global statuses for any signed-in user; add ?project_id= for that project's own ones too */
   STATUSES: '/api/statuses',
+  /** Read-only customer list for issue forms; managing customers stays under ADMIN */
+  CUSTOMERS: '/api/customers',
   /** Read-only list for every signed-in user; managing categories stays under ADMIN */
   ISSUE_CATEGORIES: '/api/issue-categories',
   ISSUES: {

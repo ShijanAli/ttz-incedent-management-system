@@ -1,7 +1,7 @@
 import type { Permission } from '@/lib/types';
 import {
   LayoutDashboard, FolderKanban, TicketCheck, Users, ShieldCheck,
-  MessageSquare, BarChart3, Bell, Settings, History, type LucideIcon,
+  MessageSquare, BarChart3, Bell, Settings, History, Building2, type LucideIcon,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -22,4 +22,12 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Activity Log', href: '/activity', icon: History, permission: 'activity.view' },
   { label: 'Notifications', href: '/notifications', icon: Bell, permission: 'notifications.view' },
   { label: 'Settings', href: '/settings', icon: Settings, permission: 'settings.view' },
+];
+
+/**
+ * Pages only super admins see. Kept apart from NAV_ITEMS (which the role editor reads
+ * to map permissions to modules); each one is shown right after the `after` link.
+ */
+export const SUPER_ADMIN_NAV_ITEMS: (Omit<NavItem, 'permission'> & { after: string })[] = [
+  { label: 'Customers', href: '/customers', icon: Building2, after: '/groups' },
 ];
