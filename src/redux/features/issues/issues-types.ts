@@ -115,6 +115,14 @@ export interface ApiIssue {
  * Body for POST /projects/{projectId}/issues. The project travels in the URL,
  * never in the body. Field names follow the API's snake_case convention.
  */
+/** Where an issue came from; the backend defaults to "internal" */
+export type IssueSource = 'internal' | 'customer_complaint';
+
+export const ISSUE_SOURCE_OPTIONS: { value: IssueSource; label: string; description: string }[] = [
+  { value: 'internal', label: 'Internal', description: 'Found by the team' },
+  { value: 'customer_complaint', label: 'Customer complaint', description: 'Reported by a customer' },
+];
+
 export interface CreateIssueBody {
   title: string;
   description: string | null;
@@ -127,6 +135,8 @@ export interface CreateIssueBody {
   labels: string[];
   /** YYYY-MM-DD */
   due_date: string | null;
+  /** Optional; "internal" when left out */
+  source?: IssueSource;
 }
 
 export interface CreateIssueRequest extends CreateIssueBody {
@@ -217,6 +227,7 @@ export interface IssueDetail extends Omit<IssueSummary, 'assignee_count' | 'assi
   description: string | null;
   project: { id: number; name: string };
   reported_by: IssueUser | null;
+  source?: { value: IssueSource | (string & {}); label: string } | null;
   closed_at: string | null;
   /** All assignees are done and the reporter needs to confirm or send it back */
   awaiting_review: boolean;

@@ -8,7 +8,7 @@ import { useGetProjectMembersQuery, useGetProjectQuery } from '@/redux/features/
 import type { ApiProject } from '@/redux/features/projects/projects-types';
 import { useCreateIssueMutation } from '@/redux/features/issues/issues-api';
 import { useTriageIssueMutation, useUpdateIssueMutation } from '@/redux/features/issues/issue-detail-api';
-import type { IssueDetail } from '@/redux/features/issues/issues-types';
+import { ISSUE_SOURCE_OPTIONS, type IssueDetail, type IssueSource } from '@/redux/features/issues/issues-types';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -38,6 +38,7 @@ const API_FIELD_TO_ERROR: Record<string, string> = {
   assignee_ids: 'assignee',
   labels: 'labels',
   due_date: 'dueDate',
+  source: 'source',
 };
 
 interface IssueFormDialogProps {
@@ -75,6 +76,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
   const [labels, setLabels] = useState<string[]>([]);
   const [labelInput, setLabelInput] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [source, setSource] = useState<IssueSource>('internal');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isEdit = !!issue;
@@ -107,6 +109,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
         setAssigneeIds([]);
         setLabels([]);
         setDueDate('');
+        setSource('internal');
       }
       setLabelInput('');
       setErrors({});
@@ -198,6 +201,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
         assignee_ids: canAssign ? assigneeIds : [],
         labels,
         due_date: dueDate || null,
+        source,
       }).unwrap();
       toast.success('Issue created', { description: `"${title.trim()}" was added to ${project?.name ?? 'the project'}.` });
       close();
@@ -317,7 +321,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
 
               {/* Category gets a full row: its inline "add custom category" form needs the width */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5 sm:col-span-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="issueCategory">Category <span className="text-destructive">*</span></Label>
                   <IssueCategorySelect
                     id="issueCategory"
@@ -327,6 +331,22 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                   />
                   {errors.category && <p className="text-xs text-destructive">{errors.category}</p>}
                 </div>
+
+                {/* Set once when the issue is reported, so only the create form asks for it */}
+                {!isEdit && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="issueSource">Source</Label>
+                    <Select value={source} onValueChange={(v) => { setSource(v as IssueSource); clearError('source'); }} disabled={saving}>
+                      <SelectTrigger id="issueSource"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {ISSUE_SOURCE_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>{o.label} — {o.description}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {errors.source && <p className="text-xs text-destructive">{errors.source}</p>}
+                  </div>
+                )}
 
                 <div className="space-y-1.5">
                   <Label htmlFor="issuePriority">Priority <span className="text-destructive">*</span></Label>
@@ -358,6 +378,8 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                   </Select>
                   {errors.severity && <p className="text-xs text-destructive">{errors.severity}</p>}
                 </div>
+
+
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
