@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useTabParam } from '@/hooks/use-tab-param';
+import { useIssuePeople } from '@/hooks/use-issue-people';
 import { useAppSelector } from '@/redux/hooks';
 import { selectAuth } from '@/redux/features/auth/auth-slice';
 import { parseApiError } from '@/lib/api-error';
@@ -134,8 +135,10 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
   const [changeMyStatus] = useChangeMyIssueStatusMutation();
 
   const myAssignment = assignees.find((a) => a.user.id === myId);
-  // The newer `reporter` carries the photo; older payloads only have `reported_by`
-  const reporter = issue.reporter ?? issue.reported_by;
+  // `reported_by` has no photo, so fill it in from the project's members
+  const { enrich } = useIssuePeople(issue.id, issue.project.id);
+  const rawReporter = issue.reporter ?? issue.reported_by;
+  const reporter = rawReporter ? enrich(rawReporter) : null;
   const overdue = issue.progress < 100 && !issue.closed_at && isOverdue(issue.due_date ?? undefined);
   // The API sends the description with the severity; fall back to ours for a bare key
   const severityDescription = typeof issue.severity === 'object' && issue.severity

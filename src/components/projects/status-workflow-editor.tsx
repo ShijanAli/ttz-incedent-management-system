@@ -64,7 +64,7 @@ function WorkflowDraft({
   const [toAdd, setToAdd] = useState('');
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const { statuses: catalog } = useStatusCatalog({ skip: !canEdit });
+  const { statuses: catalog } = useStatusCatalog({ skip: !canEdit, projectId });
   const [replaceStatuses, { isLoading: saving }] = useReplaceProjectStatusesMutation();
 
   const available = useMemo(

@@ -22,6 +22,7 @@ import type {
   ProjectMember,
   ProjectStatus,
   RemoveProjectMemberRequest,
+  StatusCatalogArgs,
   ReplaceProjectStatusesRequest,
   UpdateProjectRequest,
   UpdateProjectStatusRequest,
@@ -152,12 +153,15 @@ export const projectsApi = baseApi.injectEndpoints({
       providesTags: (_result, _error, projectId) => [{ type: 'ProjectStatuses', id: projectId }],
     }),
 
-    /** Global statuses a project's workflow picks from (inactive ones are left out) */
-    getStatusCatalog: build.query<ProjectStatus[], void>({
-      query: () => ENDPOINTS.ADMIN.STATUSES,
+    /** Statuses a project's workflow picks from (inactive ones are left out) */
+    getStatusCatalog: build.query<ProjectStatus[], StatusCatalogArgs>({
+      query: ({ admin, projectId }) =>
+        admin
+          ? ENDPOINTS.ADMIN.STATUSES
+          : { url: ENDPOINTS.STATUSES, params: projectId ? { project_id: projectId } : undefined },
       transformResponse: (res: ApiResponse<CatalogStatus[]>) =>
         res.data
-          .filter((s) => s.is_active)
+          .filter((s) => s.is_active !== false)
           // The catalog has no flags; a project's workflow sets those when the status is added
           .map(({ id, name, slug, color, sort_order }) => ({ id, name, slug, color, sort_order, is_initial: false, is_terminal: false }))
           .sort((a, b) => a.sort_order - b.sort_order),

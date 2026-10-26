@@ -35,6 +35,8 @@ export const ENDPOINTS = {
   MY: {
     ISSUES: '/api/my/issues',
   },
+  /** Active global statuses for any signed-in user; add ?project_id= for that project's own ones too */
+  STATUSES: '/api/statuses',
   /** Read-only list for every signed-in user; managing categories stays under ADMIN */
   ISSUE_CATEGORIES: '/api/issue-categories',
   ISSUES: {

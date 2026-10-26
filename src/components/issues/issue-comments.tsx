@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { MentionTextarea } from '@/components/issues/mention-textarea';
 import { InfiniteScrollTrigger } from '@/components/shared/infinite-scroll-trigger';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
+import { useIssuePeople } from '@/hooks/use-issue-people';
 import { parseApiError } from '@/lib/api-error';
 import { formatRelativeTime, getAvatarColor } from '@/lib/shared-utils';
 import { extractMentionIds, splitMentions, type MentionUser } from '@/lib/mentions';
@@ -38,6 +39,8 @@ interface IssueCommentsProps {
 export function IssueComments({ issueId, projectId, canComment, canEdit, canDelete, myId }: IssueCommentsProps) {
   const list = useInfiniteList(useGetIssueCommentsInfiniteQuery(issueId));
   const { data: members = [], isSuccess: membersLoaded } = useGetProjectMembersQuery(projectId);
+  // Comment authors come without a photo; fill it in from the members and assignees
+  const { enrich } = useIssuePeople(issueId, projectId);
   const [addComment, { isLoading: adding }] = useAddCommentMutation();
   const [editComment, { isLoading: savingEdit }] = useEditCommentMutation();
   const [deleteComment] = useDeleteCommentMutation();
@@ -52,10 +55,10 @@ export function IssueComments({ issueId, projectId, canComment, canEdit, canDele
   // Names to highlight: current members, plus comment authors for anyone who has since left
   const knownUsers = useMemo(() => {
     const byId = new Map<number, HoverCardUser>();
-    for (const c of list.items) if (c.author) byId.set(c.author.id, c.author);
     for (const u of memberUsers) byId.set(u.id, u);
+    for (const c of list.items) if (c.author) byId.set(c.author.id, enrich(c.author));
     return byId;
-  }, [list.items, memberUsers]);
+  }, [list.items, memberUsers, enrich]);
 
   const mentionIds = (body: string) => extractMentionIds(body, memberUsers, pickedIds.current);
 
@@ -118,20 +121,21 @@ export function IssueComments({ issueId, projectId, canComment, canEdit, canDele
           <p className="text-sm text-muted-foreground text-center py-6">No comments yet. Be the first to comment.</p>
         ) : (
           list.items.map((c) => {
-            const isMine = c.author?.id === myId;
+            const author = c.author ? enrich(c.author) : null;
+            const isMine = author?.id === myId;
             const canEditThis = canEdit && isMine;
             const canDeleteThis = canDelete && isMine;
             const isEditing = editing?.id === c.id;
             return (
               <div key={c.id} className="flex gap-3">
-                {c.author && (
-                  <UserHoverCard user={c.author}>
-                    <UserAvatar name={c.author.name} color={getAvatarColor(c.author.id)} image={c.author.photo_url ?? undefined} size="sm" />
+                {author && (
+                  <UserHoverCard user={author}>
+                    <UserAvatar name={author.name} color={getAvatarColor(author.id)} image={author.photo_url ?? undefined} size="sm" />
                   </UserHoverCard>
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-sm font-medium">{c.author?.name || 'Unknown'}</span>
+                    <span className="text-sm font-medium">{author?.name || 'Unknown'}</span>
                     <span className="text-xs text-muted-foreground" title={new Date(c.created_at).toLocaleString()}>
                       {formatRelativeTime(c.created_at)}
                     </span>

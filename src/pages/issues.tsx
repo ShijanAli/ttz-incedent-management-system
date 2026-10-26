@@ -54,7 +54,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
-const COLUMN_COUNT = 10;
+const COLUMN_COUNT = 11;
 const ISSUE_VIEWS = ['list', 'board'] as const;
 const ALL = 'all';
 
@@ -457,6 +457,7 @@ export default function IssuesPage() {
                     <TableHead>Status</TableHead>
                     <TableHead>Priority</TableHead>
                     <TableHead>Assignee</TableHead>
+                    <TableHead>Reporter</TableHead>
                     <TableHead>Due</TableHead>
                     <TableHead>Updated</TableHead>
                     <TableHead className="w-[50px]" />
@@ -572,6 +573,13 @@ function IssueRow({ index, issue, canUpdate, canDelete, onEdit, onDelete }: Issu
           </span>
         ) : (
           <span className="text-sm text-muted-foreground">Unassigned</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {issue.reporter ? (
+          <AvatarStack people={[issue.reporter]} />
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
         )}
       </TableCell>
       <TableCell className="w-[160px]">

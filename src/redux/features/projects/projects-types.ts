@@ -19,17 +19,27 @@ export interface ProjectStatus {
   count?: number;
 }
 
-/** A global status from GET /api/admin/statuses; projects pick their workflow from these */
+/** A status from GET /api/admin/statuses or /api/statuses; projects pick their workflow from these */
 export interface CatalogStatus {
   id: number;
-  /** Always null for global statuses */
+  /** Null for global statuses; set for a project's own ones */
   project_id: number | null;
   name: string;
   slug: string;
   color: string;
   sort_order: number;
-  is_active: boolean;
-  created_at: string;
+  /** /api/statuses only returns active ones and may leave this out */
+  is_active?: boolean;
+  created_at?: string;
+}
+
+/**
+ * Super admins read the full admin catalog; everyone else reads /api/statuses,
+ * which can add one project's own statuses (members of that project only)
+ */
+export interface StatusCatalogArgs {
+  admin: boolean;
+  projectId?: number;
 }
 
 export interface ProjectMemberUser {

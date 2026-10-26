@@ -54,8 +54,13 @@ const sameList = <T,>(a: T[], b: T[]) => a.length === b.length && [...a].sort().
 export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, onSaved }: IssueFormDialogProps) {
   const { session } = useAuth();
   const projectCan = useProjectCan();
-  // Only projects where the signed-in user may create issues
-  const canCreateIssueIn = useCallback((p: ApiProject) => projectCan(p, 'issues.create'), [projectCan]);
+  // Only projects where the signed-in user may create issues. The list response has no
+  // my_permissions, and guessing from my_role is wrong (backend roles can be customised),
+  // so those stay listed; the picked project's own permissions are checked below.
+  const canCreateIssueIn = useCallback(
+    (p: ApiProject) => !p.my_permissions || projectCan(p, 'issues.create'),
+    [projectCan],
+  );
   const [createIssue, { isLoading: creating }] = useCreateIssueMutation();
   const [updateIssue, { isLoading: updating }] = useUpdateIssueMutation();
   const [triageIssue, { isLoading: triaging }] = useTriageIssueMutation();
@@ -123,8 +128,10 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
 
   // Create: the signed-in user's permission in the project. Edit: the issue's own abilities.
   const canAssign = issue ? issue.abilities.can_assign && canTriage : projectCan(project, 'issues.assign');
+  // The single project does send my_permissions, so this is the real check
+  const createBlocked = !isEdit && Boolean(project?.my_permissions) && !projectCan(project, 'issues.create');
   // The rest of the form depends on the project (assignees, permissions), so it waits for one
-  const showDetails = isEdit || Boolean(projectId);
+  const showDetails = isEdit || (Boolean(projectId) && !createBlocked);
 
   const clearError = (key: string) => setErrors((e) => ({ ...e, [key]: '' }));
 
@@ -262,6 +269,11 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
               disabled={isEdit || saving}
             />
             {errors.project && <p className="text-xs text-destructive">{errors.project}</p>}
+            {createBlocked && (
+              <p className="text-xs text-destructive">
+                You can&apos;t create issues in {project?.name ?? 'this project'}. Ask a project manager for access.
+              </p>
+            )}
           </div>
 
           {!showDetails ? (
