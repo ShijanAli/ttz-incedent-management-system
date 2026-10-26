@@ -1,26 +1,32 @@
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Check, Loader2, Pencil, Send, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/shared/user-avatar';
 import { UserHoverCard } from '@/components/shared/user-hover-card';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { MentionTextarea } from '@/components/issues/mention-textarea';
 import { InfiniteScrollTrigger } from '@/components/shared/infinite-scroll-trigger';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { parseApiError } from '@/lib/api-error';
 import { formatRelativeTime, getAvatarColor } from '@/lib/shared-utils';
+import { extractMentionIds, splitMentions, type MentionUser } from '@/lib/mentions';
+import { cn } from '@/lib/utils';
 import {
   useAddCommentMutation,
   useDeleteCommentMutation,
   useEditCommentMutation,
   useGetIssueCommentsInfiniteQuery,
 } from '@/redux/features/issues/issue-detail-api';
+import { useGetProjectMembersQuery } from '@/redux/features/projects/projects-api';
 import type { IssueComment } from '@/redux/features/issues/issues-types';
+import type { HoverCardUser } from '@/components/shared/user-hover-card';
 
 interface IssueCommentsProps {
   issueId: number;
+  /** Its members are who can be @mentioned */
+  projectId: number;
   canComment: boolean;
   /** comments.edit / comments.delete; they still only apply to the user's own comments */
   canEdit: boolean;
@@ -29,20 +35,37 @@ interface IssueCommentsProps {
   myId: number | undefined;
 }
 
-export function IssueComments({ issueId, canComment, canEdit, canDelete, myId }: IssueCommentsProps) {
+export function IssueComments({ issueId, projectId, canComment, canEdit, canDelete, myId }: IssueCommentsProps) {
   const list = useInfiniteList(useGetIssueCommentsInfiniteQuery(issueId));
+  const { data: members = [], isSuccess: membersLoaded } = useGetProjectMembersQuery(projectId);
   const [addComment, { isLoading: adding }] = useAddCommentMutation();
   const [editComment, { isLoading: savingEdit }] = useEditCommentMutation();
   const [deleteComment] = useDeleteCommentMutation();
   const [commentBody, setCommentBody] = useState('');
   const [editing, setEditing] = useState<{ id: number; body: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<IssueComment | null>(null);
+  // People picked from the @ list; they win when two members share a name
+  const pickedIds = useRef(new Set<number>());
+
+  const memberUsers = useMemo(() => members.map((m) => m.user), [members]);
+
+  // Names to highlight: current members, plus comment authors for anyone who has since left
+  const knownUsers = useMemo(() => {
+    const byId = new Map<number, HoverCardUser>();
+    for (const c of list.items) if (c.author) byId.set(c.author.id, c.author);
+    for (const u of memberUsers) byId.set(u.id, u);
+    return byId;
+  }, [list.items, memberUsers]);
+
+  const mentionIds = (body: string) => extractMentionIds(body, memberUsers, pickedIds.current);
 
   const handleAddComment = async () => {
     if (!commentBody.trim()) return;
     try {
-      await addComment({ issueId, body: commentBody.trim() }).unwrap();
+      const body = commentBody.trim();
+      await addComment({ issueId, body, mentioned_user_ids: mentionIds(body) }).unwrap();
       setCommentBody('');
+      pickedIds.current.clear();
       toast.success('Comment added');
     } catch (err) {
       toast.error('Failed to add comment', { description: parseApiError(err).message });
@@ -52,7 +75,14 @@ export function IssueComments({ issueId, canComment, canEdit, canDelete, myId }:
   const handleSaveEdit = async () => {
     if (!editing?.body.trim()) return;
     try {
-      await editComment({ issueId, commentId: editing.id, body: editing.body.trim() }).unwrap();
+      const body = editing.body.trim();
+      // The full list after the edit; without the member list, leave it out to keep the current mentions
+      await editComment({
+        issueId,
+        commentId: editing.id,
+        body,
+        ...(membersLoaded && { mentioned_user_ids: mentionIds(body) }),
+      }).unwrap();
       setEditing(null);
       toast.success('Comment updated');
     } catch (err) {
@@ -135,9 +165,12 @@ export function IssueComments({ issueId, canComment, canEdit, canDelete, myId }:
                   </div>
                   {isEditing ? (
                     <div className="flex gap-2">
-                      <Textarea
+                      <MentionTextarea
                         value={editing.body}
-                        onChange={(e) => setEditing({ id: c.id, body: e.target.value })}
+                        onChange={(body) => setEditing({ id: c.id, body })}
+                        members={members}
+                        excludeUserId={myId}
+                        onMention={(id) => pickedIds.current.add(id)}
                         rows={2}
                         autoFocus
                         disabled={savingEdit}
@@ -156,7 +189,7 @@ export function IssueComments({ issueId, canComment, canEdit, canDelete, myId }:
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm bg-muted/40 rounded-lg p-3 whitespace-pre-wrap">{c.body}</p>
+                    <CommentBody comment={c} users={knownUsers} myId={myId} />
                   )}
                 </div>
               </div>
@@ -168,10 +201,13 @@ export function IssueComments({ issueId, canComment, canEdit, canDelete, myId }:
 
       {canComment && (
         <div className="flex gap-2">
-          <Textarea
+          <MentionTextarea
             value={commentBody}
-            onChange={(e) => setCommentBody(e.target.value)}
-            placeholder="Write a comment... (Ctrl+Enter to send)"
+            onChange={setCommentBody}
+            members={members}
+            excludeUserId={myId}
+            onMention={(id) => pickedIds.current.add(id)}
+            placeholder="Write a comment... Type @ to mention someone (Ctrl+Enter to send)"
             rows={2}
             disabled={adding}
             onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void handleAddComment(); }}
@@ -192,5 +228,34 @@ export function IssueComments({ issueId, canComment, canEdit, canDelete, myId }:
         onConfirm={async () => { if (confirmDelete) await handleDelete(confirmDelete); }}
       />
     </>
+  );
+}
+
+/** The comment text, with tagged people highlighted (and the signed-in user's own tag stronger) */
+function CommentBody({ comment, users, myId }: { comment: IssueComment; users: Map<number, HoverCardUser>; myId: number | undefined }) {
+  const tagged = (comment.mentioned_user_ids ?? [])
+    .map((id) => users.get(id))
+    .filter((u): u is HoverCardUser => !!u);
+  const parts = tagged.length ? splitMentions<MentionUser & HoverCardUser>(comment.body, tagged) : [comment.body];
+
+  return (
+    <p className="text-sm bg-muted/40 rounded-lg p-3 whitespace-pre-wrap break-words">
+      {parts.map((part, i) =>
+        typeof part === 'string' ? (
+          part
+        ) : (
+          <UserHoverCard key={i} user={part}>
+            <span
+              className={cn(
+                'rounded px-0.5 font-medium',
+                part.id === myId ? 'bg-primary/15 text-primary' : 'text-primary',
+              )}
+            >
+              @{part.name}
+            </span>
+          </UserHoverCard>
+        ),
+      )}
+    </p>
   );
 }

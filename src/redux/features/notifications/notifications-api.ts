@@ -3,10 +3,11 @@ import { alwaysFresh } from '@/redux/api/fresh';
 import { ENDPOINTS } from '@/redux/api/endpoints';
 import { laravelInfiniteOptions, type PageParam } from '@/redux/api/infinite';
 import { toPaginated, type ApiResponse, type Paginated, type PaginatedApiResponse } from '@/redux/api/types';
-import type { AppNotification } from './notifications-types';
+import type { AppNotification, NotificationPreferences } from './notifications-types';
 
 const LIST_TAG = { type: 'Notification' as const, id: 'LIST' };
 const COUNT_TAG = { type: 'Notification' as const, id: 'COUNT' };
+const PREFERENCES_TAG = 'NotificationPreferences' as const;
 
 export const notificationsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
@@ -77,6 +78,32 @@ export const notificationsApi = baseApi.injectEndpoints({
       },
       invalidatesTags: [COUNT_TAG],
     }),
+
+    getNotificationPreferences: build.query<NotificationPreferences, void>({
+      query: () => ENDPOINTS.NOTIFICATIONS.PREFERENCES,
+      transformResponse: (res: ApiResponse<NotificationPreferences>) => res.data,
+      providesTags: [PREFERENCES_TAG],
+    }),
+
+    /** Send only the toggles that changed; the response is the full set */
+    updateNotificationPreferences: build.mutation<NotificationPreferences, Partial<NotificationPreferences>>({
+      query: (body) => ({ url: ENDPOINTS.NOTIFICATIONS.PREFERENCES, method: 'PATCH', body }),
+      transformResponse: (res: ApiResponse<NotificationPreferences>) => res.data,
+      // Flip the switch right away, then settle on what the server returns
+      async onQueryStarted(patch, { dispatch, queryFulfilled }) {
+        const optimistic = dispatch(
+          notificationsApi.util.updateQueryData('getNotificationPreferences', undefined, (draft) => {
+            Object.assign(draft, patch);
+          }),
+        );
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(notificationsApi.util.upsertQueryData('getNotificationPreferences', undefined, data));
+        } catch {
+          optimistic.undo();
+        }
+      },
+    }),
   }),
 });
 
@@ -87,4 +114,6 @@ export const useGetUnreadNotificationCountQuery = alwaysFresh(notificationsApi.u
 export const {
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,
+  useGetNotificationPreferencesQuery,
+  useUpdateNotificationPreferencesMutation,
 } = notificationsApi;

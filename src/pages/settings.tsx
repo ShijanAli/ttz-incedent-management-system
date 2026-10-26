@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { settingsRepo, preferencesRepo } from '@/lib/repository';
+import { settingsRepo } from '@/lib/repository';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,10 +9,11 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { ProfileCard } from '@/components/settings/profile-card';
 import { PasswordCard } from '@/components/settings/password-card';
+import { NotificationPreferencesCard } from '@/components/settings/notification-preferences-card';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Save, Settings as SettingsIcon, Bell } from 'lucide-react';
+import { Save, Settings as SettingsIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import type { IssueStatus } from '@/lib/types';
 
@@ -20,9 +21,6 @@ export default function SettingsPage() {
   const { session, hasPermission } = useAuth();
 
   const [systemSettings, setSystemSettings] = useState(() => settingsRepo.get());
-  const [preferences, setPreferences] = useState(() =>
-    session ? preferencesRepo.get(session.user.id) : null
-  );
 
   if (!session) return null;
 
@@ -54,13 +52,6 @@ export default function SettingsPage() {
     toast.success('System settings saved');
   };
 
-  const savePreferences = () => {
-    if (!preferences) return;
-    const updated = preferencesRepo.update(session.user.id, preferences);
-    setPreferences(updated);
-    toast.success('Preferences saved');
-  };
-
   return (
     <div className="animate-fade-in">
       <PageHeader
@@ -72,68 +63,7 @@ export default function SettingsPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <ProfileCard />
 
-        {/* Notification preferences */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bell className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-base">Notification Preferences</CardTitle>
-            </div>
-            <CardDescription>Control how you receive alerts</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {preferences && (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-sm">Email notifications</Label>
-                    <p className="text-xs text-muted-foreground">Receive alerts via email</p>
-                  </div>
-                  <Switch
-                    checked={preferences.emailNotifications}
-                    onCheckedChange={(v) => setPreferences({ ...preferences, emailNotifications: v })}
-                  />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-sm">Push notifications</Label>
-                    <p className="text-xs text-muted-foreground">In-app push alerts</p>
-                  </div>
-                  <Switch
-                    checked={preferences.pushNotifications}
-                    onCheckedChange={(v) => setPreferences({ ...preferences, pushNotifications: v })}
-                  />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-sm">Deadline alerts</Label>
-                    <p className="text-xs text-muted-foreground">Notify me about upcoming deadlines</p>
-                  </div>
-                  <Switch
-                    checked={preferences.deadlineAlerts}
-                    onCheckedChange={(v) => setPreferences({ ...preferences, deadlineAlerts: v })}
-                  />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-sm">Mention alerts</Label>
-                    <p className="text-xs text-muted-foreground">Notify me when mentioned in comments</p>
-                  </div>
-                  <Switch
-                    checked={preferences.mentionAlerts}
-                    onCheckedChange={(v) => setPreferences({ ...preferences, mentionAlerts: v })}
-                  />
-                </div>
-                <Button onClick={savePreferences} className="w-full">
-                  <Save className="mr-2 h-4 w-4" /> Save Preferences
-                </Button>
-              </>
-            )}
-          </CardContent>
-        </Card>
+        <NotificationPreferencesCard />
 
         {/* System settings - super admin only */}
         {isSuperAdmin && canUpdateSettings && (

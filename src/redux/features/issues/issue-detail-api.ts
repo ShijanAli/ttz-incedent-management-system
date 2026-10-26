@@ -161,13 +161,21 @@ export const issueDetailApi = baseApi.injectEndpoints({
       providesTags: (_result, _error, issueId) => [{ type: 'IssueComments', id: issueId }],
     }),
 
-    addComment: build.mutation<ApiResponse<IssueComment>, { issueId: number; body: string }>({
-      query: ({ issueId, body }) => ({ url: ENDPOINTS.ISSUES.COMMENTS(issueId), method: 'POST', body: { body } }),
+    addComment: build.mutation<ApiResponse<IssueComment>, { issueId: number; body: string; mentioned_user_ids?: number[] }>({
+      query: ({ issueId, ...body }) => ({ url: ENDPOINTS.ISSUES.COMMENTS(issueId), method: 'POST', body }),
       invalidatesTags: (_result, _error, { issueId }) => commentTags(issueId),
     }),
 
-    editComment: build.mutation<ApiResponse<IssueComment>, { issueId: number; commentId: number; body: string }>({
-      query: ({ commentId, body }) => ({ url: ENDPOINTS.COMMENTS.ONE(commentId), method: 'PATCH', body: { body } }),
+    /** `mentioned_user_ids` is the full list after the edit; leave it out to keep the current mentions */
+    editComment: build.mutation<
+      ApiResponse<IssueComment>,
+      { issueId: number; commentId: number; body: string; mentioned_user_ids?: number[] }
+    >({
+      query: ({ commentId, body, mentioned_user_ids }) => ({
+        url: ENDPOINTS.COMMENTS.ONE(commentId),
+        method: 'PATCH',
+        body: { body, ...(mentioned_user_ids && { mentioned_user_ids }) },
+      }),
       invalidatesTags: (_result, _error, { issueId }) => commentTags(issueId),
     }),
 

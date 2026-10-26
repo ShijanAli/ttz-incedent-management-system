@@ -237,6 +237,7 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
                   <TabsContent value="comments" className="mt-4">
                     <IssueComments
                       issueId={issue.id}
+                      projectId={issue.project.id}
                       canComment={can.comment}
                       canEdit={can.editComment}
                       canDelete={can.deleteComment}

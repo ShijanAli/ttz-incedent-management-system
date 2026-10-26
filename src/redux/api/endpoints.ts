@@ -61,6 +61,8 @@ export const ENDPOINTS = {
     UNREAD_COUNT: '/api/notifications/unread-count',
     READ: (id: string) => `/api/notifications/${id}/read`,
     READ_ALL: '/api/notifications/read-all',
+    /** GET the user's toggles; PATCH only the ones that changed */
+    PREFERENCES: '/api/notification-preferences',
   },
   PROJECTS: {
     LIST: '/api/projects',

@@ -5,7 +5,9 @@
 export type NotificationEvent =
   | 'issue.created' | 'issue.updated' | 'issue.deleted' | 'issue.picked' | 'issue.assigned' | 'issue.unassigned'
   | 'issue.status_changed' | 'issue.reviewed'
-  | 'comment.created' | 'comment.updated' | 'comment.deleted'
+  /** Deadline reminders; nobody triggers these, so `actor` is null */
+  | 'issue.due_soon' | 'issue.overdue'
+  | 'comment.created' | 'comment.updated' | 'comment.deleted' | 'comment.mentioned'
   | 'attachment.added' | 'attachment.deleted'
   | (string & {});
 
@@ -16,6 +18,7 @@ export interface NotificationPayload {
   issue_title: string | null;
   project_id: number | null;
   project_name: string | null;
+  /** Null for system events such as deadline reminders */
   actor: { id: number; name: string } | null;
   /** Ready-to-show sentence, e.g. "Tanbir Hossain picked up this issue in Trakon Mobile App." */
   message: string;
@@ -32,4 +35,13 @@ export interface AppNotification {
   data: NotificationPayload;
   read_at: string | null;
   created_at: string;
+}
+
+/** GET/PATCH /notification-preferences. All on by default; the in-app bell can't be turned off. */
+export interface NotificationPreferences {
+  email_notifications: boolean;
+  push_notifications: boolean;
+  /** Day before the due date and once it's overdue */
+  deadline_alerts: boolean;
+  mention_alerts: boolean;
 }

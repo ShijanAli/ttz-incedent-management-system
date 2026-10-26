@@ -1,5 +1,5 @@
 import {
-  Bell, FilePlus2, Hand, MessageSquare, Paperclip, Pencil, RefreshCw, ShieldCheck, Trash2, UserMinus, UserPlus,
+  AlarmClock, AtSign, Bell, CalendarClock, FilePlus2, Hand, MessageSquare, Paperclip, Pencil, RefreshCw, ShieldCheck, Trash2, UserMinus, UserPlus,
   type LucideIcon,
 } from 'lucide-react';
 import type { NotificationEvent } from '@/redux/features/notifications/notifications-types';
@@ -20,6 +20,10 @@ const EVENT_META: Record<string, NotificationMeta> = {
   'issue.unassigned': { label: 'Unassigned', icon: UserMinus, color: 'text-orange-600 bg-orange-50' },
   'issue.status_changed': { label: 'Status changed', icon: RefreshCw, color: 'text-amber-600 bg-amber-50' },
   'issue.reviewed': { label: 'Fix reviewed', icon: ShieldCheck, color: 'text-emerald-600 bg-emerald-50' },
+  // System reminders (no actor), so they get a calendar/clock rather than a person
+  'issue.due_soon': { label: 'Due tomorrow', icon: CalendarClock, color: 'text-amber-600 bg-amber-50' },
+  'issue.overdue': { label: 'Overdue', icon: AlarmClock, color: 'text-red-600 bg-red-50' },
+  'comment.mentioned': { label: 'You were mentioned', icon: AtSign, color: 'text-violet-600 bg-violet-50' },
   'comment.created': { label: 'New comment', icon: MessageSquare, color: 'text-violet-600 bg-violet-50' },
   'comment.updated': { label: 'Comment edited', icon: MessageSquare, color: 'text-violet-600 bg-violet-50' },
   'comment.deleted': { label: 'Comment deleted', icon: MessageSquare, color: 'text-red-600 bg-red-50' },

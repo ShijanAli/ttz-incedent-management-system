@@ -178,6 +178,8 @@ export interface IssueComment {
   id: number;
   body: string;
   author: IssueUser | null;
+  /** People tagged with @Name in the body; empty when none (older payloads may omit it) */
+  mentioned_user_ids?: number[];
   edited_at: string | null;
   created_at: string;
 }
