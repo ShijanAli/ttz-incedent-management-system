@@ -53,7 +53,7 @@ function resolvePermissions(user: ApiUser, access: UserAccess | null): Permissio
   // Default role applies everywhere; project roles add to it per project
   const result = toAppPermissions([
     ...defaultRolePermissions(user),
-    ...(access?.projects.flatMap((p) => p.permissions) ?? []),
+    ...(access?.projects?.flatMap((p) => p.permissions ?? []) ?? []),
   ]);
   BASELINE_PERMISSIONS.forEach((p) => result.add(p));
   if (user.can_manage_users || access?.can_manage_users) {
@@ -83,7 +83,7 @@ function toSessionUser(user: ApiUser): User {
 
 function toRoleNames(user: ApiUser, access: UserAccess | null): string[] {
   if (user.is_super_admin || access?.is_super_admin) return ['Super Admin'];
-  const names = [user.default_role, ...(access?.projects.map((p) => p.role) ?? [])];
+  const names = [user.default_role, ...(access?.projects?.map((p) => p.role) ?? [])];
   return [...new Set(names.filter((n): n is string => Boolean(n)))];
 }
 

@@ -27,6 +27,19 @@ const initialState: AuthState = {
   mustChangePassword: false,
 };
 
+/**
+ * The backend may send `access` without `projects` (or a project without `permissions`);
+ * fill in empty lists so the rest of the app can rely on them
+ */
+function normalizeAccess(access: Partial<UserAccess> | null | undefined, fallback: UserAccess | null): UserAccess | null {
+  if (!access) return null;
+  return {
+    is_super_admin: access.is_super_admin ?? false,
+    can_manage_users: access.can_manage_users ?? false,
+    projects: (access.projects ?? fallback?.projects ?? []).map((p) => ({ ...p, permissions: p.permissions ?? [] })),
+  };
+}
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -41,7 +54,7 @@ const authSlice = createSlice({
       // Refresh may leave out `permissions`; keep the ones /auth/me gave for the same user
       const keptPermissions = state.user?.id === user.id ? state.user.permissions : undefined;
       state.user = { ...user, permissions: user.permissions ?? keptPermissions };
-      state.access = access;
+      state.access = normalizeAccess(access, state.access);
       state.mustChangePassword = must_change_password || user.must_change_password;
     },
     /** Fresh profile from /auth/me */
@@ -49,7 +62,7 @@ const authSlice = createSlice({
       const { access, ...user } = action.payload;
       state.user = user;
       // /auth/me may omit `access`; rebuild it from the user flags instead of wiping it
-      state.access = access ?? {
+      state.access = normalizeAccess(access, state.access) ?? {
         is_super_admin: user.is_super_admin,
         can_manage_users: user.can_manage_users ?? state.access?.can_manage_users ?? false,
         projects: state.access?.projects ?? [],

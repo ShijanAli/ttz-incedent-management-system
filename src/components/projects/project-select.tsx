@@ -41,7 +41,8 @@ export function ProjectSelect({
 
   return (
     <Select
-      value={value || (allLabel ? ALL : undefined)}
+      // Always controlled: "" shows the placeholder (undefined would flip Radix to uncontrolled)
+      value={value || (allLabel ? ALL : '')}
       onValueChange={(v) => (v === ALL ? onChange('', undefined) : onChange(v, projects.find((p) => String(p.id) === v)))}
       disabled={disabled}
     >
