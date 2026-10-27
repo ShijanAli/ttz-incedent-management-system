@@ -2,7 +2,8 @@
 const FRESH_OPTIONS = {
   // Each new subscriber (page or component mount) refetches instead of serving the cache
   refetchOnMountOrArgChange: true,
-  // Catch up on changes made while the tab was in the background
+  // Catch up on changes made while the tab was in the background (only after a real
+  // absence; see setupListeners in store.ts, so clicking back into the page doesn't refetch)
   refetchOnFocus: true,
 } as const;
 

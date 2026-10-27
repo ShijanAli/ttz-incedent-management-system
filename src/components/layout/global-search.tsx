@@ -3,11 +3,11 @@ import { Link, useNavigate } from 'react-router';
 import { ArrowRight, Loader2, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
-import { getProjectColor } from '@/lib/project-utils';
 import { cn } from '@/lib/utils';
 import { useGetIssuesInfiniteQuery } from '@/redux/features/issues/issues-api';
 import { useGetProjectsInfiniteQuery } from '@/redux/features/projects/projects-api';
 import { IssueStatusBadge } from '@/components/issues/issue-badges';
+import { ProjectLogo } from '@/components/projects/project-logo';
 
 const MIN_CHARS = 2;
 const RESULTS_PER_GROUP = 5;
@@ -181,7 +181,7 @@ export function GlobalSearch() {
                       aria-selected={isActive('project', p.id)}
                       className={rowClass(isActive('project', p.id))}
                     >
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: getProjectColor(p) }} />
+                      <ProjectLogo project={p} className="h-7 w-7 rounded-md text-[9px]" />
                       <span className="truncate font-medium">{p.name}</span>
                       {p.status && p.status !== 'active' && (
                         <span className="ml-auto shrink-0 text-xs capitalize text-muted-foreground">{p.status.replace(/_/g, ' ')}</span>

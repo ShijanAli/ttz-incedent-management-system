@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router';
 import {
   AlertCircle, AlertTriangle, Eye, FolderKanban, KanbanSquare, ListFilter, Loader2, MoreVertical, Pencil, Plus, RotateCw,
-  Search, SlidersHorizontal, Trash2, Users as UsersIcon, X,
+  Building2, Search, SlidersHorizontal, Trash2, Users as UsersIcon, X,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
@@ -55,7 +55,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
-const COLUMN_COUNT = 11;
+const COLUMN_COUNT = 12;
 const ISSUE_VIEWS = ['list', 'board'] as const;
 const ALL = 'all';
 
@@ -459,6 +459,7 @@ export default function IssuesPage() {
                     <TableHead>Priority</TableHead>
                     <TableHead>Assignee</TableHead>
                     <TableHead>Reporter</TableHead>
+                    <TableHead>Source</TableHead>
                     <TableHead>Due</TableHead>
                     <TableHead>Updated</TableHead>
                     <TableHead className="w-[50px]" />
@@ -584,6 +585,7 @@ function IssueRow({ index, issue, canUpdate, canDelete, onEdit, onDelete }: Issu
           <span className="text-sm text-muted-foreground">—</span>
         )}
       </TableCell>
+      <TableCell><IssueSourceCell issue={issue} /></TableCell>
       <TableCell className="w-[160px]">
         {issue.due_date ? (
           <span className={cn('flex items-center gap-1 text-sm', overdue ? 'font-medium text-red-600' : 'text-muted-foreground')}>
@@ -629,6 +631,27 @@ function IssueRow({ index, issue, canUpdate, canDelete, onEdit, onDelete }: Issu
         </DropdownMenu>
       </TableCell>
     </TableRow>
+  );
+}
+
+/** Internal issues get a quiet label; complaints are highlighted with the customer's name */
+function IssueSourceCell({ issue }: { issue: IssueListItem }) {
+  if (!issue.source) return <span className="text-sm text-muted-foreground">—</span>;
+  if (issue.source.value !== 'customer_complaint') {
+    return <span className="text-sm text-muted-foreground">{issue.source.label}</span>;
+  }
+  return (
+    <div className="min-w-0" title={issue.customer ? `${issue.source.label} from ${issue.customer.name}` : issue.source.label}>
+      <span className="inline-flex whitespace-nowrap rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-300">
+        Complaint
+      </span>
+      {issue.customer && (
+        <div className="mt-0.5 flex max-w-[160px] items-center gap-1 text-xs text-muted-foreground">
+          <Building2 className="h-3 w-3 shrink-0" />
+          <span className="truncate">{issue.customer.name}</span>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -53,6 +53,10 @@ export interface IssueSummary {
   /** Optional so older payloads (and cached pages) without it still render */
   assignees?: IssuePerson[];
   reporter?: IssuePerson | null;
+  /** Where the issue came from, e.g. { value: "customer_complaint", label: "Customer complaint" } */
+  source?: { value: IssueSource | (string & {}); label: string } | null;
+  /** Set on customer complaints */
+  customer?: { id: number; name: string; code?: string | null } | null;
   comment_count: number;
   attachment_count: number;
   created_at: string;
@@ -229,9 +233,6 @@ export interface IssueDetail extends Omit<IssueSummary, 'assignee_count' | 'assi
   description: string | null;
   project: { id: number; name: string };
   reported_by: IssueUser | null;
-  source?: { value: IssueSource | (string & {}); label: string } | null;
-  /** Set on customer complaints */
-  customer?: { id: number; name: string; code?: string | null } | null;
   closed_at: string | null;
   /** All assignees are done and the reporter needs to confirm or send it back */
   awaiting_review: boolean;
