@@ -271,23 +271,23 @@ function StatusCard({ status, to }: { status: DashboardStatusCount; to: string }
       className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       title={`See ${status.name} issues`}
     >
-    <Card
-      className="h-full shadow-none transition-shadow hover:shadow-md"
-      style={{ borderColor: `${c}33`, backgroundColor: `${c}0d` }}
-    >
-      <CardContent className="flex items-center gap-3 p-4">
-        <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
-          style={{ backgroundColor: `${c}26`, color: c }}
-        >
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0" style={{ color: c }}>
-          <div className="truncate text-sm font-medium">{status.name}</div>
-          <div className="text-2xl font-bold leading-tight">{status.count}</div>
-        </div>
-      </CardContent>
-    </Card>
+      <Card
+        className="h-full shadow-none transition-shadow hover:shadow-md"
+        style={{ borderColor: `${c}33`, backgroundColor: `${c}0d` }}
+      >
+        <CardContent className="flex items-center gap-3 p-4">
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+            style={{ backgroundColor: `${c}26`, color: c }}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+          <div className="min-w-0" style={{ color: c }}>
+            <div className="truncate text-sm font-medium">{status.name}</div>
+            <div className="text-2xl font-bold leading-tight">{status.count}</div>
+          </div>
+        </CardContent>
+      </Card>
     </Link>
   );
 }
@@ -354,43 +354,43 @@ function IssueProgressCard({ projects }: { projects: DashboardProject[] }) {
       </CardHeader>
       <CardContent className="space-y-1">
         <TooltipProvider delayDuration={100}>
-        {projects.map((p) => {
-          const color = getAvatarColor(p.id);
-          const overdue = isOverdue(p.due_date ?? undefined) && p.closed < p.total;
-          return (
-            <Tooltip key={p.id}>
-            <TooltipTrigger asChild>
-            <div className="group -mx-2 cursor-default space-y-1.5 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/50">
-              <div className="flex items-center justify-between gap-2 text-sm">
-                <Link to={`/projects/${p.id}`} className="flex min-w-0 items-center gap-2 hover:text-primary">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: color }} />
-                  <span className="truncate font-medium">{p.name}</span>
-                </Link>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {p.progress}% · {p.closed}/{p.total} closed
-                </span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${p.progress}% done`}>
-                <div className="h-full rounded-full transition-all group-hover:brightness-110" style={{ width: `${p.progress}%`, backgroundColor: color }} />
-              </div>
-            </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" align="end" className="w-56 p-3">
-              <ChartTip
-                title={p.name}
-                color={color}
-                rows={[
-                  ['Progress', `${p.progress}%`],
-                  ['Open', openCount(p)],
-                  ['Closed', p.closed],
-                  ['Total issues', p.total],
-                  ['Due', p.due_date ? formatDate(p.due_date) : 'No due date', overdue ? 'text-red-600' : undefined],
-                ]}
-              />
-            </TooltipContent>
-            </Tooltip>
-          );
-        })}
+          {projects.map((p) => {
+            const color = getAvatarColor(p.id);
+            const overdue = isOverdue(p.due_date ?? undefined) && p.closed < p.total;
+            return (
+              <Tooltip key={p.id}>
+                <TooltipTrigger asChild>
+                  <div className="group -mx-2 cursor-default space-y-1.5 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/50">
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <Link to={`/projects/${p.id}`} className="flex min-w-0 items-center gap-2 hover:text-primary">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: color }} />
+                        <span className="truncate font-medium">{p.name}</span>
+                      </Link>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {p.progress}% · {p.closed}/{p.total} closed
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${p.progress}% done`}>
+                      <div className="h-full rounded-full transition-all group-hover:brightness-110" style={{ width: `${p.progress}%`, backgroundColor: color }} />
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="end" className="w-56 p-3">
+                  <ChartTip
+                    title={p.name}
+                    color={color}
+                    rows={[
+                      ['Progress', `${p.progress}%`],
+                      ['Open', openCount(p)],
+                      ['Closed', p.closed],
+                      ['Total issues', p.total],
+                      ['Due', p.due_date ? formatDate(p.due_date) : 'No due date', overdue ? 'text-red-600' : undefined],
+                    ]}
+                  />
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
         </TooltipProvider>
       </CardContent>
     </Card>
@@ -417,35 +417,35 @@ function PriorityCard({ data }: { data: DashboardData }) {
       </CardHeader>
       <CardContent className="flex items-end gap-4">
         <TooltipProvider delayDuration={100}>
-        {rows.map((r) => {
-          const share = total > 0 ? Math.round((r.count / total) * 100) : 0;
-          return (
-            <Tooltip key={r.key}>
-              <TooltipTrigger asChild>
-                <div className="group flex flex-1 cursor-default flex-col items-center gap-2 rounded-md py-1 transition-colors hover:bg-accent/50">
-                  <div className="text-sm font-bold">{r.count}</div>
-                  <div className="flex h-20 w-full items-end px-1">
-                    <div
-                      className="w-full rounded-t opacity-90 transition-all duration-500 group-hover:opacity-100 group-hover:brightness-110"
-                      style={{ height: `${Math.max((r.count / max) * 100, 4)}%`, backgroundColor: r.color, minHeight: 4 }}
-                    />
+          {rows.map((r) => {
+            const share = total > 0 ? Math.round((r.count / total) * 100) : 0;
+            return (
+              <Tooltip key={r.key}>
+                <TooltipTrigger asChild>
+                  <div className="group flex flex-1 cursor-default flex-col items-center gap-2 rounded-md py-1 transition-colors hover:bg-accent/50">
+                    <div className="text-sm font-bold">{r.count}</div>
+                    <div className="flex h-20 w-full items-end px-1">
+                      <div
+                        className="w-full rounded-t opacity-90 transition-all duration-500 group-hover:opacity-100 group-hover:brightness-110"
+                        style={{ height: `${Math.max((r.count / max) * 100, 4)}%`, backgroundColor: r.color, minHeight: 4 }}
+                      />
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">{r.label}</div>
                   </div>
-                  <div className="text-[10px] text-muted-foreground">{r.label}</div>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="w-48 p-3">
-                <ChartTip
-                  title={`${r.label} priority`}
-                  color={r.color}
-                  rows={[
-                    ['Issues', r.count],
-                    ['Share of all issues', `${share}%`],
-                  ]}
-                />
-              </TooltipContent>
-            </Tooltip>
-          );
-        })}
+                </TooltipTrigger>
+                <TooltipContent side="top" className="w-48 p-3">
+                  <ChartTip
+                    title={`${r.label} priority`}
+                    color={r.color}
+                    rows={[
+                      ['Issues', r.count],
+                      ['Share of all issues', `${share}%`],
+                    ]}
+                  />
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
         </TooltipProvider>
       </CardContent>
     </Card>
@@ -527,12 +527,13 @@ function ProjectIssuesCard({ project, myId, focus, scope }: {
     scope,
     project_id: project.id,
     ...focusFilter(focus, myId),
+    status_id: 1,
     // The card only shows a handful, so fetch just that one page
     per_page: ISSUES_PER_PROJECT,
   });
   // Only the first page is ever loaded; the list has no "open only" filter, so closed ones are dropped here
   const firstPage = data?.pages[0];
-  const visible = (firstPage?.items ?? []).filter((i) => !isIssueClosed(i));
+  const visible = (firstPage?.items ?? []);
   const total = firstPage?.meta.total ?? 0;
   const viewAll = focusIssuesUrl(focus, project.id);
   const overdue = isOverdue(project.due_date ?? undefined);
