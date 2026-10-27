@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
-import { getPermissionModule, toAppPermissions } from '@/lib/permissions';
+import { BASELINE_PERMISSIONS, getPermissionModule, toAppPermissions } from '@/lib/permissions';
 import { NAV_ITEMS } from '@/lib/nav-config';
 import {
   useCreateRoleMutation,
@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/select';
 import {
   ArrowLeft, Loader2, AlertTriangle, Sparkles, Eye, ShieldAlert, Users as UsersIcon,
-  Plus, Minus, Check, Lock, MessageCircle, Paperclip, RotateCw, type LucideIcon,
+  Plus, Minus, Check, Lock, MessageCircle, Paperclip, RotateCw, LayoutGrid, type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -45,6 +45,13 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
 };
 
 const isViewPerm = (perm: { action: string }) => perm.action === 'view';
+
+/** Modules that already have a sidebar page */
+const NAV_MODULES = new Set<string>(NAV_ITEMS.map((item) => getPermissionModule(item.permission)));
+/** Modules used inside other pages (the issue detail), never as a sidebar link */
+const IN_PAGE_MODULES = new Set(['comments', 'attachments']);
+
+type PreviewItem = { key: string; label: string; icon: LucideIcon };
 
 /** Loads the role + permission catalog, then mounts the form with real data. */
 export default function RoleEditorRoute() {
@@ -210,8 +217,25 @@ function RoleEditorForm({ role, allRoles, modules }: RoleEditorFormProps) {
     : sensitiveCount <= 3 ? { label: 'Medium', tone: 'text-amber-600 bg-amber-500/10' }
     : { label: 'High', tone: 'text-destructive bg-destructive/10' };
 
-  const appPerms = toAppPermissions(selectedPerms);
-  const visibleNav = NAV_ITEMS.filter((item) => appPerms.has(item.permission));
+  const visibleNav = useMemo(() => {
+    // The pages the sidebar would show, worked out the same way it does
+    const appPerms = toAppPermissions(selectedPerms);
+    BASELINE_PERMISSIONS.forEach((p) => appPerms.add(p));
+    const pages: PreviewItem[] = NAV_ITEMS
+      .filter((item) => appPerms.has(item.permission))
+      .map((item) => ({ key: item.href, label: item.label, icon: item.icon }));
+
+    // Catalog modules the app has no page mapping for yet still show, so new modules appear
+    for (const mod of modules) {
+      if (NAV_MODULES.has(mod.module) || IN_PAGE_MODULES.has(mod.module)) continue;
+      const picked = mod.permissions.filter((p) => selectedPerms.has(p.name));
+      if (picked.length === 0) continue;
+      // A module with a view action opens only when that action is granted
+      if (mod.permissions.some(isViewPerm) && !picked.some(isViewPerm)) continue;
+      pages.push({ key: mod.module, label: mod.label, icon: MODULE_ICONS[mod.module] ?? LayoutGrid });
+    }
+    return pages;
+  }, [selectedPerms, modules]);
 
   const summary = modules.flatMap((mod) => {
     const level = getLevel(mod);
@@ -530,7 +554,7 @@ function RoleEditorForm({ role, allRoles, modules }: RoleEditorFormProps) {
                   visibleNav.map((item) => {
                     const Icon = item.icon;
                     return (
-                      <div key={item.href} className="flex items-center gap-2.5 rounded-md px-3 py-1.5 text-xs text-sidebar-foreground/80">
+                      <div key={item.key} className="flex items-center gap-2.5 rounded-md px-3 py-1.5 text-xs text-sidebar-foreground/80">
                         <Icon className="h-3.5 w-3.5 shrink-0" />
                         {item.label}
                       </div>

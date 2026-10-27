@@ -144,6 +144,9 @@ export function getPermissionModule(perm: Permission): PermissionModule {
   return perm.split('.')[0] as PermissionModule;
 }
 
+/** Every signed-in user can reach these regardless of role or project access */
+export const BASELINE_PERMISSIONS: Permission[] = ['dashboard.view', 'notifications.view', 'settings.view'];
+
 /**
  * API permission names that differ from the app's permission names. Names that
  * match an app permission (e.g. `issues.pick`, `comments.delete`) need no entry.

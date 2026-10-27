@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo } from 'react';
 import type { User, Permission } from '@/lib/types';
-import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, toAppPermissions } from '@/lib/permissions';
+import { ALL_PERMISSIONS, BASELINE_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, toAppPermissions } from '@/lib/permissions';
 import { getAvatarColor } from '@/lib/shared-utils';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import { baseApi } from '@/redux/api/base-api';
@@ -37,8 +37,6 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-/** Every signed-in user can reach these regardless of project access */
-const BASELINE_PERMISSIONS: Permission[] = ['dashboard.view', 'notifications.view', 'settings.view'];
 
 
 /** Backend permissions granted by the user's system-wide default role */
