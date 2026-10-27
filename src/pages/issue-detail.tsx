@@ -15,7 +15,7 @@ import { lastIssuesUrl } from '@/lib/last-issues-url';
 import {
   ISSUE_SEVERITY_OPTIONS, formatDate, getAvatarColor, getSeverityKey, isIssueClosed, isMyReport, isOverdue,
 } from '@/lib/shared-utils';
-import { getProjectColor, getProjectInitials, sortStatuses } from '@/lib/project-utils';
+import { sortStatuses } from '@/lib/project-utils';
 import {
   useChangeMyIssueStatusMutation,
   useDeleteIssueMutation,
@@ -53,6 +53,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { ProjectLogo } from '@/components/projects/project-logo';
 
 const ISSUE_TABS = ['comments', 'history', 'attachments'] as const;
 
@@ -344,12 +345,7 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Project</Label>
                 <Link to={`/projects/${issue.project.id}`} className="text-sm hover:text-primary flex items-center gap-2">
-                  <div
-                    className="h-6 w-6 rounded text-white text-[9px] font-bold flex items-center justify-center"
-                    style={{ backgroundColor: getProjectColor(issue.project) }}
-                  >
-                    {getProjectInitials(issue.project)}
-                  </div>
+                  <ProjectLogo project={issue.project} className="h-6 w-6 rounded text-[9px]" />
                   {issue.project.name}
                 </Link>
               </div>

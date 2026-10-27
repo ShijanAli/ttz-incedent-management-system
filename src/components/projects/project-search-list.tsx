@@ -5,9 +5,10 @@ import { InfiniteScrollTrigger } from '@/components/shared/infinite-scroll-trigg
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { parseApiError } from '@/lib/api-error';
-import { getProjectColor, getProjectInitials, getProjectStateMeta } from '@/lib/project-utils';
+import { getProjectStateMeta } from '@/lib/project-utils';
 import { useGetProjectsInfiniteQuery } from '@/redux/features/projects/projects-api';
 import type { ApiProject } from '@/redux/features/projects/projects-types';
+import { ProjectLogo } from '@/components/projects/project-logo';
 
 interface ProjectSearchListProps {
   /** Rendered on the right of each row, e.g. a checkbox */
@@ -61,12 +62,7 @@ export function ProjectSearchList({ renderAction, emptyMessage = 'No projects fo
           <div className="divide-y">
             {list.items.map((project) => (
               <div key={project.id} className="flex items-center gap-3 px-3 py-2.5">
-                <div
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold text-white"
-                  style={{ backgroundColor: getProjectColor(project) }}
-                >
-                  {getProjectInitials(project)}
-                </div>
+                <ProjectLogo project={project} className="h-8 w-8 rounded-lg text-[10px]" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{project.name}</div>
                   <div className="truncate text-xs text-muted-foreground">

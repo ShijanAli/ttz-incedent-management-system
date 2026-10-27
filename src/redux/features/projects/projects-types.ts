@@ -86,6 +86,8 @@ export interface ApiProject {
   due_date: string | null;
   /** Lifecycle status (planning, active, ...). Not to be confused with the workflow `statuses`. */
   status: ProjectState | null;
+  /** Signed URL of the project's logo; null when none is set (show initials instead) */
+  logo_url?: string | null;
   /** Left out of the list response (GET /projects); only the single project sends it */
   statuses?: ProjectStatus[];
   members: ProjectMember[];

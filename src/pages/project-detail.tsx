@@ -11,7 +11,7 @@ import {
   formatDate,
 } from '@/lib/shared-utils';
 import {
-  getProjectColor, getProjectInitials, getProjectPriorityMeta, getProjectProgress, getProjectStateMeta,
+  getProjectPriorityMeta, getProjectProgress, getProjectStateMeta,
   memberRoleHas, sortStatuses,
 } from '@/lib/project-utils';
 import { useGetProjectQuery } from '@/redux/features/projects/projects-api';
@@ -33,6 +33,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { ProjectLogo } from '@/components/projects/project-logo';
 
 const PROJECT_TABS = ['overview', 'members', 'workflow', 'issues', 'groups', 'activity'] as const;
 
@@ -91,7 +92,6 @@ function ProjectDetail({ project }: { project: ApiProject }) {
   const canDelete = projectCan(project, 'projects.delete');
   const canManageMembers = projectCan(project, 'users.edit');
 
-  const initials = getProjectInitials(project);
   const stateMeta = getProjectStateMeta(project.status);
   const priorityMeta = getProjectPriorityMeta(project.priority);
   const progress = getProjectProgress(project);
@@ -144,12 +144,7 @@ function ProjectDetail({ project }: { project: ApiProject }) {
         <CardContent className="p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-4">
-              <div
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-lg font-bold text-white"
-                style={{ backgroundColor: getProjectColor(project) }}
-              >
-                {initials}
-              </div>
+              <ProjectLogo project={project} className="h-14 w-14 rounded-xl text-lg" />
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge label={stateMeta.label} className={stateMeta.badgeClass} />

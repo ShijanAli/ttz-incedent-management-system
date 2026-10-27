@@ -11,7 +11,7 @@ import { useProjectCan } from '@/hooks/use-project-can';
 import { parseApiError } from '@/lib/api-error';
 import { formatDate, isOverdue } from '@/lib/shared-utils';
 import {
-  PROJECT_PRIORITY_OPTIONS, PROJECT_STATUS_FILTER_OPTIONS, getProjectColor, getProjectInitials, getProjectPriorityMeta,
+  PROJECT_PRIORITY_OPTIONS, PROJECT_STATUS_FILTER_OPTIONS, getProjectPriorityMeta,
   getProjectProgress, getProjectStateMeta,
 } from '@/lib/project-utils';
 import { useGetProjectsInfiniteQuery } from '@/redux/features/projects/projects-api';
@@ -39,6 +39,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { ProjectLogo } from '@/components/projects/project-logo';
 
 const COLUMN_COUNT = 8;
 const ALL = 'all';
@@ -272,7 +273,6 @@ function ProjectRow({ index, project, onEdit, onAction }: ProjectRowProps) {
   const overdue = isOverdue(project.due_date ?? undefined, archived ? 'approved' : (project.status ?? undefined));
   const stateMeta = getProjectStateMeta(project.status);
   const priorityMeta = getProjectPriorityMeta(project.priority);
-  const initials = getProjectInitials(project);
 
   // Actions follow the signed-in user's permissions in this project (super admins can do everything)
   const projectCan = useProjectCan();
@@ -284,12 +284,7 @@ function ProjectRow({ index, project, onEdit, onAction }: ProjectRowProps) {
       <TableCell className="text-sm tabular-nums text-muted-foreground">{index + 1}</TableCell>
       <TableCell>
         <Link to={`/projects/${project.id}`} className="flex items-center gap-3">
-          <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
-            style={{ backgroundColor: getProjectColor(project) }}
-          >
-            {initials}
-          </div>
+          <ProjectLogo project={project} className="h-9 w-9 rounded-lg text-xs" />
           <div>
             <div className="font-medium transition-colors hover:text-primary">{project.name}</div>
             <div className="max-w-[250px] truncate text-xs text-muted-foreground">{project.description || '—'}</div>

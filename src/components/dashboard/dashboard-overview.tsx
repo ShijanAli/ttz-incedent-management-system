@@ -13,7 +13,6 @@ import { parseApiError } from '@/lib/api-error';
 import {
   ISSUE_PRIORITY_META, formatDate, formatRelativeTime, getAvatarColor, isIssueClosed, isOverdue,
 } from '@/lib/shared-utils';
-import { getProjectInitials } from '@/lib/project-utils';
 import { issuesUrl } from '@/lib/issues-url';
 import { useGetDashboardQuery } from '@/redux/features/dashboard/dashboard-api';
 import type { DashboardActivity, DashboardData, DashboardProject, DashboardStatusCount } from '@/redux/features/dashboard/dashboard-types';
@@ -26,6 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { ProjectLogo } from '@/components/projects/project-logo';
 
 /** Icon per status slug; statuses are configurable, so unknown ones get a dot */
 const STATUS_ICONS: Record<string, LucideIcon> = {
@@ -542,12 +542,7 @@ function ProjectIssuesCard({ project, myId, focus, scope }: {
       <CardContent className="space-y-4 p-4 sm:p-5">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 items-center gap-3">
-            <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white"
-              style={{ backgroundColor: color }}
-            >
-              {getProjectInitials(project)}
-            </div>
+            <ProjectLogo project={project} color={color} className="h-11 w-11 rounded-xl text-xs" />
             <div className="min-w-0">
               <Link to={`/projects/${project.id}`} className="font-semibold hover:text-primary">
                 {project.name}

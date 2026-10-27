@@ -8,7 +8,7 @@ import { useTabParam } from '@/hooks/use-tab-param';
 import { parseApiError } from '@/lib/api-error';
 import { formatDate, isOverdue } from '@/lib/shared-utils';
 import {
-  getProjectColor, getProjectInitials, getProjectPriorityMeta, getProjectStateMeta,
+  getProjectPriorityMeta, getProjectStateMeta,
 } from '@/lib/project-utils';
 import {
   useAddGroupMemberMutation,
@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { ProjectLogo } from '@/components/projects/project-logo';
 
 const GROUP_TABS = ['members', 'projects'] as const;
 
@@ -227,12 +228,7 @@ function GroupProjects({ groupId }: { groupId: number }) {
                   to={`/projects/${project.id}`}
                   className="flex flex-wrap items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50"
                 >
-                  <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
-                    style={{ backgroundColor: getProjectColor(project) }}
-                  >
-                    {getProjectInitials(project)}
-                  </div>
+                  <ProjectLogo project={project} className="h-10 w-10 rounded-lg text-xs" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium">{project.name}</div>
                     <div className="truncate text-xs text-muted-foreground">{project.description || '—'}</div>
