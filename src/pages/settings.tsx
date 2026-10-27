@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { ProfileCard } from '@/components/settings/profile-card';
 import { PasswordCard } from '@/components/settings/password-card';
 import { NotificationPreferencesCard } from '@/components/settings/notification-preferences-card';
+import { WorkflowStatusesCard } from '@/components/settings/workflow-statuses-card';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -18,7 +19,7 @@ import { toast } from 'sonner';
 import type { IssueStatus } from '@/lib/types';
 
 export default function SettingsPage() {
-  const { session, hasPermission } = useAuth();
+  const { session, hasPermission, isSuperAdmin } = useAuth();
 
   const [systemSettings, setSystemSettings] = useState(() => settingsRepo.get());
 
@@ -39,7 +40,6 @@ export default function SettingsPage() {
     );
   }
 
-  const isSuperAdmin = session.roleNames.includes('Super Admin');
   const canUpdateSettings = hasPermission('settings.update');
 
   const saveSystem = () => {
@@ -64,6 +64,9 @@ export default function SettingsPage() {
         <ProfileCard />
 
         <NotificationPreferencesCard />
+
+        {/* Default workflow statuses - super admin only (the /admin/statuses API is theirs) */}
+        {isSuperAdmin && <WorkflowStatusesCard />}
 
         {/* System settings - super admin only */}
         {isSuperAdmin && canUpdateSettings && (

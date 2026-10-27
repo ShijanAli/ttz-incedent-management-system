@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { ArrowRight, Loader2, Search } from 'lucide-react';
+import { ArrowRight, Clock, Loader2, Search, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { cn } from '@/lib/utils';
+import {
+  clearRecent, forgetRecent, onRecentChange, readRecent, recentHref, rememberRecent, type RecentItem,
+} from '@/lib/recent-search';
 import { useGetIssuesInfiniteQuery } from '@/redux/features/issues/issues-api';
 import { useGetProjectsInfiniteQuery } from '@/redux/features/projects/projects-api';
 import { IssueStatusBadge } from '@/components/issues/issue-badges';
@@ -15,22 +18,35 @@ const DEBOUNCE_MS = 300;
 
 /** One row in the dropdown, flattened so arrow keys can walk projects and issues together */
 type Result =
-  | { kind: 'project'; id: number; to: string }
-  | { kind: 'issue'; id: number; to: string }
+  | { kind: 'project' | 'issue'; id: number; to: string; item: RecentItem }
   | { kind: 'all-issues'; id: 0; to: string };
 
 /**
  * Topbar search backed by the projects and issues APIs (?search=), so every suggestion
- * is something the user can actually open. Ctrl/⌘+K focuses it.
+ * is something the user can actually open. Ctrl/⌘+K focuses it. With nothing typed, it lists
+ * what the user recently opened from here (saved in the browser, so no API call).
  */
 export function GlobalSearch() {
   const navigate = useNavigate();
-  const { hasPermission, isSuperAdmin } = useAuth();
+  const { session, hasPermission, isSuperAdmin } = useAuth();
+  const userId = session?.user.id;
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [recent, setRecent] = useState<RecentItem[]>([]);
+
+  // Load this user's history, and follow changes made elsewhere (e.g. a deleted issue)
+  useEffect(() => {
+    if (!userId) {
+      setRecent([]);
+      return;
+    }
+    const load = () => setRecent(readRecent(userId));
+    load();
+    return onRecentChange(load);
+  }, [userId]);
 
   const term = useDebouncedValue(query.trim(), DEBOUNCE_MS);
   const ready = term.length >= MIN_CHARS;
@@ -55,15 +71,23 @@ export function GlobalSearch() {
   const loading = typing || projectsQuery.isFetching || issuesQuery.isFetching;
   const failed = projectsQuery.isError || issuesQuery.isError;
 
-  const results = useMemo<Result[]>(() => [
-    ...projects.map((p) => ({ kind: 'project' as const, id: p.id, to: `/projects/${p.id}` })),
-    ...issues.map((i) => ({ kind: 'issue' as const, id: i.id, to: `/issues/${i.id}` })),
+  const showRecent = open && query.trim() === '' && recent.length > 0;
+
+  const results = useMemo<Result[]>(() => showRecent ? recent.map((item) => ({ kind: item.kind, id: item.id, to: recentHref(item), item })) : [
+    ...projects.map((p) => ({
+      kind: 'project' as const, id: p.id, to: `/projects/${p.id}`,
+      item: { kind: 'project' as const, id: p.id, name: p.name, color: p.color, logo_url: p.logo_url, status: p.status },
+    })),
+    ...issues.map((i) => ({
+      kind: 'issue' as const, id: i.id, to: `/issues/${i.id}`,
+      item: { kind: 'issue' as const, id: i.id, code: i.code, title: i.title, projectName: i.project?.name },
+    })),
     // More matches than shown: offer the full, filtered issues page
     ...(issueTotal > issues.length ? [{ kind: 'all-issues' as const, id: 0 as const, to: `/issues?q=${encodeURIComponent(term)}` }] : []),
-  ], [projects, issues, issueTotal, term]);
+  ], [showRecent, recent, projects, issues, issueTotal, term]);
 
   // New results start the highlight from the top
-  useEffect(() => setActive(0), [term]);
+  useEffect(() => setActive(0), [term, showRecent]);
 
   useEffect(() => {
     const onClickOutside = (e: MouseEvent) => {
@@ -95,6 +119,23 @@ export function GlobalSearch() {
     navigate(to);
   };
 
+  /** Opening a project or issue moves it to the top of the recent list */
+  const remember = (result: Result | undefined) => {
+    if (userId && result && result.kind !== 'all-issues') rememberRecent(userId, result.item);
+  };
+
+  const pick = (result: Result) => {
+    remember(result);
+    go(result.to);
+  };
+
+  const removeRecent = (e: React.MouseEvent, item: RecentItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (userId) forgetRecent(userId, item.kind, item.id);
+    inputRef.current?.focus();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
       setOpen(false);
@@ -112,11 +153,11 @@ export function GlobalSearch() {
       setActive((i) => (i + step + results.length) % results.length);
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      go(results[Math.min(active, results.length - 1)].to);
+      pick(results[Math.min(active, results.length - 1)]);
     }
   };
 
-  const showDropdown = open && query.trim().length >= MIN_CHARS;
+  const showDropdown = showRecent || (open && query.trim().length >= MIN_CHARS);
   const isActive = (kind: Result['kind'], id: number) => {
     const r = results[active];
     return r?.kind === kind && r.id === id;
@@ -156,7 +197,64 @@ export function GlobalSearch() {
 
       {showDropdown && (
         <div id="global-search-results" role="listbox" className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[420px] overflow-y-auto rounded-lg border bg-popover p-2 shadow-lg">
-          {!ready || (loading && results.length === 0) ? (
+          {showRecent ? (
+            <div>
+              <div className="flex items-center justify-between px-3 py-1">
+                <span className="text-xs font-semibold text-muted-foreground">Recent</span>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => userId && clearRecent(userId)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Clear
+                </button>
+              </div>
+              {recent.map((item, index) => {
+                const on = active === index;
+                return (
+                  <Link
+                    key={`${item.kind}-${item.id}`}
+                    to={recentHref(item)}
+                    onClick={() => { remember(results[index]); reset(); }}
+                    onMouseEnter={() => setActive(index)}
+                    role="option"
+                    aria-selected={on}
+                    className={cn(rowClass(on), 'group')}
+                  >
+                    {item.kind === 'project' ? (
+                      <>
+                        <ProjectLogo project={item} className="h-7 w-7 rounded-md text-[9px]" />
+                        <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                          <Clock className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">
+                            <span className="mr-1.5 font-mono text-xs text-muted-foreground">{item.code}</span>
+                            {item.title}
+                          </span>
+                          {item.projectName && <span className="block truncate text-xs text-muted-foreground">{item.projectName}</span>}
+                        </span>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => removeRecent(e, item)}
+                      aria-label="Remove from recent"
+                      className="shrink-0 rounded p-1 text-muted-foreground opacity-0 hover:bg-background hover:text-foreground group-hover:opacity-100"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : !ready || (loading && results.length === 0) ? (
             <div className="flex items-center justify-center gap-2 px-3 py-6 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Searching...
             </div>
@@ -175,7 +273,7 @@ export function GlobalSearch() {
                     <Link
                       key={p.id}
                       to={`/projects/${p.id}`}
-                      onClick={reset}
+                      onClick={() => { remember(results.find((r) => r.kind === 'project' && r.id === p.id)); reset(); }}
                       onMouseEnter={() => setActive(results.findIndex((r) => r.kind === 'project' && r.id === p.id))}
                       role="option"
                       aria-selected={isActive('project', p.id)}
@@ -197,7 +295,7 @@ export function GlobalSearch() {
                     <Link
                       key={i.id}
                       to={`/issues/${i.id}`}
-                      onClick={reset}
+                      onClick={() => { remember(results.find((r) => r.kind === 'issue' && r.id === i.id)); reset(); }}
                       onMouseEnter={() => setActive(results.findIndex((r) => r.kind === 'issue' && r.id === i.id))}
                       role="option"
                       aria-selected={isActive('issue', i.id)}

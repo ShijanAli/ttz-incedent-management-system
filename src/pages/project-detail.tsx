@@ -34,12 +34,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { ProjectLogo } from '@/components/projects/project-logo';
+import { useForgetMissingRecent } from '@/hooks/use-forget-missing-recent';
 
 const PROJECT_TABS = ['overview', 'members', 'workflow', 'issues', 'groups', 'activity'] as const;
 
 export default function ProjectDetailPage() {
   const id = Number(useParams().id);
   const { data: project, isLoading, isError, error, refetch } = useGetProjectQuery(id, { skip: !Number.isFinite(id) });
+  useForgetMissingRecent('project', id, error);
 
   if (isLoading) return <ProjectDetailSkeleton />;
 

@@ -54,6 +54,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { ProjectLogo } from '@/components/projects/project-logo';
+import { useForgetMissingRecent } from '@/hooks/use-forget-missing-recent';
 
 const ISSUE_TABS = ['comments', 'history', 'attachments'] as const;
 
@@ -61,6 +62,7 @@ export default function IssueDetailPage() {
   const issueId = Number(useParams().id);
   const navigate = useNavigate();
   const { data: issue, isLoading, error, refetch } = useGetIssueQuery(issueId, { skip: !Number.isFinite(issueId) });
+  useForgetMissingRecent('issue', issueId, error);
 
   if (isLoading) return <IssueDetailSkeleton />;
 
