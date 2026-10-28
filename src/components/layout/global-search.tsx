@@ -16,16 +16,10 @@ const MIN_CHARS = 2;
 const RESULTS_PER_GROUP = 5;
 const DEBOUNCE_MS = 300;
 
-/** One row in the dropdown, flattened so arrow keys can walk projects and issues together */
 type Result =
   | { kind: 'project' | 'issue'; id: number; to: string; item: RecentItem }
   | { kind: 'all-issues'; id: 0; to: string };
 
-/**
- * Topbar search backed by the projects and issues APIs (?search=), so every suggestion
- * is something the user can actually open. Ctrl/⌘+K focuses it. With nothing typed, it lists
- * what the user recently opened from here (saved in the browser, so no API call).
- */
 export function GlobalSearch() {
   const navigate = useNavigate();
   const { session, hasPermission, isSuperAdmin } = useAuth();
@@ -37,7 +31,6 @@ export function GlobalSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [recent, setRecent] = useState<RecentItem[]>([]);
 
-  // Load this user's history, and follow changes made elsewhere (e.g. a deleted issue)
   useEffect(() => {
     if (!userId) {
       setRecent([]);
@@ -53,13 +46,11 @@ export function GlobalSearch() {
   const canProjects = hasPermission('projects.view');
   const canIssues = hasPermission('issues.view');
 
-  // Only the first page of each is needed; the API matches names, titles and codes
   const projectsQuery = useGetProjectsInfiniteQuery(
     { search: term, per_page: RESULTS_PER_GROUP },
     { skip: !ready || !canProjects },
   );
   const issuesQuery = useGetIssuesInfiniteQuery(
-    // Super admins search every issue; everyone else the issues of their projects
     { scope: isSuperAdmin ? 'admin' : 'my', search: term, per_page: RESULTS_PER_GROUP },
     { skip: !ready || !canIssues },
   );
@@ -82,11 +73,9 @@ export function GlobalSearch() {
       kind: 'issue' as const, id: i.id, to: `/issues/${i.id}`,
       item: { kind: 'issue' as const, id: i.id, code: i.code, title: i.title, projectName: i.project?.name },
     })),
-    // More matches than shown: offer the full, filtered issues page
     ...(issueTotal > issues.length ? [{ kind: 'all-issues' as const, id: 0 as const, to: `/issues?q=${encodeURIComponent(term)}` }] : []),
   ], [showRecent, recent, projects, issues, issueTotal, term]);
 
-  // New results start the highlight from the top
   useEffect(() => setActive(0), [term, showRecent]);
 
   useEffect(() => {
