@@ -3,7 +3,7 @@ import { Link, useLocation, useParams, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import {
   Pencil, Trash2, Paperclip, CheckCircle2, AlertCircle, History as HistoryIcon, MessageSquare, Hand,
-  LogOut, RotateCcw, Loader2, Hourglass,
+  LogOut, RotateCcw, Loader2, Hourglass, Activity as ActivityIcon, XCircle,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useTabParam } from '@/hooks/use-tab-param';
@@ -19,6 +19,7 @@ import { sortStatuses } from '@/lib/project-utils';
 import {
   useChangeMyIssueStatusMutation,
   useDeleteIssueMutation,
+  useForceCloseIssueMutation,
   useGetIssueAssigneesQuery,
   useGetIssueQuery,
   usePickIssueMutation,
@@ -37,6 +38,7 @@ import {
 } from '@/components/issues/issue-badges';
 import { IssueComments } from '@/components/issues/issue-comments';
 import { IssueHistory } from '@/components/issues/issue-history';
+import { IssueActivity } from '@/components/issues/issue-activity';
 import { IssueAttachments } from '@/components/issues/issue-attachments';
 import { IssueAssignees } from '@/components/issues/issue-assignees';
 import { StatusUpdateDialog } from '@/components/issues/status-update-dialog';
@@ -56,7 +58,7 @@ import {
 import { ProjectLogo } from '@/components/projects/project-logo';
 import { useForgetMissingRecent } from '@/hooks/use-forget-missing-recent';
 
-const ISSUE_TABS = ['comments', 'history', 'attachments'] as const;
+const ISSUE_TABS = ['comments', 'history', 'activity', 'attachments'] as const;
 
 export default function IssueDetailPage() {
   const issueId = Number(useParams().id);
@@ -118,6 +120,8 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
     viewFiles: hasPermission('attachments.view'),
     upload: open && abilities.can_upload && hasPermission('attachments.create'),
     deleteFiles: open && hasPermission('attachments.delete'),
+    // Super admin only; the API's own flag wins, and an open issue is the fallback when it is missing
+    forceClose: abilities.can_force_close ?? (isSuperAdmin && open),
   };
   const tabs = ISSUE_TABS.filter((t) => (t === 'comments' ? can.viewComments : t === 'attachments' ? can.viewFiles : true));
   const [tab, setTab] = useTabParam(tabs, tabs[0]);
@@ -126,6 +130,7 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [statusDialog, setStatusDialog] = useState<{ status_id?: number } | null>(null);
   const [review, setReview] = useState<ReviewDecision | null>(null);
+  const [forceCloseOpen, setForceCloseOpen] = useState(false);
 
   // Fresh assignee list (the issue payload embeds one too, used until it loads)
   const { data: assignees = issue.assignees } = useGetIssueAssigneesQuery(issue.id);
@@ -144,6 +149,8 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
   const { enrich } = useIssuePeople(issue.id, issue.project.id);
   const rawReporter = issue.reporter ?? issue.reported_by;
   const reporter = rawReporter ? enrich(rawReporter) : null;
+  // Names for activity events that only carry a user id
+  const activityPeople = [...assignees.map((a) => a.user), ...(rawReporter ? [rawReporter] : [])];
   const overdue = issue.progress < 100 && !issue.closed_at && isOverdue(issue.due_date ?? undefined);
   // The API sends the description with the severity; fall back to ours for a bare key
   const severityDescription = typeof issue.severity === 'object' && issue.severity
@@ -195,6 +202,11 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
                 <Pencil className="mr-2 h-4 w-4" /> Edit
               </Button>
             )}
+            {can.forceClose && (
+              <Button variant="outline" onClick={() => setForceCloseOpen(true)}>
+                <XCircle className="mr-2 h-4 w-4" /> Force close
+              </Button>
+            )}
             {can.delete && (
               <Button variant="outline" onClick={() => setConfirmDelete(true)} className="text-red-600 hover:text-red-700">
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
@@ -233,6 +245,10 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
                     <HistoryIcon className="h-3.5 w-3.5" />
                     History ({issue.status_history.length})
                   </TabsTrigger>
+                  <TabsTrigger value="activity" className="gap-1.5">
+                    <ActivityIcon className="h-3.5 w-3.5" />
+                    Activity
+                  </TabsTrigger>
                   {can.viewFiles && (
                     <TabsTrigger value="attachments" className="gap-1.5">
                       <Paperclip className="h-3.5 w-3.5" />
@@ -256,6 +272,11 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
 
                 <TabsContent value="history" className="mt-4">
                   <IssueHistory issueId={issue.id} />
+                </TabsContent>
+
+                <TabsContent value="activity" className="mt-4">
+                  {/* Mounted only while its tab is open, so the log loads on demand */}
+                  {tab === 'activity' && <IssueActivity issueId={issue.id} people={activityPeople} />}
                 </TabsContent>
 
                 {can.viewFiles && (
@@ -483,7 +504,75 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
       />
 
       <ReviewDialog issueId={issue.id} decision={review} onClose={() => setReview(null)} />
+
+      <ForceCloseDialog
+        issueId={issue.id}
+        code={issue.code}
+        open={forceCloseOpen}
+        onClose={() => setForceCloseOpen(false)}
+      />
     </div>
+  );
+}
+
+/** Super admin closes the issue outright; the comment is optional */
+function ForceCloseDialog({
+  issueId, code, open, onClose,
+}: { issueId: number; code: string; open: boolean; onClose: () => void }) {
+  const [forceClose, { isLoading }] = useForceCloseIssueMutation();
+  const [comment, setComment] = useState('');
+
+  const close = () => {
+    setComment('');
+    onClose();
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await forceClose({ issueId, ...(comment.trim() && { comment: comment.trim() }) }).unwrap();
+      toast.success('Issue closed', { description: `${code} was force-closed.` });
+      close();
+    } catch (err) {
+      toast.error('Could not close the issue', { description: parseApiError(err).message });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next && !isLoading) close(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Force close {code}</DialogTitle>
+          <DialogDescription>
+            This closes the issue straight away, whatever state it and its assignees are in. The reporter and
+            assignees are notified. A super admin can reopen it later.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="forceCloseComment">
+              Comment <span className="text-muted-foreground">(optional)</span>
+            </Label>
+            <Textarea
+              id="forceCloseComment"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="e.g. Duplicate of ISS-1090, closing."
+              rows={4}
+              maxLength={5000}
+              disabled={isLoading}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={close} disabled={isLoading}>Cancel</Button>
+            <Button type="submit" variant="destructive" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Force close
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

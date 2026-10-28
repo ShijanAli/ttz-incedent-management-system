@@ -12,9 +12,10 @@ import { parseApiError } from '@/lib/api-error';
 import { rememberIssuesSearch } from '@/lib/last-issues-url';
 import { lastBoardProject, rememberBoardProject } from '@/lib/last-board-project';
 import {
-  ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, ISSUE_TYPE_OPTIONS, formatDate, formatRelativeTime, isIssueClosed, isMyReport,
+  formatDate, formatRelativeTime, isIssueClosed, isMyReport,
   isOverdue,
 } from '@/lib/shared-utils';
+import { useIssueOptions } from '@/redux/features/issues/issue-options-api';
 import { sortStatuses, toStatusInputs } from '@/lib/project-utils';
 import { useProjectCan } from '@/hooks/use-project-can';
 import { useGetIssuesInfiniteQuery, useGetProjectIssuesInfiniteQuery } from '@/redux/features/issues/issues-api';
@@ -129,6 +130,7 @@ const pick = <T extends string>(value: string): T | undefined => (value === ALL 
 
 export default function IssuesPage() {
   const { session, hasPermission, isSuperAdmin } = useAuth();
+  const issueOptions = useIssueOptions();
   const [filters, setFilters] = useUrlFilters();
   // Lets an issue's breadcrumb come back to this exact view and filters
   const { search: locationSearch } = useLocation();
@@ -286,7 +288,7 @@ export default function IssuesPage() {
                 value={filters.priority}
                 onChange={(v) => update('priority', v)}
                 allLabel="All priorities"
-                options={Object.entries(ISSUE_PRIORITY_META).map(([value, meta]) => ({ value, label: meta.label }))}
+                options={issueOptions.priorities}
               />
               <FilterSelect
                 label="Assignee"
@@ -337,7 +339,7 @@ export default function IssuesPage() {
                     value={filters.issueType}
                     onChange={(v) => update('issueType', v)}
                     allLabel="All types"
-                    options={ISSUE_TYPE_OPTIONS}
+                    options={issueOptions.types}
                     className="w-full"
                   />
                 </FilterField>
@@ -347,7 +349,7 @@ export default function IssuesPage() {
                     value={filters.severity}
                     onChange={(v) => update('severity', v)}
                     allLabel="All severities"
-                    options={ISSUE_SEVERITY_OPTIONS.map((s) => ({ value: s.value, label: s.label }))}
+                    options={issueOptions.severities.map((s) => ({ value: s.value, label: s.label }))}
                     className="w-full"
                   />
                 </FilterField>

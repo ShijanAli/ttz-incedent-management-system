@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import {
   AlertTriangle, Archive, FolderKanban, Loader2, MoreVertical, Pencil, Plus, RotateCcw, RotateCw,
@@ -14,7 +14,7 @@ import {
   PROJECT_PRIORITY_OPTIONS, PROJECT_STATUS_FILTER_OPTIONS, getProjectPriorityMeta,
   getProjectProgress, getProjectStateMeta,
 } from '@/lib/project-utils';
-import { useGetProjectsInfiniteQuery } from '@/redux/features/projects/projects-api';
+import { useGetProjectFiltersQuery, useGetProjectsInfiniteQuery } from '@/redux/features/projects/projects-api';
 import type { ApiProject, ProjectPriority } from '@/redux/features/projects/projects-types';
 import { PageHeader } from '@/components/shared/page-header';
 import { ProjectFormDialog } from '@/components/projects/project-form-dialog';
@@ -64,6 +64,23 @@ export default function ProjectsPage() {
       status: statusFilter === ALL ? undefined : statusFilter,
       priority: priorityFilter === ALL ? undefined : (priorityFilter as ProjectPriority),
     }),
+  );
+
+  // Dropdown lists come from the API; the built-in ones cover the moments before it answers
+  const { data: filterOptions } = useGetProjectFiltersQuery();
+  const statusOptions = useMemo(
+    () =>
+      filterOptions?.statuses?.length
+        ? filterOptions.statuses
+        : PROJECT_STATUS_FILTER_OPTIONS.map((s) => ({ value: s as string, label: getProjectStateMeta(s).label })),
+    [filterOptions],
+  );
+  const priorityOptions = useMemo(
+    () =>
+      filterOptions?.priorities?.length
+        ? filterOptions.priorities
+        : PROJECT_PRIORITY_OPTIONS.map((p) => ({ value: p as string, label: getProjectPriorityMeta(p)?.label ?? p })),
+    [filterOptions],
   );
 
   // The "View Archived" button is a shortcut for the archived status filter
@@ -145,8 +162,8 @@ export default function ProjectsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All statuses</SelectItem>
-                {PROJECT_STATUS_FILTER_OPTIONS.map((s) => (
-                  <SelectItem key={s} value={s}>{getProjectStateMeta(s).label}</SelectItem>
+                {statusOptions.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -156,8 +173,8 @@ export default function ProjectsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All priorities</SelectItem>
-                {PROJECT_PRIORITY_OPTIONS.map((p) => (
-                  <SelectItem key={p} value={p}>{getProjectPriorityMeta(p)?.label ?? p}</SelectItem>
+                {priorityOptions.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

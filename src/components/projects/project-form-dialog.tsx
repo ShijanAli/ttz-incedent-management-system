@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AlertCircle, Loader2, Plus, X } from 'lucide-react';
+import { AlertCircle, ImagePlus, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -18,6 +18,7 @@ import {
 import { UserAvatar } from '@/components/shared/user-avatar';
 import { RoleSelect } from '@/components/members/role-select';
 import { UserSearchList } from '@/components/members/user-search-list';
+import { ProjectLogo } from '@/components/projects/project-logo';
 import { applyFieldErrors, parseApiError } from '@/lib/api-error';
 import { getAvatarColor } from '@/lib/shared-utils';
 import {
@@ -33,6 +34,7 @@ import {
   useGetProjectQuery,
   useRemoveProjectMemberMutation,
   useReplaceProjectStatusesMutation,
+  useUpdateProjectLogoMutation,
   useUpdateProjectMutation,
 } from '@/redux/features/projects/projects-api';
 import { useStatusCatalog } from '@/redux/features/projects/use-status-catalog';
@@ -44,6 +46,9 @@ const FIELDS = [
 ] as const;
 
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+const LOGO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
 
 interface ProjectFormDialogProps {
   open: boolean;
@@ -140,6 +145,44 @@ function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
   const [changeRole] = useChangeProjectMemberRoleMutation();
   const [removeMember] = useRemoveProjectMemberMutation();
   const [replaceStatuses] = useReplaceProjectStatusesMutation();
+  const [updateLogo] = useUpdateProjectLogoMutation();
+
+  // Logo: a newly picked file, or a request to delete the current one. Saved after the project itself.
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [removeLogo, setRemoveLogo] = useState(false);
+  const [logoError, setLogoError] = useState('');
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => () => { if (logoPreview) URL.revokeObjectURL(logoPreview); }, [logoPreview]);
+
+  const pickLogo = (file: File | undefined) => {
+    if (logoInputRef.current) logoInputRef.current.value = '';
+    if (!file) return;
+    if (!LOGO_TYPES.includes(file.type)) return setLogoError('Use a JPG, PNG or WebP image.');
+    if (file.size > LOGO_MAX_BYTES) return setLogoError('The logo must be 2 MB or smaller.');
+    setLogoError('');
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+    setRemoveLogo(false);
+  };
+
+  const clearLogo = () => {
+    setLogoFile(null);
+    setLogoPreview(null);
+    setLogoError('');
+    // Nothing picked and a logo exists: this deletes it on save
+    if (!logoFile && project?.logo_url) setRemoveLogo(true);
+  };
+
+  /** The project is already saved by now, so a failed logo only warns */
+  const saveLogo = async (projectId: number) => {
+    if (!logoFile && !removeLogo) return;
+    try {
+      await updateLogo({ id: projectId, ...(logoFile ? { logo: logoFile } : { remove: true }) }).unwrap();
+    } catch (err) {
+      toast.error('The project was saved, but its logo was not', { description: parseApiError(err).message });
+    }
+  };
 
   const isEdit = Boolean(project);
   const defaults = useMemo(() => toDefaults(project, catalog), [project, catalog]);
@@ -190,7 +233,7 @@ function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
     // Keep the existing flags for statuses that stay; new ones go in catalog order
     const byId = new Map([...statusOptions, ...current.statuses].map((s) => [s.id, s]));
     const ordered = nextIds.map((id) => byId.get(id)).filter((s): s is ProjectStatus => Boolean(s));
-    await replaceStatuses({ projectId: current.id, statuses: toStatusInputs(ordered) }).unwrap();
+    await replaceStatuses({ projectId: current.id, statuses: toStatusInputs(ordered, { byName: true }) }).unwrap();
   };
 
   const onSubmit = async (values: ProjectFormValues) => {
@@ -200,13 +243,15 @@ function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
         await updateProject({ id: project.id, ...fields }).unwrap();
         await syncMembers(project.id, values.members);
         await syncStatuses(project, values.status_ids);
+        await saveLogo(project.id);
         toast.success('Project updated', { description: `${values.name} has been saved.` });
       } else {
-        await createProject({
+        const created = await createProject({
           ...fields,
           status_ids: values.status_ids,
           members: values.members.map(toMemberInput),
         }).unwrap();
+        await saveLogo(created.id);
         toast.success('Project created', { description: `${values.name} has been created.` });
       }
       onDone();
@@ -240,6 +285,49 @@ function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field id="projName" label="Project name" required error={errors.name?.message} className="sm:col-span-2">
           <Input id="projName" placeholder="e.g. Atlas Platform" disabled={saving} {...register('name')} />
+        </Field>
+
+        <Field id="projLogo" label="Logo" hint="JPG, PNG or WebP, up to 2 MB." error={logoError} className="sm:col-span-2">
+          <div className="flex items-center gap-3">
+            {logoPreview ? (
+              <img src={logoPreview} alt="New logo preview" className="h-12 w-12 rounded-lg border object-cover" />
+            ) : (
+              <ProjectLogo
+                project={{
+                  id: project?.id ?? 0,
+                  name: watch('name') || project?.name || 'Project',
+                  color,
+                  logo_url: removeLogo ? null : project?.logo_url,
+                }}
+                className="h-12 w-12 rounded-lg text-sm"
+              />
+            )}
+            <input
+              ref={logoInputRef}
+              id="projLogo"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(e) => pickLogo(e.target.files?.[0])}
+            />
+            <Button type="button" variant="outline" size="sm" disabled={saving} onClick={() => logoInputRef.current?.click()}>
+              <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
+              {logoPreview || (project?.logo_url && !removeLogo) ? 'Change logo' : 'Upload logo'}
+            </Button>
+            {(logoPreview || (project?.logo_url && !removeLogo)) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-destructive"
+                disabled={saving}
+                onClick={clearLogo}
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                Remove
+              </Button>
+            )}
+          </div>
         </Field>
 
         <Field id="projColor" label="Project color" className="sm:col-span-2">

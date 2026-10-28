@@ -88,6 +88,16 @@ export interface VerifyForgotOtpResponse {
   reset_token?: string;
 }
 
+/** GET /api/profile/stats: the three figures on the profile screen */
+export interface ProfileStats {
+  /** Assignments the user completed */
+  done: number;
+  /** Not completed, on issues that are still open */
+  active: number;
+  /** Percentage of completed assignments with a due date that finished on time; null when there are none */
+  on_time_rate: number | null;
+}
+
 /** Sent as JSON (PATCH) without a photo, or multipart (POST) when `photo` is set */
 export interface UpdateProfileRequest {
   name: string;

@@ -11,11 +11,13 @@ import { ColorSwatchPicker, SWATCH_COLORS } from '@/components/shared/color-swat
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { parseApiError } from '@/lib/api-error';
 import { sortStatuses, toStatusInputs } from '@/lib/project-utils';
 import {
   useGetProjectStatusesQuery,
   useCreateProjectStatusMutation,
+  useDeleteProjectStatusMutation,
   useReplaceProjectStatusesMutation,
   useUpdateProjectStatusMutation,
 } from '@/redux/features/projects/projects-api';
@@ -342,9 +344,24 @@ function EditStatusRow({
   projectId, status, onDone,
 }: { projectId: number; status: ProjectStatus; onDone: () => void }) {
   const [updateStatus, { isLoading }] = useUpdateProjectStatusMutation();
+  const [deleteStatus, { isLoading: deleting }] = useDeleteProjectStatusMutation();
   const [name, setName] = useState(status.name);
   const [color, setColor] = useState(status.color.toUpperCase());
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  // Only statuses this project created can be deleted; shared ones just leave the workflow.
+  // The API doesn't always say who owns a status, so it stays offered unless known to be shared.
+  const deletable = status.project_id === undefined || status.project_id === projectId;
+
+  const remove = async () => {
+    try {
+      await deleteStatus({ projectId, statusId: status.id }).unwrap();
+      toast.success('Status deleted', { description: `"${status.name}" was removed from the project.` });
+      onDone();
+    } catch (err) {
+      toast.error('Could not delete status', { description: parseApiError(err).message });
+    }
+  };
 
   const submit = async () => {
     const trimmed = name.trim();
@@ -373,17 +390,40 @@ function EditStatusRow({
         color={color}
         onColorChange={setColor}
         error={error}
-        disabled={isLoading}
+        disabled={isLoading || deleting}
         onSubmit={submit}
         onCancel={onDone}
       />
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={onDone} disabled={isLoading}>Cancel</Button>
-        <Button size="sm" onClick={submit} disabled={isLoading}>
-          {isLoading && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-          Save
-        </Button>
+      <div className="flex items-center justify-between gap-2">
+        {deletable ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            onClick={() => setConfirmDelete(true)}
+            disabled={isLoading || deleting}
+          >
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+            Delete status
+          </Button>
+        ) : <span />}
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={onDone} disabled={isLoading || deleting}>Cancel</Button>
+          <Button size="sm" onClick={submit} disabled={isLoading || deleting}>
+            {isLoading && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+            Save
+          </Button>
+        </div>
       </div>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete "${status.name}"?`}
+        description="This permanently deletes the status. It is refused while any issue in this project uses it, and statuses shared by every project can only be removed from the workflow."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={remove}
+      />
     </div>
   );
 }

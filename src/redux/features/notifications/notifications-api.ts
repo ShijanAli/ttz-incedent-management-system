@@ -79,6 +79,51 @@ export const notificationsApi = baseApi.injectEndpoints({
       invalidatesTags: [COUNT_TAG],
     }),
 
+    /** Marks the chosen notifications read (100 ids at most); ones that aren't yours are skipped server-side */
+    markSelectedNotificationsRead: build.mutation<ApiResponse<unknown>, string[]>({
+      query: (ids) => ({ url: ENDPOINTS.NOTIFICATIONS.READ_SELECTED, method: 'POST', body: { ids } }),
+      async onQueryStarted(ids, { dispatch, queryFulfilled }) {
+        const now = new Date().toISOString();
+        const chosen = new Set(ids);
+        let newlyRead = 0;
+        const list = dispatch(
+          notificationsApi.util.updateQueryData('getNotifications', undefined, (draft) => {
+            for (const page of draft.pages) {
+              for (const row of page.items) {
+                if (chosen.has(row.id) && !row.read_at) {
+                  row.read_at = now;
+                  newlyRead += 1;
+                }
+              }
+            }
+          }),
+        );
+        const count = dispatch(
+          notificationsApi.util.updateQueryData('getUnreadNotificationCount', undefined, (draft) =>
+            Math.max(0, draft - newlyRead),
+          ),
+        );
+        try {
+          await queryFulfilled;
+        } catch {
+          list.undo();
+          count.undo();
+        }
+      },
+      invalidatesTags: [COUNT_TAG],
+    }),
+
+    deleteNotification: build.mutation<ApiResponse<unknown>, string>({
+      query: (id) => ({ url: ENDPOINTS.NOTIFICATIONS.DELETE(id), method: 'DELETE' }),
+      invalidatesTags: [LIST_TAG, COUNT_TAG],
+    }),
+
+    /** POST rather than DELETE: some proxies drop a DELETE body */
+    deleteSelectedNotifications: build.mutation<ApiResponse<unknown>, string[]>({
+      query: (ids) => ({ url: ENDPOINTS.NOTIFICATIONS.DELETE_SELECTED, method: 'POST', body: { ids } }),
+      invalidatesTags: [LIST_TAG, COUNT_TAG],
+    }),
+
     getNotificationPreferences: build.query<NotificationPreferences, void>({
       query: () => ENDPOINTS.NOTIFICATIONS.PREFERENCES,
       transformResponse: (res: ApiResponse<NotificationPreferences>) => res.data,
@@ -114,6 +159,9 @@ export const useGetUnreadNotificationCountQuery = alwaysFresh(notificationsApi.u
 export const {
   useMarkNotificationReadMutation,
   useMarkAllNotificationsReadMutation,
+  useMarkSelectedNotificationsReadMutation,
+  useDeleteNotificationMutation,
+  useDeleteSelectedNotificationsMutation,
   useGetNotificationPreferencesQuery,
   useUpdateNotificationPreferencesMutation,
 } = notificationsApi;

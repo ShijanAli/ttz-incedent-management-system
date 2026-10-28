@@ -24,7 +24,8 @@ import {
 } from '@/components/ui/select';
 import { Loader2, X, AlertCircle, FolderKanban } from 'lucide-react';
 import { toast } from 'sonner';
-import { ISSUE_PRIORITY_META, ISSUE_SEVERITY_OPTIONS, getSeverityKey, isMyReport } from '@/lib/shared-utils';
+import { getSeverityKey, isMyReport } from '@/lib/shared-utils';
+import { useIssueOptions } from '@/redux/features/issues/issue-options-api';
 import type { IssuePriority, IssueSeverity } from '@/lib/types';
 import { IssueCategorySelect } from '@/components/issues/issue-category-select';
 
@@ -56,6 +57,7 @@ const sameList = <T,>(a: T[], b: T[]) => a.length === b.length && [...a].sort().
 
 export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, onSaved }: IssueFormDialogProps) {
   const { session } = useAuth();
+  const issueOptions = useIssueOptions();
   const projectCan = useProjectCan();
   // Only projects where the signed-in user may create issues. The list response has no
   // my_permissions, and guessing from my_role is wrong (backend roles can be customised),
@@ -383,8 +385,8 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                   <Select value={priority} onValueChange={(v) => { setPriority(v as IssuePriority); clearError('priority'); }} disabled={saving || !canTriage}>
                     <SelectTrigger id="issuePriority"><SelectValue placeholder="Not set" /></SelectTrigger>
                     <SelectContent>
-                      {(Object.entries(ISSUE_PRIORITY_META)).map(([val, meta]) => (
-                        <SelectItem key={val} value={val}>{meta.label}</SelectItem>
+                      {issueOptions.priorities.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -401,8 +403,10 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                     <SelectTrigger id="issueSeverity"><SelectValue placeholder="None" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">None</SelectItem>
-                      {ISSUE_SEVERITY_OPTIONS.map((s) => (
-                        <SelectItem key={s.value} value={s.value}>{s.label} — {s.description}</SelectItem>
+                      {issueOptions.severities.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.description ? `${s.label} — ${s.description}` : s.label}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

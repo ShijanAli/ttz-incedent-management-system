@@ -8,6 +8,7 @@ import type {
   ForgotPasswordRequest,
   LoginRequest,
   MeResponse,
+  ProfileStats,
   ResetPasswordRequest,
   UpdateProfileRequest,
   VerifyForgotOtpRequest,
@@ -53,6 +54,11 @@ export const authApi = baseApi.injectEndpoints({
           // 401s are handled by the base query (refresh or logout)
         }
       },
+    }),
+
+    getProfileStats: build.query<ProfileStats, void>({
+      query: () => ENDPOINTS.PROFILE_STATS,
+      transformResponse: (res: ApiResponse<ProfileStats>) => res.data,
     }),
 
     changePassword: build.mutation<ApiResponse<Partial<AuthPayload> | null>, ChangePasswordRequest>({
@@ -107,6 +113,7 @@ export const authApi = baseApi.injectEndpoints({
 export const {
   useLoginMutation,
   useGetMeQuery,
+  useGetProfileStatsQuery,
   useChangePasswordMutation,
   useUpdateProfileMutation,
   useLogoutMutation,

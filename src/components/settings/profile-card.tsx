@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { useUpdateProfileMutation } from '@/redux/features/auth/auth-api';
+import { useGetProfileStatsQuery, useUpdateProfileMutation } from '@/redux/features/auth/auth-api';
 import { parseApiError } from '@/lib/api-error';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -321,6 +321,7 @@ export function ProfileCard() {
         ) : (
           <>
             <Separator />
+            <ProfileStatsRow />
             <div className="grid grid-cols-2 gap-4">
               <ReadOnly label="Designation" value={user.title} />
               <ReadOnly label="Department" value={user.department} />
@@ -367,6 +368,29 @@ function Field({
       </Label>
       <Input id={id} type={type} value={value} placeholder={placeholder} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
       {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+/** Done / active / on-time figures; left out entirely if the stats can't be loaded */
+function ProfileStatsRow() {
+  const { data, isLoading } = useGetProfileStatsQuery();
+  if (!isLoading && !data) return null;
+
+  const items = [
+    { label: 'Done', value: data ? String(data.done) : '…' },
+    { label: 'Active', value: data ? String(data.active) : '…' },
+    { label: 'On time', value: data ? (data.on_time_rate === null ? '—' : `${Math.round(data.on_time_rate)}%`) : '…' },
+  ];
+
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      {items.map((item) => (
+        <div key={item.label} className="rounded-lg border bg-muted/30 px-3 py-2 text-center">
+          <div className="text-lg font-semibold leading-tight">{item.value}</div>
+          <div className="text-xs text-muted-foreground">{item.label}</div>
+        </div>
+      ))}
     </div>
   );
 }

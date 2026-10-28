@@ -226,6 +226,8 @@ export interface IssueAbilities {
   can_comment: boolean;
   can_upload: boolean;
   can_review: boolean;
+  /** Super admin on an open issue. Optional: older payloads leave it out. */
+  can_force_close?: boolean;
 }
 
 /** GET /issues/{id} */
@@ -282,6 +284,13 @@ export interface ChangeMyStatusRequest extends Omit<StatusUpdateBody, 'progress'
 export interface OverrideAssigneeStatusRequest extends StatusUpdateBody {
   issueId: number;
   userId: number;
+}
+
+/** POST /issues/{id}/force-close: super admin only */
+export interface ForceCloseIssueRequest {
+  issueId: number;
+  /** Optional; saved as a comment on the issue and as the note on each history row */
+  comment?: string;
 }
 
 export type ReviewDecision = 'confirm' | 'recheck';

@@ -18,12 +18,15 @@ import type {
   ChangeMemberRoleRequest,
   CreateProjectRequest,
   CreateProjectStatusRequest,
+  DeleteProjectStatusRequest,
+  ProjectFilterOptions,
   ProjectListParams,
   ProjectMember,
   ProjectStatus,
   RemoveProjectMemberRequest,
   StatusCatalogArgs,
   ReplaceProjectStatusesRequest,
+  UpdateProjectLogoRequest,
   UpdateProjectRequest,
   UpdateProjectStatusRequest,
 } from './projects-types';
@@ -65,6 +68,14 @@ export const projectsApi = baseApi.injectEndpoints({
       providesTags: (result) => provideInfiniteListTags('Project', result),
     }),
 
+    /** Status and priority options for the list filters */
+    getProjectFilters: build.query<ProjectFilterOptions, void>({
+      query: () => ENDPOINTS.PROJECTS.FILTERS,
+      transformResponse: (res: ApiResponse<ProjectFilterOptions>) => res.data,
+      // The lists are fixed per deployment
+      keepUnusedDataFor: 600,
+    }),
+
     getProject: build.query<ApiProject, number>({
       query: (id) => ENDPOINTS.PROJECTS.ONE(id),
       transformResponse: (res: ApiResponse<ApiProject>) => res.data,
@@ -81,6 +92,21 @@ export const projectsApi = baseApi.injectEndpoints({
       query: ({ id, ...body }) => ({ url: ENDPOINTS.PROJECTS.ONE(id), method: 'PATCH', body }),
       transformResponse: (res: ApiResponse<ApiProject>) => res.data,
       invalidatesTags: (_result, _error, { id }) => [{ type: 'Project', id }, { type: 'ProjectActivity', id }, PROJECT_LIST_TAG],
+    }),
+
+    /**
+     * Sent as POST with form-data because a file can't ride on a real PATCH (PHP leaves a
+     * multipart PATCH body empty). Pass `logo` to replace it, or `remove` to delete it.
+     */
+    updateProjectLogo: build.mutation<ApiProject, UpdateProjectLogoRequest>({
+      query: ({ id, logo, remove }) => {
+        const form = new FormData();
+        if (logo) form.append('logo', logo);
+        else if (remove) form.append('remove_logo', '1');
+        return { url: ENDPOINTS.PROJECTS.ONE(id), method: 'POST', body: form };
+      },
+      transformResponse: (res: ApiResponse<ApiProject>) => res.data,
+      invalidatesTags: (_result, _error, { id }) => [{ type: 'Project', id }, PROJECT_LIST_TAG],
     }),
 
     deleteProject: build.mutation<ApiResponse<unknown>, number>({
@@ -210,11 +236,26 @@ export const projectsApi = baseApi.injectEndpoints({
         'Issue',
       ],
     }),
+
+    /** Only a status this project created, and only while no issue uses it */
+    deleteProjectStatus: build.mutation<ApiResponse<unknown>, DeleteProjectStatusRequest>({
+      query: ({ projectId, statusId }) => ({
+        url: ENDPOINTS.PROJECTS.STATUS(projectId, statusId),
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_result, _error, { projectId }) => [
+        { type: 'ProjectStatuses', id: projectId },
+        { type: 'Project', id: projectId },
+        { type: 'ProjectActivity', id: projectId },
+        PROJECT_LIST_TAG,
+        STATUS_CATALOG_TAG,
+      ],
+    }),
   }),
 });
 
 // Projects, their members and activity change under the user, so every mount loads fresh data
-export const { useGetStatusCatalogQuery } = projectsApi;
+export const { useGetStatusCatalogQuery, useGetProjectFiltersQuery } = projectsApi;
 export const useGetProjectsInfiniteQuery = alwaysFresh(projectsApi.useGetProjectsInfiniteQuery);
 export const useGetProjectQuery = alwaysFresh(projectsApi.useGetProjectQuery);
 export const useGetProjectMembersQuery = alwaysFresh(projectsApi.useGetProjectMembersQuery);
@@ -225,6 +266,7 @@ export const useGetProjectStatusesQuery = alwaysFresh(projectsApi.useGetProjectS
 export const {
   useCreateProjectMutation,
   useUpdateProjectMutation,
+  useUpdateProjectLogoMutation,
   useDeleteProjectMutation,
   useAddProjectMemberMutation,
   useChangeProjectMemberRoleMutation,
@@ -234,4 +276,5 @@ export const {
   useReplaceProjectStatusesMutation,
   useCreateProjectStatusMutation,
   useUpdateProjectStatusMutation,
+  useDeleteProjectStatusMutation,
 } = projectsApi;

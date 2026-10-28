@@ -87,13 +87,20 @@ export function sortStatuses<T extends Pick<ProjectStatus, 'sort_order'>>(status
  * making sure exactly one status is initial.
  */
 export function toStatusInputs(
-  statuses: Pick<ProjectStatus, 'id' | 'is_initial' | 'is_terminal'>[],
+  statuses: (Pick<ProjectStatus, 'id' | 'is_initial' | 'is_terminal'> & { name?: string })[],
+  options: { byName?: boolean } = {},
 ): ProjectStatusInput[] {
-  const initialIndex = Math.max(0, statuses.findIndex((s) => s.is_initial));
+  const named = (name: string | undefined, wanted: string) => name?.trim().toLowerCase() === wanted;
+  // When the user hasn't picked flags themselves, follow the names: only "New" starts, only "Closed" ends
+  const nameInitial = options.byName ? statuses.findIndex((s) => named(s.name, 'new')) : -1;
+  const initialIndex = nameInitial >= 0 ? nameInitial : Math.max(0, statuses.findIndex((s) => s.is_initial));
   return statuses.map((s, index) => ({
     status_id: s.id,
     sort_order: index + 1,
     is_initial: index === initialIndex,
-    is_terminal: s.is_terminal,
+    // The API rejects a workflow where "Closed" isn't final or "Reassign" is; ids can't be trusted after renames
+    is_terminal: options.byName
+      ? named(s.name, 'closed')
+      : named(s.name, 'closed') || (!named(s.name, 'reassign') && s.is_terminal),
   }));
 }

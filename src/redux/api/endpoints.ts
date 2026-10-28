@@ -14,6 +14,12 @@ export const ENDPOINTS = {
     RESET_PASSWORD: '/api/auth/reset-password',
   },
   PROFILE: '/api/profile',
+  /** done / active / on-time figures for the profile screen */
+  PROFILE_STATS: '/api/profile/stats',
+  /** Roles a project member can be given; readable by every signed-in user */
+  ROLES: '/api/roles',
+  /** Fixed dropdown lists for the issue form and board filters */
+  ISSUE_OPTIONS: '/api/issue-options',
   /** Counters, breakdowns and latest activity across the user's projects */
   DASHBOARD: '/api/dashboard',
   ADMIN: {
@@ -49,6 +55,10 @@ export const ENDPOINTS = {
   ISSUES: {
     ONE: (id: number | string) => `/api/issues/${id}`,
     HISTORY: (id: number | string) => `/api/issues/${id}/history`,
+    /** Field edits, comments, attachments and assignments logged against the issue */
+    ACTIVITY: (id: number | string) => `/api/issues/${id}/activity`,
+    /** Super admin only: closes the issue whatever state it is in */
+    FORCE_CLOSE: (id: number | string) => `/api/issues/${id}/force-close`,
     STATUS: (id: number | string) => `/api/issues/${id}/status`,
     PICK: (id: number | string) => `/api/issues/${id}/pick`,
     REVIEW: (id: number | string) => `/api/issues/${id}/review`,
@@ -70,11 +80,18 @@ export const ENDPOINTS = {
     UNREAD_COUNT: '/api/notifications/unread-count',
     READ: (id: string) => `/api/notifications/${id}/read`,
     READ_ALL: '/api/notifications/read-all',
+    /** POST { ids } marks those read */
+    READ_SELECTED: '/api/notifications/read',
+    DELETE: (id: string) => `/api/notifications/${id}`,
+    /** POST { ids } (not DELETE: some proxies drop a DELETE body) */
+    DELETE_SELECTED: '/api/notifications/delete',
     /** GET the user's toggles; PATCH only the ones that changed */
     PREFERENCES: '/api/notification-preferences',
   },
   PROJECTS: {
     LIST: '/api/projects',
+    /** Status and priority options for the list filters */
+    FILTERS: '/api/projects/filters',
     ONE: (id: number | string) => `/api/projects/${id}`,
     MEMBERS: (id: number | string) => `/api/projects/${id}/members`,
     MEMBER: (id: number | string, userId: number | string) => `/api/projects/${id}/members/${userId}`,

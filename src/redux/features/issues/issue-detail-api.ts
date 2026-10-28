@@ -10,8 +10,10 @@ import {
   type PaginatedApiResponse,
 } from '@/redux/api/types';
 import { saveBlob } from '@/lib/download';
+import type { ActivityEntry } from '@/redux/features/activity/activity-types';
 import type {
   ChangeMyStatusRequest,
+  ForceCloseIssueRequest,
   IssueAssignee,
   IssueAttachment,
   IssueComment,
@@ -31,6 +33,7 @@ const issueChangedTags = (issueId: number) => [
   { type: 'Issue' as const, id: issueId },
   { type: 'Issue' as const, id: 'LIST' },
   { type: 'IssueHistory' as const, id: issueId },
+  { type: 'IssueActivity' as const, id: issueId },
   { type: 'IssueAssignees' as const, id: issueId },
   'Project' as const,
   'ProjectActivity' as const,
@@ -38,12 +41,14 @@ const issueChangedTags = (issueId: number) => [
 
 const commentTags = (issueId: number) => [
   { type: 'IssueComments' as const, id: issueId },
+  { type: 'IssueActivity' as const, id: issueId },
   { type: 'Issue' as const, id: issueId },
   { type: 'Issue' as const, id: 'LIST' },
 ];
 
 const attachmentTags = (issueId: number) => [
   { type: 'IssueAttachments' as const, id: issueId },
+  { type: 'IssueActivity' as const, id: issueId },
   { type: 'Issue' as const, id: issueId },
   { type: 'Issue' as const, id: 'LIST' },
 ];
@@ -96,6 +101,24 @@ export const issueDetailApi = baseApi.injectEndpoints({
       query: ({ queryArg: issueId, pageParam }) => ({ url: ENDPOINTS.ISSUES.HISTORY(issueId), params: { page: pageParam } }),
       transformResponse: (res: PaginatedApiResponse<IssueHistoryEntry>) => toPaginated(res),
       providesTags: (_result, _error, issueId) => [{ type: 'IssueHistory', id: issueId }],
+    }),
+
+    /** Field edits, comments, attachments and assignments logged against the issue, newest first */
+    getIssueActivity: build.infiniteQuery<Paginated<ActivityEntry>, number, PageParam>({
+      infiniteQueryOptions: laravelInfiniteOptions<ActivityEntry, number>(),
+      query: ({ queryArg: issueId, pageParam }) => ({ url: ENDPOINTS.ISSUES.ACTIVITY(issueId), params: { page: pageParam } }),
+      transformResponse: (res: PaginatedApiResponse<ActivityEntry>) => toPaginated(res),
+      providesTags: (_result, _error, issueId) => [{ type: 'IssueActivity', id: issueId }],
+    }),
+
+    /** Super admin closes the issue whatever state it is in; every part moves to Closed */
+    forceCloseIssue: build.mutation<ApiResponse<unknown>, ForceCloseIssueRequest>({
+      query: ({ issueId, comment }) => ({
+        url: ENDPOINTS.ISSUES.FORCE_CLOSE(issueId),
+        method: 'POST',
+        body: comment ? { comment } : {},
+      }),
+      invalidatesTags: (_result, _error, { issueId }) => [...issueChangedTags(issueId), ...commentTags(issueId)],
     }),
 
     /** The signed-in assignee updates their own part */
@@ -227,6 +250,7 @@ export const issueDetailApi = baseApi.injectEndpoints({
 // Other people work on the same issue, so every mount loads fresh data
 export const useGetIssueQuery = alwaysFresh(issueDetailApi.useGetIssueQuery);
 export const useGetIssueHistoryInfiniteQuery = alwaysFresh(issueDetailApi.useGetIssueHistoryInfiniteQuery);
+export const useGetIssueActivityInfiniteQuery = alwaysFresh(issueDetailApi.useGetIssueActivityInfiniteQuery);
 export const useGetIssueAssigneesQuery = alwaysFresh(issueDetailApi.useGetIssueAssigneesQuery);
 export const useGetIssueCommentsInfiniteQuery = alwaysFresh(issueDetailApi.useGetIssueCommentsInfiniteQuery);
 export const useGetIssueAttachmentsQuery = alwaysFresh(issueDetailApi.useGetIssueAttachmentsQuery);
@@ -238,6 +262,7 @@ export const {
   useChangeMyIssueStatusMutation,
   useOverrideAssigneeStatusMutation,
   useReviewIssueMutation,
+  useForceCloseIssueMutation,
   useAssignIssueMutation,
   useUnassignIssueMutation,
   usePickIssueMutation,

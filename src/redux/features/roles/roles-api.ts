@@ -29,6 +29,14 @@ export const rolesApi = baseApi.injectEndpoints({
           : [ROLE_LIST_TAG],
     }),
 
+    /** Role names a member can be given on a project; open to every signed-in user, unlike getRoles */
+    getAssignableRoles: build.query<string[], void>({
+      query: () => ENDPOINTS.ROLES,
+      transformResponse: (res: ApiResponse<Array<ApiRole | string>>) =>
+        res.data.map((r) => (typeof r === 'string' ? r : r.name)),
+      providesTags: (result) => (result ? [ROLE_LIST_TAG] : []),
+    }),
+
     createRole: build.mutation<ApiRole, RoleRequest>({
       query: (body) => ({ url: ENDPOINTS.ADMIN.ROLES, method: 'POST', body }),
       transformResponse: (res: ApiResponse<ApiRole>) => res.data,
@@ -51,6 +59,7 @@ export const rolesApi = baseApi.injectEndpoints({
 export const {
   useGetPermissionCatalogQuery,
   useGetRolesQuery,
+  useGetAssignableRolesQuery,
   useCreateRoleMutation,
   useUpdateRoleMutation,
   useDeleteRoleMutation,

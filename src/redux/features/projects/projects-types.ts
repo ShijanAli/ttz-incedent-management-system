@@ -17,6 +17,8 @@ export interface ProjectStatus {
   is_terminal: boolean;
   /** Issues currently in this status; only on project payloads, not on /statuses */
   count?: number;
+  /** Owning project for a status the project created itself; null for a shared one. Not always sent. */
+  project_id?: number | null;
 }
 
 /** A status from GET /api/admin/statuses or /api/statuses; projects pick their workflow from these */
@@ -117,6 +119,18 @@ export interface ProjectListParams extends InfiniteListParams {
   priority?: ProjectPriority;
 }
 
+/** One dropdown entry: send `value`, show `label` */
+export interface FilterOption {
+  value: string;
+  label: string;
+}
+
+/** GET /api/projects/filters */
+export interface ProjectFilterOptions {
+  statuses: FilterOption[];
+  priorities: FilterOption[];
+}
+
 // ---- Requests ----
 
 export interface ProjectMemberInput {
@@ -144,6 +158,14 @@ export interface CreateProjectRequest extends ProjectFields {
 
 export interface UpdateProjectRequest extends Partial<ProjectFields> {
   id: number;
+}
+
+/** POST /projects/{id} with form-data: upload a logo, or delete the current one */
+export interface UpdateProjectLogoRequest {
+  id: number;
+  /** jpg, jpeg, png or webp, 2 MB at most */
+  logo?: File;
+  remove?: boolean;
 }
 
 export interface AddProjectMemberRequest extends ProjectMemberInput {
@@ -179,6 +201,12 @@ export interface UpdateProjectStatusRequest {
   statusId: number;
   name?: string;
   color?: string;
+}
+
+/** DELETE /projects/{id}/statuses/{statusId} */
+export interface DeleteProjectStatusRequest {
+  projectId: number;
+  statusId: number;
 }
 
 export interface ProjectStatusInput {
