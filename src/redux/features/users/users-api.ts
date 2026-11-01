@@ -32,7 +32,7 @@ export const usersApi = baseApi.injectEndpoints({
     >({
       infiniteQueryOptions: laravelInfiniteOptions<AdminUser, UserListParams>(),
       query: ({ queryArg, pageParam }) => ({
-        url: ENDPOINTS.ADMIN.USERS,
+        url: ENDPOINTS.ADMIN.ADMIN_USERS,
         params: { ...queryArg, page: pageParam },
       }),
       transformResponse: (res: PaginatedApiResponse<AdminUser>) =>
@@ -47,14 +47,18 @@ export const usersApi = baseApi.injectEndpoints({
     }),
 
     createUser: build.mutation<AdminUser, CreateUserRequest>({
-      query: (body) => ({ url: ENDPOINTS.ADMIN.USERS, method: "POST", body }),
+      query: (body) => ({
+        url: ENDPOINTS.ADMIN.ADMIN_USERS,
+        method: "POST",
+        body,
+      }),
       transformResponse: (res: ApiResponse<AdminUser>) => res.data,
       invalidatesTags: [USER_LIST_TAG, ROLE_LIST_TAG],
     }),
 
     updateUser: build.mutation<AdminUser, UpdateUserRequest>({
       query: ({ id, ...body }) => ({
-        url: ENDPOINTS.ADMIN.USER(id),
+        url: ENDPOINTS.ADMIN.USER_EDIT(id),
         method: "PATCH",
         body,
       }),

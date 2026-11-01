@@ -4,54 +4,60 @@
  */
 export const ENDPOINTS = {
   AUTH: {
-    LOGIN: '/api/auth/login',
-    REFRESH: '/api/auth/refresh',
-    ME: '/api/auth/me',
-    LOGOUT: '/api/auth/logout',
-    CHANGE_PASSWORD: '/api/auth/change-password',
-    FORGOT_PASSWORD: '/api/auth/forgot-password',
-    VERIFY_FORGOT_OTP: '/api/auth/verify-forgot-otp',
-    RESET_PASSWORD: '/api/auth/reset-password',
+    LOGIN: "/api/auth/login",
+    REFRESH: "/api/auth/refresh",
+    ME: "/api/auth/me",
+    LOGOUT: "/api/auth/logout",
+    CHANGE_PASSWORD: "/api/auth/change-password",
+    FORGOT_PASSWORD: "/api/auth/forgot-password",
+    VERIFY_FORGOT_OTP: "/api/auth/verify-forgot-otp",
+    RESET_PASSWORD: "/api/auth/reset-password",
   },
-  PROFILE: '/api/profile',
+  PROFILE: "/api/profile",
   /** done / active / on-time figures for the profile screen */
-  PROFILE_STATS: '/api/profile/stats',
+  PROFILE_STATS: "/api/profile/stats",
   /** Roles a project member can be given; readable by every signed-in user */
-  ROLES: '/api/roles',
+  ROLES: "/api/roles",
   /** Fixed dropdown lists for the issue form and board filters */
-  ISSUE_OPTIONS: '/api/issue-options',
+  ISSUE_OPTIONS: "/api/issue-options",
   /** Counters, breakdowns and latest activity across the user's projects */
-  DASHBOARD: '/api/dashboard',
+  DASHBOARD: "/api/dashboard",
   ADMIN: {
-    PERMISSIONS: '/api/admin/permissions',
-    ROLES: '/api/admin/roles',
+    PERMISSIONS: "/api/admin/permissions",
+    ROLES: "/api/admin/roles",
     ROLE: (id: number | string) => `/api/admin/roles/${id}`,
-    USERS: '/api/admin/users',
-    USER: (id: number | string) => `/api/admin/users/${id}`,
-    USER_RESEND_INVITE: (id: number | string) => `/api/admin/users/${id}/resend-invite`,
-    GROUPS: '/api/admin/groups',
+    USERS: "/api/users",
+    ADMIN_USERS: "/api/admin/users",
+    /** Edit goes through the admin path; reading a user stays on USER */
+    USER_EDIT: (id: number | string) => `/api/admin/users/${id}`,
+    USER: (id: number | string) => `/api/users/${id}`,
+    USER_RESEND_INVITE: (id: number | string) =>
+      `/api/users/${id}/resend-invite`,
+    GROUPS: "/api/admin/groups",
     GROUP: (id: number | string) => `/api/admin/groups/${id}`,
     GROUP_MEMBERS: (id: number | string) => `/api/admin/groups/${id}/members`,
-    GROUP_MEMBER: (id: number | string, userId: number | string) => `/api/admin/groups/${id}/members/${userId}`,
+    GROUP_MEMBER: (id: number | string, userId: number | string) =>
+      `/api/admin/groups/${id}/members/${userId}`,
     GROUP_PROJECTS: (id: number | string) => `/api/admin/groups/${id}/projects`,
-    ISSUES: '/api/admin/issues',
-    ISSUE_CATEGORIES: '/api/admin/issue-categories',
-    ISSUE_CATEGORY: (id: number | string) => `/api/admin/issue-categories/${id}`,
+    ISSUES: "/api/admin/issues",
+    ISSUE_CATEGORIES: "/api/admin/issue-categories",
+    ISSUE_CATEGORY: (id: number | string) =>
+      `/api/admin/issue-categories/${id}`,
     /** Global workflow statuses projects pick from */
-    STATUSES: '/api/admin/statuses',
+    STATUSES: "/api/admin/statuses",
     STATUS: (id: number | string) => `/api/admin/statuses/${id}`,
-    CUSTOMERS: '/api/admin/customers',
+    CUSTOMERS: "/api/admin/customers",
     CUSTOMER: (id: number | string) => `/api/admin/customers/${id}`,
   },
   MY: {
-    ISSUES: '/api/my/issues',
+    ISSUES: "/api/my/issues",
   },
   /** Active global statuses for any signed-in user; add ?project_id= for that project's own ones too */
-  STATUSES: '/api/statuses',
+  STATUSES: "/api/statuses",
   /** Read-only customer list for issue forms; managing customers stays under ADMIN */
-  CUSTOMERS: '/api/customers',
+  CUSTOMERS: "/api/customers",
   /** Read-only list for every signed-in user; managing categories stays under ADMIN */
-  ISSUE_CATEGORIES: '/api/issue-categories',
+  ISSUE_CATEGORIES: "/api/issue-categories",
   ISSUES: {
     ONE: (id: number | string) => `/api/issues/${id}`,
     HISTORY: (id: number | string) => `/api/issues/${id}/history`,
@@ -63,8 +69,10 @@ export const ENDPOINTS = {
     PICK: (id: number | string) => `/api/issues/${id}/pick`,
     REVIEW: (id: number | string) => `/api/issues/${id}/review`,
     ASSIGNEES: (id: number | string) => `/api/issues/${id}/assignees`,
-    ASSIGNEE: (id: number | string, userId: number | string) => `/api/issues/${id}/assignees/${userId}`,
-    ASSIGNEE_STATUS: (id: number | string, userId: number | string) => `/api/issues/${id}/assignees/${userId}/status`,
+    ASSIGNEE: (id: number | string, userId: number | string) =>
+      `/api/issues/${id}/assignees/${userId}`,
+    ASSIGNEE_STATUS: (id: number | string, userId: number | string) =>
+      `/api/issues/${id}/assignees/${userId}/status`,
     COMMENTS: (id: number | string) => `/api/issues/${id}/comments`,
     ATTACHMENTS: (id: number | string) => `/api/issues/${id}/attachments`,
   },
@@ -76,30 +84,33 @@ export const ENDPOINTS = {
     DOWNLOAD: (id: number | string) => `/api/attachments/${id}/download`,
   },
   NOTIFICATIONS: {
-    LIST: '/api/notifications',
-    UNREAD_COUNT: '/api/notifications/unread-count',
+    LIST: "/api/notifications",
+    UNREAD_COUNT: "/api/notifications/unread-count",
     READ: (id: string) => `/api/notifications/${id}/read`,
-    READ_ALL: '/api/notifications/read-all',
+    READ_ALL: "/api/notifications/read-all",
     /** POST { ids } marks those read */
-    READ_SELECTED: '/api/notifications/read',
+    READ_SELECTED: "/api/notifications/read",
     DELETE: (id: string) => `/api/notifications/${id}`,
     /** POST { ids } (not DELETE: some proxies drop a DELETE body) */
-    DELETE_SELECTED: '/api/notifications/delete',
+    DELETE_SELECTED: "/api/notifications/delete",
     /** GET the user's toggles; PATCH only the ones that changed */
-    PREFERENCES: '/api/notification-preferences',
+    PREFERENCES: "/api/notification-preferences",
   },
   PROJECTS: {
-    LIST: '/api/projects',
+    LIST: "/api/projects",
     /** Status and priority options for the list filters */
-    FILTERS: '/api/projects/filters',
+    FILTERS: "/api/projects/filters",
     ONE: (id: number | string) => `/api/projects/${id}`,
     MEMBERS: (id: number | string) => `/api/projects/${id}/members`,
-    MEMBER: (id: number | string, userId: number | string) => `/api/projects/${id}/members/${userId}`,
+    MEMBER: (id: number | string, userId: number | string) =>
+      `/api/projects/${id}/members/${userId}`,
     STATUSES: (id: number | string) => `/api/projects/${id}/statuses`,
-    STATUS: (id: number | string, statusId: number | string) => `/api/projects/${id}/statuses/${statusId}`,
+    STATUS: (id: number | string, statusId: number | string) =>
+      `/api/projects/${id}/statuses/${statusId}`,
     ISSUES: (id: number | string) => `/api/projects/${id}/issues`,
     GROUPS: (id: number | string) => `/api/projects/${id}/groups`,
-    GROUP: (id: number | string, groupId: number | string) => `/api/projects/${id}/groups/${groupId}`,
+    GROUP: (id: number | string, groupId: number | string) =>
+      `/api/projects/${id}/groups/${groupId}`,
     ACTIVITY: (id: number | string) => `/api/projects/${id}/activity`,
     DASHBOARD: (id: number | string) => `/api/projects/${id}/dashboard`,
     /** Field-level audit trail; same filters as AUDIT_EXPORT */
