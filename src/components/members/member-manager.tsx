@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/select';
 import { UserAvatar } from '@/components/shared/user-avatar';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
-import { RoleSelect } from '@/components/members/role-select';
+import { RoleSelect, type RoleSelectOption } from '@/components/members/role-select';
 import { UserSearchList } from '@/components/members/user-search-list';
 import { parseApiError } from '@/lib/api-error';
 import { getAvatarColor } from '@/lib/shared-utils';
@@ -20,7 +20,10 @@ const ALL = 'all';
 
 export interface ManagedMember {
   user: { id: number; name: string; designation: string | null; status: string };
+  /** What the row shows, e.g. the role or label name */
   role: string;
+  /** The value the picker selects when it differs from `role` (a label id); defaults to `role` */
+  roleValue?: string;
   /** "direct" (default) members are editable; anything else came in another way, e.g. a group */
   source?: string;
 }
@@ -39,6 +42,10 @@ export interface MemberManagerProps {
   /** Consequence of removal, appended to the confirmation text */
   removeWarning?: string;
   footnote?: string;
+  /** Pick from these instead of roles, e.g. project labels (values are what onAdd/onChangeRole receive) */
+  roleOptions?: RoleSelectOption[];
+  /** What roleOptions are called in the UI, e.g. "label" */
+  roleNoun?: string;
 }
 
 /**
@@ -49,6 +56,7 @@ export interface MemberManagerProps {
 export function MemberManager({
   entityName, members, isLoading, error, onRetry, canManage,
   onAdd, onChangeRole, onRemove, removeWarning = 'They will lose access.', footnote,
+  roleOptions, roleNoun = 'role',
 }: MemberManagerProps) {
   const [roleFilter, setRoleFilter] = useState(ALL);
   const [pending, setPending] = useState<number | null>(null);
@@ -59,6 +67,7 @@ export function MemberManager({
   const memberIds = useMemo(() => new Set(members.map((m) => m.user.id)), [members]);
   const roles = useMemo(() => [...new Set(members.map((m) => m.role))].sort(), [members]);
   const filtered = roleFilter === ALL ? members : members.filter((m) => m.role === roleFilter);
+  const optionLabel = (value: string) => roleOptions?.find((o) => o.value === value)?.label ?? value;
 
   /** Runs a member mutation with a per-row spinner and a toast either way */
   const run = async (userId: number, action: () => Promise<unknown>, success: string, failure: string) => {
@@ -80,22 +89,22 @@ export function MemberManager({
     const added = await run(
       userId,
       () => onAdd(userId, role || undefined),
-      `${name} added to ${entityName}${role ? ` as ${role}` : ''}`,
+      `${name} added to ${entityName}${role ? ` as ${optionLabel(role)}` : ''}`,
       'Failed to add member',
     );
     if (added) setAddRoleByUser(({ [userId]: _, ...rest }) => rest);
   };
 
   const handleSaveRole = async (member: ManagedMember) => {
-    if (!editing || !editing.role || editing.role === member.role) {
+    if (!editing || !editing.role || editing.role === (member.roleValue ?? member.role)) {
       setEditing(null);
       return;
     }
     const saved = await run(
       member.user.id,
       () => onChangeRole(member.user.id, editing.role),
-      `${member.user.name} is now ${editing.role}`,
-      'Failed to update role',
+      `${member.user.name} is now ${optionLabel(editing.role)}`,
+      `Failed to update ${roleNoun}`,
     );
     if (saved) setEditing(null);
   };
@@ -113,11 +122,11 @@ export function MemberManager({
               Current Members ({members.length})
             </h3>
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="h-8 w-auto min-w-[140px] text-xs" aria-label="Filter members by role">
-                <SelectValue placeholder="Filter by role" />
+              <SelectTrigger className="h-8 w-auto min-w-[140px] text-xs" aria-label={`Filter members by ${roleNoun}`}>
+                <SelectValue placeholder={`Filter by ${roleNoun}`} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL}>All roles</SelectItem>
+                <SelectItem value={ALL}>All {roleNoun}s</SelectItem>
                 {roles.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -133,7 +142,7 @@ export function MemberManager({
               </div>
             ) : filtered.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                {members.length === 0 ? 'No members yet.' : 'No members match this role filter.'}
+                {members.length === 0 ? 'No members yet.' : `No members match this ${roleNoun} filter.`}
               </div>
             ) : (
               filtered.map((m) => {
@@ -181,10 +190,12 @@ export function MemberManager({
                             value={editing.role}
                             onChange={(role) => setEditing({ userId: m.user.id, role })}
                             allowDefault={false}
+                            options={roleOptions}
+                            noun={roleNoun}
                             disabled={busy}
                             className="flex-1"
                           />
-                          <Button size="icon" className="h-7 w-7" onClick={() => handleSaveRole(m)} disabled={busy} aria-label="Save role">
+                          <Button size="icon" className="h-7 w-7" onClick={() => handleSaveRole(m)} disabled={busy} aria-label={`Save ${roleNoun}`}>
                             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                           </Button>
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(null)} disabled={busy} aria-label="Cancel">
@@ -199,10 +210,10 @@ export function MemberManager({
                               variant="ghost"
                               size="sm"
                               className="h-6 px-2 text-xs text-muted-foreground"
-                              onClick={() => setEditing({ userId: m.user.id, role: m.role })}
+                              onClick={() => setEditing({ userId: m.user.id, role: m.roleValue ?? m.role })}
                             >
                               <Pencil className="mr-1 h-3 w-3" />
-                              Edit role
+                              Edit {roleNoun}
                             </Button>
                           )}
                         </>
@@ -230,6 +241,8 @@ export function MemberManager({
                     value={addRoleByUser[user.id] ?? ''}
                     onChange={(role) => setAddRoleByUser((prev) => ({ ...prev, [user.id]: role }))}
                     disabled={pending === user.id}
+                    options={roleOptions}
+                    noun={roleNoun}
                     className="w-[150px]"
                   />
                   <Button

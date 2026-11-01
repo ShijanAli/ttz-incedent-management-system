@@ -60,10 +60,19 @@ export interface ProjectMemberUser {
 /** "direct" members can be edited; "group" members come in through a group */
 export type MemberSource = 'direct' | 'group' | (string & {});
 
+/** A job-title label such as "Backend Developer" */
+export interface ProjectLabel {
+  id: number;
+  name: string;
+  member_count: number;
+}
+
 export interface ProjectMember {
   user: ProjectMemberUser;
   /** Role name, e.g. "Developer" */
   role: string;
+  /** The member's project label; null or missing when none is set */
+  label?: Pick<ProjectLabel, 'id' | 'name'> | null;
   source: MemberSource;
 }
 
@@ -176,6 +185,12 @@ export interface ChangeMemberRoleRequest {
   projectId: number;
   userId: number;
   role: string;
+}
+
+export interface SetMemberLabelRequest {
+  projectId: number;
+  userId: number;
+  labelId: number;
 }
 
 export interface RemoveProjectMemberRequest {

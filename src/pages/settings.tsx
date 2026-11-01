@@ -11,6 +11,7 @@ import { ProfileCard } from '@/components/settings/profile-card';
 import { PasswordCard } from '@/components/settings/password-card';
 import { NotificationPreferencesCard } from '@/components/settings/notification-preferences-card';
 import { WorkflowStatusesCard } from '@/components/settings/workflow-statuses-card';
+import { ProjectLabelsCard } from '@/components/settings/project-labels-card';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -67,6 +68,9 @@ export default function SettingsPage() {
 
         {/* Default workflow statuses - super admin only (the /admin/statuses API is theirs) */}
         {isSuperAdmin && <WorkflowStatusesCard />}
+
+        {/* Project labels (Backend Developer ...) - super admin only (the /admin/project-labels API is theirs) */}
+        {isSuperAdmin && <ProjectLabelsCard />}
 
         {/* System settings - super admin only */}
         {isSuperAdmin && canUpdateSettings && (

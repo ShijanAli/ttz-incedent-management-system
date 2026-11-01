@@ -24,6 +24,7 @@ import type {
   ProjectMember,
   ProjectStatus,
   RemoveProjectMemberRequest,
+  SetMemberLabelRequest,
   StatusCatalogArgs,
   ReplaceProjectStatusesRequest,
   UpdateProjectLogoRequest,
@@ -134,6 +135,15 @@ export const projectsApi = baseApi.injectEndpoints({
         body: { role },
       }),
       invalidatesTags: (_result, _error, { projectId }) => memberTags(projectId),
+    }),
+
+    setProjectMemberLabel: build.mutation<ApiResponse<unknown>, SetMemberLabelRequest>({
+      query: ({ projectId, userId, labelId }) => ({
+        url: ENDPOINTS.PROJECTS.MEMBER_LABEL(projectId, userId),
+        method: 'PATCH',
+        body: { label_id: labelId },
+      }),
+      invalidatesTags: (_result, _error, { projectId }) => [...memberTags(projectId), 'ProjectLabel'],
     }),
 
     removeProjectMember: build.mutation<ApiResponse<unknown>, RemoveProjectMemberRequest>({
@@ -270,6 +280,7 @@ export const {
   useDeleteProjectMutation,
   useAddProjectMemberMutation,
   useChangeProjectMemberRoleMutation,
+  useSetProjectMemberLabelMutation,
   useRemoveProjectMemberMutation,
   useAttachProjectGroupMutation,
   useDetachProjectGroupMutation,

@@ -46,6 +46,9 @@ export const ENDPOINTS = {
     /** Global workflow statuses projects pick from */
     STATUSES: "/api/admin/statuses",
     STATUS: (id: number | string) => `/api/admin/statuses/${id}`,
+    /** Job-title labels (Backend Developer ...) a project member can carry */
+    PROJECT_LABELS: "/api/admin/project-labels",
+    PROJECT_LABEL: (id: number | string) => `/api/admin/project-labels/${id}`,
     CUSTOMERS: "/api/admin/customers",
     CUSTOMER: (id: number | string) => `/api/admin/customers/${id}`,
   },
@@ -104,6 +107,9 @@ export const ENDPOINTS = {
     MEMBERS: (id: number | string) => `/api/projects/${id}/members`,
     MEMBER: (id: number | string, userId: number | string) =>
       `/api/projects/${id}/members/${userId}`,
+    /** PATCH { label_id } sets the member's project label */
+    MEMBER_LABEL: (id: number | string, userId: number | string) =>
+      `/api/projects/${id}/members/${userId}/label`,
     STATUSES: (id: number | string) => `/api/projects/${id}/statuses`,
     STATUS: (id: number | string, statusId: number | string) =>
       `/api/projects/${id}/statuses/${statusId}`,
