@@ -17,9 +17,16 @@ interface ChangePasswordFormProps {
   layout?: 'inline' | 'stacked';
   submitLabel?: string;
   onSuccess?: () => void;
+  /** Already-known current password (e.g. just typed at login); hides that field unless the server rejects it */
+  currentPassword?: string;
 }
 
-export function ChangePasswordForm({ layout = 'stacked', submitLabel = 'Update Password', onSuccess }: ChangePasswordFormProps) {
+export function ChangePasswordForm({
+  layout = 'stacked',
+  submitLabel = 'Update Password',
+  onSuccess,
+  currentPassword,
+}: ChangePasswordFormProps) {
   const [changePassword, { isLoading }] = useChangePasswordMutation();
   const {
     register,
@@ -29,13 +36,13 @@ export function ChangePasswordForm({ layout = 'stacked', submitLabel = 'Update P
     formState: { errors },
   } = useForm<ChangePasswordFormValues>({
     resolver: zodResolver(changePasswordSchema),
-    defaultValues: { current_password: '', password: '', password_confirmation: '' },
+    defaultValues: { current_password: currentPassword ?? '', password: '', password_confirmation: '' },
   });
 
   const onSubmit = async (values: ChangePasswordFormValues) => {
     try {
       const res = await changePassword(values).unwrap();
-      reset();
+      reset({ current_password: '', password: '', password_confirmation: '' });
       toast.success(res.message || 'Password changed successfully.');
       onSuccess?.();
     } catch (err) {
@@ -47,6 +54,7 @@ export function ChangePasswordForm({ layout = 'stacked', submitLabel = 'Update P
   };
 
   const inline = layout === 'inline';
+  const showCurrentField = !currentPassword || !!errors.current_password;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className={cn('grid gap-4', inline && 'sm:grid-cols-3')}>
@@ -56,11 +64,13 @@ export function ChangePasswordForm({ layout = 'stacked', submitLabel = 'Update P
         </div>
       )}
 
-      <div className="space-y-1.5">
-        <Label htmlFor="cp-current">Current password</Label>
-        <PasswordInput id="cp-current" autoComplete="current-password" disabled={isLoading} {...register('current_password')} />
-        {errors.current_password && <p className="text-xs text-destructive">{errors.current_password.message}</p>}
-      </div>
+      {showCurrentField && (
+        <div className="space-y-1.5">
+          <Label htmlFor="cp-current">Current password</Label>
+          <PasswordInput id="cp-current" autoComplete="current-password" disabled={isLoading} {...register('current_password')} />
+          {errors.current_password && <p className="text-xs text-destructive">{errors.current_password.message}</p>}
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="cp-new">New password</Label>

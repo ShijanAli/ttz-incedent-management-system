@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useLoginMutation } from '@/redux/features/auth/auth-api';
 import { loginSchema, type LoginFormValues } from '@/lib/validations/auth';
 import { parseApiError } from '@/lib/api-error';
+import { setLoginPassword, clearLoginPassword } from '@/lib/login-password-handoff';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,14 +47,18 @@ export default function LoginPage() {
   }, [session, loading, mustChangePassword, navigate]);
 
   const onSubmit = async (values: LoginFormValues) => {
+    // Set before the request: the redirect effect can run before this function resumes
+    setLoginPassword(values.password);
     try {
       const data = await login(values).unwrap();
       if (data.must_change_password) {
         toast.info('Please set a new password', { description: 'You must change your password before continuing.' });
       } else {
+        clearLoginPassword();
         toast.success('Welcome back!', { description: 'You have been signed in successfully.' });
       }
     } catch (err) {
+      clearLoginPassword();
       // Wrong credentials come back as a 422 keyed on "email"; show them as one form-level message
       setError('root', { message: parseApiError(err, 'Login failed. Please try again.').message });
     }

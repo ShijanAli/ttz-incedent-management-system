@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router';
-import { useTabParam } from '@/hooks/use-tab-param';
 import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
 import {
@@ -8,8 +7,7 @@ import {
   useGetPermissionCatalogQuery,
   useGetRolesQuery,
 } from '@/redux/features/roles/roles-api';
-import type { ApiRole, RoleScope } from '@/redux/features/roles/roles-types';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { ApiRole } from '@/redux/features/roles/roles-types';
 import { PageHeader } from '@/components/shared/page-header';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,21 +27,12 @@ import { toast } from 'sonner';
 import { formatDate } from '@/lib/shared-utils';
 
 const COLUMN_COUNT = 7;
-const SCOPE_TABS = ['project', 'account'] as const;
-
-const SCOPE_COPY: Record<RoleScope, { newLabel: string; hint: string; holders: string }> = {
-  project: { newLabel: 'New Project Role', hint: 'What a member can do inside a project.', holders: 'member' },
-  account: { newLabel: 'New Account Role', hint: 'What a user can do across the whole system, such as managing users.', holders: 'user' },
-};
 
 export default function RolesPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
-  // The tab decides the role type, so each tab has its own role list and permission catalog
-  const [scope, setScope] = useTabParam(SCOPE_TABS, 'project');
-  const copy = SCOPE_COPY[scope];
-  const { data: roles = [], isLoading, isError, error, refetch, isFetching } = useGetRolesQuery(scope);
-  const { data: modules = [] } = useGetPermissionCatalogQuery(scope);
+  const { data: roles = [], isLoading, isError, error, refetch, isFetching } = useGetRolesQuery();
+  const { data: modules = [] } = useGetPermissionCatalogQuery();
   const [deleteRole] = useDeleteRoleMutation();
   const [search, setSearch] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<ApiRole | null>(null);
@@ -61,14 +50,14 @@ export default function RolesPage() {
     );
   }, [roles, search]);
 
-  const handleCreate = () => navigate(`/roles/new?scope=${scope}`);
+  const handleCreate = () => navigate('/roles/new');
 
-  const handleEdit = (role: ApiRole) => navigate(`/roles/${role.id}?scope=${scope}`);
+  const handleEdit = (role: ApiRole) => navigate(`/roles/${role.id}`);
 
   const handleDelete = (role: ApiRole) => {
     if (role.member_count > 0) {
       toast.error('Cannot delete role', {
-        description: `${role.member_count} ${copy.holders}(s) are assigned to this role. Reassign them first.`,
+        description: `${role.member_count} member(s) are assigned to this role. Reassign them first.`,
       });
       return;
     }
@@ -99,22 +88,14 @@ export default function RolesPage() {
           canCreate && (
             <Button onClick={handleCreate}>
               <Plus className="mr-2 h-4 w-4" />
-              {copy.newLabel}
+              New Role
             </Button>
           )
         }
       />
 
-      <Tabs value={scope} onValueChange={(v) => { setScope(v); setSearch(''); }}>
-        <TabsList className="mb-4 grid w-full grid-cols-2 sm:w-[320px]">
-          <TabsTrigger value="project">Project Roles</TabsTrigger>
-          <TabsTrigger value="account">Account Roles</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
       <Card>
         <CardContent className="p-4">
-          <p className="mb-3 text-sm text-muted-foreground">{copy.hint}</p>
           <div className="mb-4 flex items-center gap-3">
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -137,7 +118,7 @@ export default function RolesPage() {
                   <TableHead>Role Name</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Permissions</TableHead>
-                  <TableHead>{scope === 'account' ? 'Users' : 'Members'}</TableHead>
+                  <TableHead>Members</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Updated</TableHead>
                   <TableHead className="w-[50px]" />
@@ -200,7 +181,7 @@ export default function RolesPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm">{userCount} {copy.holders}{userCount !== 1 ? 's' : ''}</span>
+                          <span className="text-sm">{userCount} member{userCount !== 1 ? 's' : ''}</span>
                         </TableCell>
                         <TableCell>
                           {role.is_system ? (

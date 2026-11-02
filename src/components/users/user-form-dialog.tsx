@@ -39,7 +39,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
   const { data: freshUser, isLoading: loadingUser } = useGetUserQuery(user?.id ?? 0, { skip: !open || !user });
   // The account role list is super admin only (403 for everyone else), so others don't get the picker
   const { isSuperAdmin } = useAuth();
-  const { data: roles = [], isLoading: loadingRoles } = useGetRolesQuery('account', { skip: !open || !isSuperAdmin });
+  const { data: roles = [], isLoading: loadingRoles } = useGetRolesQuery(undefined, { skip: !open || !isSuperAdmin });
 
   const loading = loadingRoles || (Boolean(user) && loadingUser);
 

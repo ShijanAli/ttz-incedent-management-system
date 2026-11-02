@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { peekLoginPassword, clearLoginPassword } from '@/lib/login-password-handoff';
 import { ShieldCheck, Loader2, LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,6 +11,8 @@ import { ChangePasswordForm } from '@/components/auth/change-password-form';
 export default function ChangePasswordPage() {
   const navigate = useNavigate();
   const { session, loading, mustChangePassword, logout } = useAuth();
+  // Password typed at login, so a forced change doesn't ask for it again
+  const [loginPassword] = useState(() => peekLoginPassword());
 
   useEffect(() => {
     if (!loading && !session) navigate('/login', { replace: true });
@@ -48,13 +51,18 @@ export default function ChangePasswordPage() {
 
             <ChangePasswordForm
               submitLabel="Save new password"
-              onSuccess={() => navigate('/dashboard', { replace: true })}
+              currentPassword={mustChangePassword ? loginPassword ?? undefined : undefined}
+              onSuccess={() => {
+                clearLoginPassword();
+                navigate('/dashboard', { replace: true });
+              }}
             />
 
             <Button
               variant="ghost"
               className="w-full text-muted-foreground"
               onClick={() => {
+                clearLoginPassword();
                 logout();
                 navigate('/login', { replace: true });
               }}
