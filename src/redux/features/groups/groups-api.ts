@@ -11,7 +11,7 @@ import {
 import type {
   AddGroupMemberRequest,
   ApiGroup,
-  ChangeGroupMemberRoleRequest,
+  ChangeGroupMemberLabelRequest,
   CreateGroupRequest,
   GroupDetail,
   GroupListParams,
@@ -97,11 +97,11 @@ export const groupsApi = baseApi.injectEndpoints({
       invalidatesTags: (_result, _error, { groupId }) => memberChangeTags(groupId),
     }),
 
-    changeGroupMemberRole: build.mutation<ApiResponse<unknown>, ChangeGroupMemberRoleRequest>({
-      query: ({ groupId, userId, role }) => ({
+    changeGroupMemberLabel: build.mutation<ApiResponse<unknown>, ChangeGroupMemberLabelRequest>({
+      query: ({ groupId, userId, labelId }) => ({
         url: ENDPOINTS.ADMIN.GROUP_MEMBER(groupId, userId),
         method: 'PATCH',
-        body: { role },
+        body: { label_id: labelId },
       }),
       invalidatesTags: (_result, _error, { groupId }) => memberChangeTags(groupId),
     }),
@@ -124,6 +124,6 @@ export const {
   useUpdateGroupMutation,
   useDeleteGroupMutation,
   useAddGroupMemberMutation,
-  useChangeGroupMemberRoleMutation,
+  useChangeGroupMemberLabelMutation,
   useRemoveGroupMemberMutation,
 } = groupsApi;

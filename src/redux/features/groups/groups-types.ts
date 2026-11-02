@@ -1,5 +1,6 @@
 import type { InfiniteListParams } from '@/redux/api/types';
 import type {
+  ProjectLabel,
   ProjectMemberUser,
   ProjectPriority,
   ProjectState,
@@ -20,6 +21,8 @@ export interface GroupMember {
   user: ProjectMemberUser;
   /** Role name, e.g. "Developer" */
   role: string;
+  /** The member's label; null or missing when none is set */
+  label?: Pick<ProjectLabel, 'id' | 'name'> | null;
 }
 
 /** A project the group is attached to (a slimmer project payload) */
@@ -71,14 +74,14 @@ export interface UpdateGroupRequest extends Partial<GroupFields> {
 export interface AddGroupMemberRequest {
   groupId: number;
   user_id: number;
-  /** Omit to use the user's default role */
-  role?: string;
+  /** Omit to add the member without a label */
+  label_id?: number;
 }
 
-export interface ChangeGroupMemberRoleRequest {
+export interface ChangeGroupMemberLabelRequest {
   groupId: number;
   userId: number;
-  role: string;
+  labelId: number;
 }
 
 export interface RemoveGroupMemberRequest {

@@ -10,19 +10,12 @@ import { formatDate, isOverdue } from '@/lib/shared-utils';
 import {
   getProjectPriorityMeta, getProjectStateMeta,
 } from '@/lib/project-utils';
-import {
-  useAddGroupMemberMutation,
-  useChangeGroupMemberRoleMutation,
-  useGetGroupMembersQuery,
-  useGetGroupProjectsQuery,
-  useGetGroupQuery,
-  useRemoveGroupMemberMutation,
-} from '@/redux/features/groups/groups-api';
+import { useGetGroupProjectsQuery, useGetGroupQuery } from '@/redux/features/groups/groups-api';
 import type { GroupDetail } from '@/redux/features/groups/groups-types';
 import { PageHeader } from '@/components/shared/page-header';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { StatusBadge } from '@/components/shared/status-badge';
-import { MemberManager } from '@/components/members/member-manager';
+import { GroupMemberManager } from '@/components/groups/group-member-manager';
 import { GroupFormDialog } from '@/components/groups/group-form-dialog';
 import { GroupStatusBadge } from '@/components/groups/group-status-badge';
 import { useGroupActions } from '@/components/groups/use-group-actions';
@@ -80,12 +73,6 @@ function GroupDetailView({ group }: { group: GroupDetail }) {
   const [editOpen, setEditOpen] = useState(false);
   const actions = useGroupActions({ onDeleted: () => navigate('/groups', { replace: true }) });
   const [tab, setTab] = useTabParam(GROUP_TABS, 'members');
-
-  const members = useGetGroupMembersQuery(group.id);
-  const [addMember] = useAddGroupMemberMutation();
-  const [changeRole] = useChangeGroupMemberRoleMutation();
-  const [removeMember] = useRemoveGroupMemberMutation();
-  const groupId = group.id;
 
   const canUpdate = hasPermission('groups.update');
   const canDelete = hasPermission('groups.delete');
@@ -172,19 +159,7 @@ function GroupDetailView({ group }: { group: GroupDetail }) {
         </TabsList>
 
         <TabsContent value="members">
-          <MemberManager
-            entityName={group.name}
-            members={members.data ?? []}
-            isLoading={members.isLoading}
-            error={members.error}
-            onRetry={members.refetch}
-            canManage={canManageMembers}
-            onAdd={(userId, role) => addMember({ groupId, user_id: userId, ...(role && { role }) }).unwrap()}
-            onChangeRole={(userId, role) => changeRole({ groupId, userId, role }).unwrap()}
-            onRemove={(userId) => removeMember({ groupId, userId }).unwrap()}
-            removeWarning="They will lose any project access they had only through this group."
-            footnote={'Leave the role on "User\'s default role" to use the role from their account. Members get this role in every project the group is attached to.'}
-          />
+          <GroupMemberManager group={group} canManage={canManageMembers} />
         </TabsContent>
 
         <TabsContent value="projects">
