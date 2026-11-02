@@ -99,7 +99,7 @@ export const groupsApi = baseApi.injectEndpoints({
 
     changeGroupMemberLabel: build.mutation<ApiResponse<unknown>, ChangeGroupMemberLabelRequest>({
       query: ({ groupId, userId, labelId }) => ({
-        url: ENDPOINTS.ADMIN.GROUP_MEMBER(groupId, userId),
+        url: ENDPOINTS.ADMIN.GROUP_MEMBER_LABEL(groupId, userId),
         method: 'PATCH',
         body: { label_id: labelId },
       }),

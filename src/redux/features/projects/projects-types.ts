@@ -64,7 +64,10 @@ export type MemberSource = 'direct' | 'group' | (string & {});
 export interface ProjectLabel {
   id: number;
   name: string;
+  /** Project members carrying this label */
   member_count: number;
+  /** Group members carrying this label */
+  group_member_count: number;
 }
 
 export interface ProjectMember {

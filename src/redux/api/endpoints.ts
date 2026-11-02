@@ -38,6 +38,9 @@ export const ENDPOINTS = {
     GROUP_MEMBERS: (id: number | string) => `/api/admin/groups/${id}/members`,
     GROUP_MEMBER: (id: number | string, userId: number | string) =>
       `/api/admin/groups/${id}/members/${userId}`,
+    /** PATCH { label_id } sets the member's group label; null clears it */
+    GROUP_MEMBER_LABEL: (id: number | string, userId: number | string) =>
+      `/api/admin/groups/${id}/members/${userId}/label`,
     GROUP_PROJECTS: (id: number | string) => `/api/admin/groups/${id}/projects`,
     ISSUES: "/api/admin/issues",
     ISSUE_CATEGORIES: "/api/admin/issue-categories",

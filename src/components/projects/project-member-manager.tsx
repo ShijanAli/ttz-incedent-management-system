@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useAuth } from '@/lib/auth-context';
 import { MemberManager } from '@/components/members/member-manager';
 import {
   useAddProjectMemberMutation,
@@ -20,7 +21,9 @@ const NO_LABEL = 'No label';
 /** Project members tab: the shared MemberManager wired to the project member and label APIs */
 export function ProjectMemberManager({ project, canManage }: ProjectMemberManagerProps) {
   const { data: members = [], isLoading, error, refetch } = useGetProjectMembersQuery(project.id);
-  const { data: labels = [] } = useGetProjectLabelsQuery(undefined, { skip: !canManage });
+  // Labels are managed by super admins only; the label list is 403 for everyone else
+  const { isSuperAdmin } = useAuth();
+  const { data: labels = [] } = useGetProjectLabelsQuery(undefined, { skip: !isSuperAdmin });
   const [addMember] = useAddProjectMemberMutation();
   const [setLabel] = useSetProjectMemberLabelMutation();
   const [removeMember] = useRemoveProjectMemberMutation();
@@ -41,6 +44,7 @@ export function ProjectMemberManager({ project, canManage }: ProjectMemberManage
       error={error}
       onRetry={refetch}
       canManage={canManage}
+      canChangeRole={canManage && isSuperAdmin}
       roleOptions={roleOptions}
       roleNoun="label"
       onAdd={async (userId, labelId) => {

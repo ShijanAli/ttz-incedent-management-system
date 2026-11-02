@@ -19,7 +19,7 @@ import { getAvatarColor } from '@/lib/shared-utils';
 const ALL = 'all';
 
 export interface ManagedMember {
-  user: { id: number; name: string; designation: string | null; status: string };
+  user: { id: number; name: string; designation: string | null; status: string; photo_url?: string | null };
   /** What the row shows, e.g. the role or label name */
   role: string;
   /** The value the picker selects when it differs from `role` (a label id); defaults to `role` */
@@ -36,6 +36,8 @@ export interface MemberManagerProps {
   error?: unknown;
   onRetry: () => void;
   canManage: boolean;
+  /** Who may change the role / label. Defaults to `canManage`; labels are super admin only. */
+  canChangeRole?: boolean;
   onAdd: (userId: number, role?: string) => Promise<unknown>;
   onChangeRole: (userId: number, role: string) => Promise<unknown>;
   onRemove: (userId: number) => Promise<unknown>;
@@ -54,7 +56,7 @@ export interface MemberManagerProps {
  * the project and group pages pass their own mutations in.
  */
 export function MemberManager({
-  entityName, members, isLoading, error, onRetry, canManage,
+  entityName, members, isLoading, error, onRetry, canManage, canChangeRole = canManage,
   onAdd, onChangeRole, onRemove, removeWarning = 'They will lose access.', footnote,
   roleOptions, roleNoun = 'role',
 }: MemberManagerProps) {
@@ -147,12 +149,13 @@ export function MemberManager({
             ) : (
               filtered.map((m) => {
                 const editable = canManage && (m.source ?? 'direct') === 'direct';
+                const roleEditable = canChangeRole && editable;
                 const isEditing = editing?.userId === m.user.id;
                 const busy = pending === m.user.id;
                 return (
                   <div key={m.user.id} className="space-y-2 rounded-lg border p-3">
                     <div className="flex items-center gap-3">
-                      <UserAvatar name={m.user.name} color={getAvatarColor(m.user.id)} size="sm" />
+                      <UserAvatar name={m.user.name} color={getAvatarColor(m.user.id)} image={m.user.photo_url ?? undefined} size="sm" />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{m.user.name}</div>
                         <div className="truncate text-xs text-muted-foreground">{m.user.designation || '—'}</div>
@@ -205,7 +208,7 @@ export function MemberManager({
                       ) : (
                         <>
                           <Badge variant="secondary" className="text-xs font-normal">{m.role}</Badge>
-                          {editable && (
+                          {roleEditable && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -237,14 +240,16 @@ export function MemberManager({
               emptyMessage="All active users are already members."
               renderAction={(user) => (
                 <div className="flex items-center gap-2">
-                  <RoleSelect
-                    value={addRoleByUser[user.id] ?? ''}
-                    onChange={(role) => setAddRoleByUser((prev) => ({ ...prev, [user.id]: role }))}
-                    disabled={pending === user.id}
-                    options={roleOptions}
-                    noun={roleNoun}
-                    className="w-[150px]"
-                  />
+                  {canChangeRole && (
+                    <RoleSelect
+                      value={addRoleByUser[user.id] ?? ''}
+                      onChange={(role) => setAddRoleByUser((prev) => ({ ...prev, [user.id]: role }))}
+                      disabled={pending === user.id}
+                      options={roleOptions}
+                      noun={roleNoun}
+                      className="w-[150px]"
+                    />
+                  )}
                   <Button
                     variant="outline"
                     size="sm"

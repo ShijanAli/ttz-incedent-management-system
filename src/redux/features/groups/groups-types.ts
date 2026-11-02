@@ -74,14 +74,15 @@ export interface UpdateGroupRequest extends Partial<GroupFields> {
 export interface AddGroupMemberRequest {
   groupId: number;
   user_id: number;
-  /** Omit to add the member without a label */
-  label_id?: number;
+  /** Omit to use the user's default role */
+  role?: string;
 }
 
 export interface ChangeGroupMemberLabelRequest {
   groupId: number;
   userId: number;
-  labelId: number;
+  /** null removes the label */
+  labelId: number | null;
 }
 
 export interface RemoveGroupMemberRequest {

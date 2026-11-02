@@ -68,7 +68,7 @@ export function UserSearchList({
           <div className="divide-y">
             {users.map((user) => (
               <div key={user.id} className="flex items-center gap-3 px-3 py-2.5">
-                <UserAvatar name={user.name} color={getAvatarColor(user.id)} size="sm" />
+                <UserAvatar name={user.name} color={getAvatarColor(user.id)} image={user.photo_url ?? undefined} size="sm" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{user.name}</div>
                   <div className="truncate text-xs text-muted-foreground">

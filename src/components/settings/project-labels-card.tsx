@@ -46,12 +46,7 @@ export function ProjectLabelsCard() {
   };
 
   const requestDelete = (label: ProjectLabel) => {
-    if (label.member_count > 0) {
-      toast.error('Cannot delete label', {
-        description: `${label.member_count} member(s) carry this label. Give them another label first.`,
-      });
-      return;
-    }
+    // A label still in use is refused by the API (LABEL_IN_USE) and its message is shown
     setConfirmDelete(label);
   };
 
@@ -95,6 +90,7 @@ export function ProjectLabelsCard() {
                 </button>
                 <Badge variant="secondary" className="text-xs font-normal">
                   {l.member_count} member{l.member_count !== 1 ? 's' : ''}
+                  {l.group_member_count > 0 && ` · ${l.group_member_count} via groups`}
                 </Badge>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

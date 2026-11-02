@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useAuth } from '@/lib/auth-context';
 import { MemberManager } from '@/components/members/member-manager';
 import {
   useAddGroupMemberMutation,
@@ -20,7 +21,9 @@ const NO_LABEL = 'No label';
 /** Group members tab: the shared MemberManager wired to the group member and label APIs */
 export function GroupMemberManager({ group, canManage }: GroupMemberManagerProps) {
   const { data: members = [], isLoading, error, refetch } = useGetGroupMembersQuery(group.id);
-  const { data: labels = [] } = useGetProjectLabelsQuery(undefined, { skip: !canManage });
+  // Labels are managed by super admins only; the label list is 403 for everyone else
+  const { isSuperAdmin } = useAuth();
+  const { data: labels = [] } = useGetProjectLabelsQuery(undefined, { skip: !isSuperAdmin });
   const [addMember] = useAddGroupMemberMutation();
   const [changeLabel] = useChangeGroupMemberLabelMutation();
   const [removeMember] = useRemoveGroupMemberMutation();
@@ -41,13 +44,18 @@ export function GroupMemberManager({ group, canManage }: GroupMemberManagerProps
       error={error}
       onRetry={refetch}
       canManage={canManage}
+      canChangeRole={canManage && isSuperAdmin}
       roleOptions={roleOptions}
       roleNoun="label"
-      onAdd={(userId, labelId) => addMember({ groupId, user_id: userId, ...(labelId && { label_id: Number(labelId) }) }).unwrap()}
+      // The API only takes a label once the person is in the group, so add first
+      onAdd={async (userId, labelId) => {
+        await addMember({ groupId, user_id: userId }).unwrap();
+        if (labelId) await changeLabel({ groupId, userId, labelId: Number(labelId) }).unwrap();
+      }}
       onChangeRole={(userId, labelId) => changeLabel({ groupId, userId, labelId: Number(labelId) }).unwrap()}
       onRemove={(userId) => removeMember({ groupId, userId }).unwrap()}
       removeWarning="They will lose any project access they had only through this group."
-      footnote="Labels (e.g. Backend Developer) describe what a member does. Members get their account role in every project the group is attached to."
+      footnote="Labels (e.g. Backend Dev) only describe what a member does. They pass down to the group's projects unless a member already has a different label there."
     />
   );
 }
