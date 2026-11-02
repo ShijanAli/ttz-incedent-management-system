@@ -28,7 +28,8 @@ export interface UserListParams extends InfiniteListParams {
 export interface CreateUserRequest {
   name: string;
   email: string;
-  default_role: string | null;
+  /** Omitted when the sender can't set account roles */
+  default_role?: string | null;
   phone: string | null;
   designation: string | null;
   /** Not persisted by the backend yet; sent so it works once supported */

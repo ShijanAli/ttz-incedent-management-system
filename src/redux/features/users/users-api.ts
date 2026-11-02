@@ -40,6 +40,25 @@ export const usersApi = baseApi.injectEndpoints({
       providesTags: (result) => provideInfiniteListTags("User", result),
     }),
 
+    /**
+     * People picker (add members, project and group forms). GET /api/users is open to every
+     * signed-in user, unlike /admin/users which is for the Users screen only.
+     */
+    getUserDirectory: build.infiniteQuery<
+      Paginated<AdminUser>,
+      UserListParams,
+      PageParam
+    >({
+      infiniteQueryOptions: laravelInfiniteOptions<AdminUser, UserListParams>(),
+      query: ({ queryArg, pageParam }) => ({
+        url: ENDPOINTS.ADMIN.USERS,
+        params: { ...queryArg, page: pageParam },
+      }),
+      transformResponse: (res: PaginatedApiResponse<AdminUser>) =>
+        toPaginated(res),
+      providesTags: (result) => provideInfiniteListTags("User", result),
+    }),
+
     getUser: build.query<AdminUser, number>({
       query: (id) => ENDPOINTS.ADMIN.USER(id),
       transformResponse: (res: ApiResponse<AdminUser>) => res.data,
@@ -101,6 +120,7 @@ export const usersApi = baseApi.injectEndpoints({
 
 export const {
   useGetUsersInfiniteQuery,
+  useGetUserDirectoryInfiniteQuery,
   useGetUserQuery,
   useCreateUserMutation,
   useUpdateUserMutation,

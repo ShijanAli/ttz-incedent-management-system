@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
 import { BASELINE_PERMISSIONS, getPermissionModule, toAppPermissions } from '@/lib/permissions';
@@ -10,7 +10,7 @@ import {
   useGetRolesQuery,
   useUpdateRoleMutation,
 } from '@/redux/features/roles/roles-api';
-import type { ApiPermissionModule, ApiRole } from '@/redux/features/roles/roles-types';
+import type { ApiPermissionModule, ApiRole, RoleScope } from '@/redux/features/roles/roles-types';
 import { PageHeader } from '@/components/shared/page-header';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -58,11 +58,14 @@ export default function RoleEditorRoute() {
   const { id } = useParams();
   const { hasPermission } = useAuth();
 
+  // The tab of the roles screen the user came from decides which roles and checkboxes to load
+  const scope: RoleScope = useSearchParams()[0].get('scope') === 'account' ? 'account' : 'project';
+
   const isNew = !id || id === 'new';
   const canEdit = isNew ? hasPermission('roles.create') : hasPermission('roles.update');
 
-  const rolesQuery = useGetRolesQuery(undefined, { skip: !canEdit });
-  const catalogQuery = useGetPermissionCatalogQuery(undefined, { skip: !canEdit });
+  const rolesQuery = useGetRolesQuery(scope, { skip: !canEdit });
+  const catalogQuery = useGetPermissionCatalogQuery(scope, { skip: !canEdit });
 
   if (!canEdit) {
     return (
@@ -113,7 +116,8 @@ export default function RoleEditorRoute() {
   // Keyed by id so form state resets when moving between roles
   return (
     <RoleEditorForm
-      key={id ?? 'new'}
+      key={`${scope}-${id ?? 'new'}`}
+      scope={scope}
       role={role}
       allRoles={allRoles}
       modules={catalogQuery.data ?? []}
@@ -122,13 +126,16 @@ export default function RoleEditorRoute() {
 }
 
 interface RoleEditorFormProps {
+  scope: RoleScope;
   role?: ApiRole;
   allRoles: ApiRole[];
   modules: ApiPermissionModule[];
 }
 
-function RoleEditorForm({ role, allRoles, modules }: RoleEditorFormProps) {
+function RoleEditorForm({ scope, role, allRoles, modules }: RoleEditorFormProps) {
   const navigate = useNavigate();
+  const rolesHome = scope === 'account' ? '/roles?tab=account' : '/roles';
+  const scopeLabel = scope === 'account' ? 'Account' : 'Project';
   const [createRole, { isLoading: creating }] = useCreateRoleMutation();
   const [updateRole, { isLoading: updating }] = useUpdateRoleMutation();
 
@@ -221,8 +228,19 @@ function RoleEditorForm({ role, allRoles, modules }: RoleEditorFormProps) {
     // The pages the sidebar would show, worked out the same way it does
     const appPerms = toAppPermissions(selectedPerms);
     BASELINE_PERMISSIONS.forEach((p) => appPerms.add(p));
+    // Account roles only open the system pages their own catalog lists (e.g. Users)
+    if (scope === 'account') {
+      return modules.flatMap((mod): PreviewItem[] => {
+        const picked = mod.permissions.filter((p) => selectedPerms.has(p.name));
+        if (picked.length === 0) return [];
+        if (mod.permissions.some(isViewPerm) && !picked.some(isViewPerm)) return [];
+        return [{ key: mod.module, label: mod.label, icon: MODULE_ICONS[mod.module] ?? LayoutGrid }];
+      });
+    }
+
+    // Project roles never show the Users menu: it follows the account role instead
     const pages: PreviewItem[] = NAV_ITEMS
-      .filter((item) => appPerms.has(item.permission))
+      .filter((item) => !item.accountPermission && appPerms.has(item.permission))
       .map((item) => ({ key: item.href, label: item.label, icon: item.icon }));
 
     // Catalog modules the app has no page mapping for yet still show, so new modules appear
@@ -235,7 +253,7 @@ function RoleEditorForm({ role, allRoles, modules }: RoleEditorFormProps) {
       pages.push({ key: mod.module, label: mod.label, icon: MODULE_ICONS[mod.module] ?? LayoutGrid });
     }
     return pages;
-  }, [selectedPerms, modules]);
+  }, [selectedPerms, modules, scope]);
 
   const summary = modules.flatMap((mod) => {
     const level = getLevel(mod);
@@ -278,10 +296,10 @@ function RoleEditorForm({ role, allRoles, modules }: RoleEditorFormProps) {
         await updateRole({ id: role.id, ...body }).unwrap();
         toast.success('Role updated', { description: `${body.name} has been saved with ${body.permissions.length} permissions.` });
       } else {
-        await createRole(body).unwrap();
+        await createRole({ ...body, scope }).unwrap();
         toast.success('Role created', { description: `${body.name} has been created with ${body.permissions.length} permissions.` });
       }
-      navigate('/roles');
+      navigate(rolesHome);
     } catch (err) {
       const apiError = parseApiError(err, 'Failed to save role');
       // Laravel keys array errors as `permissions.0`, so match by prefix
@@ -302,20 +320,20 @@ function RoleEditorForm({ role, allRoles, modules }: RoleEditorFormProps) {
 
   const handleCancel = () => {
     if (hasChanges) setConfirmLeave(true);
-    else navigate('/roles');
+    else navigate(rolesHome);
   };
 
   return (
     <div className="animate-fade-in pb-24">
       <PageHeader
-        title={isNew ? 'Create New Role' : `Edit Role: ${role.name}`}
+        title={isNew ? `Create ${scopeLabel} Role` : `Edit ${scopeLabel} Role: ${role.name}`}
         description={
           isNew
             ? 'Pick an access level for each module, and watch the preview on the right update as you go.'
             : 'Changes take effect immediately for every user assigned to this role.'
         }
         breadcrumbs={[
-          { label: 'Roles & Permissions', href: '/roles' },
+          { label: 'Roles & Permissions', href: rolesHome },
           { label: isNew ? 'New Role' : role.name },
         ]}
         actions={
@@ -461,6 +479,8 @@ function RoleEditorForm({ role, allRoles, modules }: RoleEditorFormProps) {
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium">{mod.label}</div>
                         <div className="text-xs text-muted-foreground">
+                          {/* A single permission has no chips, so name it here */}
+                          {mod.permissions.length === 1 && <span className="mr-1">{mod.permissions[0].label} ·</span>}
                           {pickedCount} / {mod.permissions.length} permissions
                           {level === 'custom' && <span className="ml-1.5 text-primary">· Custom</span>}
                         </div>
@@ -648,7 +668,7 @@ function RoleEditorForm({ role, allRoles, modules }: RoleEditorFormProps) {
         description="You have unsaved changes to this role. If you leave now, they will be lost."
         confirmLabel="Discard"
         variant="destructive"
-        onConfirm={() => navigate('/roles')}
+        onConfirm={() => navigate(rolesHome)}
       />
     </div>
   );

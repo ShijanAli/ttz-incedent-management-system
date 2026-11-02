@@ -4,6 +4,7 @@ import {
   AlertCircle, Archive, Calendar, Loader2, Pencil, RotateCcw,
   Target, Trash2, Users as UsersIcon,
 } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 import { useTabParam } from '@/hooks/use-tab-param';
 import { useProjectCan } from '@/hooks/use-project-can';
 import { parseApiError } from '@/lib/api-error';
@@ -91,7 +92,9 @@ function ProjectDetail({ project }: { project: ApiProject }) {
   const archived = project.status === ARCHIVED_STATE;
   const projectCan = useProjectCan();
   const canEdit = projectCan(project, 'projects.edit');
-  const canDelete = projectCan(project, 'projects.delete');
+  // Deleting is for super admins only, whatever the project role allows
+  const { isSuperAdmin } = useAuth();
+  const canDelete = isSuperAdmin;
   const canManageMembers = projectCan(project, 'users.edit');
 
   const stateMeta = getProjectStateMeta(project.status);

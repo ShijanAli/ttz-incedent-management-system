@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { applyFieldErrors, parseApiError } from '@/lib/api-error';
 import { userFormSchema, type UserFormValues } from '@/lib/validations/user';
+import { useAuth } from '@/lib/auth-context';
 import { useGetRolesQuery } from '@/redux/features/roles/roles-api';
 import type { ApiRole } from '@/redux/features/roles/roles-types';
 import {
@@ -36,7 +37,9 @@ interface UserFormDialogProps {
 export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps) {
   // Fetch the latest copy so the form never edits stale list data
   const { data: freshUser, isLoading: loadingUser } = useGetUserQuery(user?.id ?? 0, { skip: !open || !user });
-  const { data: roles = [], isLoading: loadingRoles } = useGetRolesQuery(undefined, { skip: !open });
+  // The account role list is super admin only (403 for everyone else), so others don't get the picker
+  const { isSuperAdmin } = useAuth();
+  const { data: roles = [], isLoading: loadingRoles } = useGetRolesQuery('account', { skip: !open || !isSuperAdmin });
 
   const loading = loadingRoles || (Boolean(user) && loadingUser);
 
@@ -62,6 +65,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
             key={user?.id ?? 'new'}
             user={freshUser ?? user}
             roles={roles}
+            canPickRole={isSuperAdmin}
             onDone={() => onOpenChange(false)}
           />
         )}
@@ -73,10 +77,12 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
 interface UserFormProps {
   user: AdminUser | null;
   roles: ApiRole[];
+  /** Only super admins can set the account role */
+  canPickRole: boolean;
   onDone: () => void;
 }
 
-function UserForm({ user, roles, onDone }: UserFormProps) {
+function UserForm({ user, roles, canPickRole, onDone }: UserFormProps) {
   const [createUser, { isLoading: creating }] = useCreateUserMutation();
   const [updateUser, { isLoading: updating }] = useUpdateUserMutation();
   const saving = creating || updating;
@@ -105,7 +111,8 @@ function UserForm({ user, roles, onDone }: UserFormProps) {
       phone: toNullable(values.phone),
       designation: toNullable(values.designation),
       department: toNullable(values.department),
-      default_role: toNullable(values.default_role),
+      // Left out when the picker is hidden, so an edit never clears the user's role
+      ...(canPickRole && { default_role: toNullable(values.default_role) }),
     };
     try {
       if (user) {
@@ -174,7 +181,7 @@ function UserForm({ user, roles, onDone }: UserFormProps) {
       </div>
 
       {/* Role assignment section */}
-      <div className="space-y-3">
+      {canPickRole && <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Default Role</h3>
         <p className="text-xs text-muted-foreground">
           The role this user gets by default when added to a project.
@@ -205,7 +212,7 @@ function UserForm({ user, roles, onDone }: UserFormProps) {
           )}
         />
         {errors.default_role && <p className="text-xs text-destructive">{errors.default_role.message}</p>}
-      </div>
+      </div>}
 
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onDone} disabled={saving}>

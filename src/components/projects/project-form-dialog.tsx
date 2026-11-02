@@ -17,6 +17,8 @@ import {
 } from '@/components/ui/select';
 import { UserAvatar } from '@/components/shared/user-avatar';
 import { RoleSelect } from '@/components/members/role-select';
+import { useAuth } from '@/lib/auth-context';
+import { useGetProjectLabelsQuery } from '@/redux/features/project-labels/project-labels-api';
 import { UserSearchList } from '@/components/members/user-search-list';
 import { ProjectLogo } from '@/components/projects/project-logo';
 import { applyFieldErrors, parseApiError } from '@/lib/api-error';
@@ -29,16 +31,17 @@ import {
 } from '@/lib/validations/project';
 import {
   useAddProjectMemberMutation,
-  useChangeProjectMemberRoleMutation,
   useCreateProjectMutation,
+  useGetProjectMembersQuery,
   useGetProjectQuery,
   useRemoveProjectMemberMutation,
+  useSetProjectMemberLabelMutation,
   useReplaceProjectStatusesMutation,
   useUpdateProjectLogoMutation,
   useUpdateProjectMutation,
 } from '@/redux/features/projects/projects-api';
 import { useStatusCatalog } from '@/redux/features/projects/use-status-catalog';
-import type { ApiProject, ProjectFields, ProjectStatus } from '@/redux/features/projects/projects-types';
+import type { ApiProject, ProjectFields, ProjectMember, ProjectStatus } from '@/redux/features/projects/projects-types';
 
 const FIELDS = [
   'name', 'description', 'objective', 'status', 'priority', 'color',
@@ -61,8 +64,10 @@ export function ProjectFormDialog({ open, onOpenChange, project }: ProjectFormDi
   // Fetch the latest copy so the form never edits stale list data
   const { data: freshProject, isLoading } = useGetProjectQuery(project?.id ?? 0, { skip: !open || !project });
   const catalog = useStatusCatalog({ skip: !open });
+  // Labels only come with the members API, not with the project itself
+  const { data: members, isLoading: loadingMembers } = useGetProjectMembersQuery(project?.id ?? 0, { skip: !open || !project });
 
-  const loading = catalog.isLoading || (Boolean(project) && isLoading);
+  const loading = catalog.isLoading || (Boolean(project) && (isLoading || loadingMembers));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -85,6 +90,7 @@ export function ProjectFormDialog({ open, onOpenChange, project }: ProjectFormDi
           <ProjectForm
             key={project?.id ?? 'new'}
             project={freshProject ?? project}
+            members={members}
             catalog={catalog.statuses}
             onDone={() => onOpenChange(false)}
           />
@@ -96,13 +102,15 @@ export function ProjectFormDialog({ open, onOpenChange, project }: ProjectFormDi
 
 interface ProjectFormProps {
   project: ApiProject | null;
+  /** From the members API; carries each member's label */
+  members?: ProjectMember[];
   catalog: ProjectStatus[];
   onDone: () => void;
 }
 
-function toDefaults(project: ApiProject | null, catalog: ProjectStatus[]): ProjectFormValues {
+function toDefaults(project: ApiProject | null, catalog: ProjectStatus[], members?: ProjectMember[]): ProjectFormValues {
   // Only direct members are editable here; group members are managed through groups
-  const directMembers = project?.members.filter((m) => m.source === 'direct') ?? [];
+  const directMembers = (members ?? project?.members ?? []).filter((m) => m.source === 'direct');
   return {
     name: project?.name ?? '',
     description: project?.description ?? '',
@@ -117,7 +125,7 @@ function toDefaults(project: ApiProject | null, catalog: ProjectStatus[]): Proje
       user_id: m.user.id,
       name: m.user.name,
       designation: m.user.designation,
-      role: m.role,
+      label_id: m.label ? String(m.label.id) : '',
     })),
   };
 }
@@ -136,13 +144,18 @@ function toProjectFields(values: ProjectFormValues): ProjectFields {
   };
 }
 
-const toMemberInput = (m: ProjectMemberValue) => ({ user_id: m.user_id, ...(m.role && { role: m.role }) });
+/** Members join with their default role; the label is set in a second call once they are in */
+const toMemberInput = (m: ProjectMemberValue) => ({ user_id: m.user_id });
 
-function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
+function ProjectForm({ project, members: loadedMembers, catalog, onDone }: ProjectFormProps) {
+  // Labels are managed by super admins only; the label list is 403 for everyone else
+  const { isSuperAdmin } = useAuth();
+  const { data: labels = [] } = useGetProjectLabelsQuery(undefined, { skip: !isSuperAdmin });
+  const labelOptions = useMemo(() => labels.map((l) => ({ value: String(l.id), label: l.name })), [labels]);
   const [createProject, { isLoading: creating }] = useCreateProjectMutation();
   const [updateProject, { isLoading: updating }] = useUpdateProjectMutation();
   const [addMember] = useAddProjectMemberMutation();
-  const [changeRole] = useChangeProjectMemberRoleMutation();
+  const [setLabel] = useSetProjectMemberLabelMutation();
   const [removeMember] = useRemoveProjectMemberMutation();
   const [replaceStatuses] = useReplaceProjectStatusesMutation();
   const [updateLogo] = useUpdateProjectLogoMutation();
@@ -185,7 +198,7 @@ function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
   };
 
   const isEdit = Boolean(project);
-  const defaults = useMemo(() => toDefaults(project, catalog), [project, catalog]);
+  const defaults = useMemo(() => toDefaults(project, catalog, loadedMembers), [project, catalog, loadedMembers]);
 
   const {
     register, control, handleSubmit, setError, setValue, watch,
@@ -207,22 +220,36 @@ function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
     return sortStatuses([...byId.values()]);
   }, [catalog, project]);
 
+  /** The project is already saved by now, so a failed label only warns */
+  const saveLabels = async (projectId: number, changes: { userId: number; labelId: number | null }[]) => {
+    const results = await Promise.allSettled(changes.map((c) => setLabel({ projectId, ...c }).unwrap()));
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (failed) toast.error('Some member labels were not saved', { description: parseApiError(failed.reason).message });
+  };
+
   const syncMembers = async (projectId: number, next: ProjectMemberValue[]) => {
     const before = new Map(defaults.members.map((m) => [m.user_id, m]));
     const after = new Map(next.map((m) => [m.user_id, m]));
     const calls: Promise<unknown>[] = [];
+    const labelChanges: { userId: number; labelId: number | null }[] = [];
     for (const [userId] of before) {
       if (!after.has(userId)) calls.push(removeMember({ projectId, userId }).unwrap());
     }
     for (const [userId, member] of after) {
       const previous = before.get(userId);
-      if (!previous) calls.push(addMember({ projectId, ...toMemberInput(member) }).unwrap());
-      // "Default role" has no PATCH equivalent, so only concrete role changes are sent
-      else if (member.role && member.role !== previous.role) {
-        calls.push(changeRole({ projectId, userId, role: member.role }).unwrap());
+      const labelId = member.label_id ? Number(member.label_id) : null;
+      if (!previous) {
+        // A new member has to exist before they can be labelled
+        calls.push(
+          addMember({ projectId, ...toMemberInput(member) }).unwrap()
+            .then(() => { if (labelId != null) labelChanges.push({ userId, labelId }); }),
+        );
+      } else if (member.label_id !== previous.label_id) {
+        labelChanges.push({ userId, labelId });
       }
     }
     await Promise.all(calls);
+    await saveLabels(projectId, labelChanges);
   };
 
   const syncStatuses = async (current: ApiProject, nextIds: number[]) => {
@@ -251,6 +278,10 @@ function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
           status_ids: values.status_ids,
           members: values.members.map(toMemberInput),
         }).unwrap();
+        await saveLabels(
+          created.id,
+          values.members.filter((m) => m.label_id).map((m) => ({ userId: m.user_id, labelId: Number(m.label_id) })),
+        );
         await saveLogo(created.id);
         toast.success('Project created', { description: `${values.name} has been created.` });
       }
@@ -439,7 +470,7 @@ function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
       <div className="space-y-3">
         <SectionTitle title={`Project Members (${memberFields.length})`} error={errors.members?.message} />
         <p className="text-xs text-muted-foreground">
-          Add people and pick their role in this project. Leave it on "User's default role" to use the role from their account.
+          Add people to this project.{isSuperAdmin && ' Give each one a label (e.g. Backend Dev) to show what they do. Labels are optional and give no permissions.'}
         </p>
 
         {memberFields.length > 0 && (
@@ -451,12 +482,16 @@ function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
                   <div className="truncate text-sm font-medium">{member.name}</div>
                   <div className="truncate text-xs text-muted-foreground">{member.designation || '—'}</div>
                 </div>
-                <RoleSelect
-                  value={members[index]?.role ?? ''}
-                  onChange={(role) => update(index, { ...members[index], role })}
-                  disabled={saving}
-                  className="w-[170px]"
-                />
+                {isSuperAdmin && (
+                  <RoleSelect
+                    value={members[index]?.label_id ?? ''}
+                    onChange={(label_id) => update(index, { ...members[index], label_id })}
+                    options={labelOptions}
+                    noun="label"
+                    disabled={saving}
+                    className="w-[170px]"
+                  />
+                )}
                 <Button
                   type="button"
                   variant="ghost"
@@ -483,7 +518,7 @@ function ProjectForm({ project, catalog, onDone }: ProjectFormProps) {
               size="sm"
               className="h-7"
               disabled={saving}
-              onClick={() => append({ user_id: user.id, name: user.name, designation: user.designation, role: '' })}
+              onClick={() => append({ user_id: user.id, name: user.name, designation: user.designation, label_id: '' })}
             >
               <Plus className="mr-1 h-3.5 w-3.5" />
               Add

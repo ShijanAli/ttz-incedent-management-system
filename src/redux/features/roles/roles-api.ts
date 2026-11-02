@@ -5,6 +5,7 @@ import type {
   ApiPermissionModule,
   ApiRole,
   RoleRequest,
+  RoleScope,
   UpdateRoleRequest,
 } from './roles-types';
 
@@ -12,17 +13,18 @@ const ROLE_LIST_TAG = { type: 'Role', id: 'LIST' } as const;
 
 export const rolesApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    getPermissionCatalog: build.query<ApiPermissionModule[], void>({
-      query: () => ENDPOINTS.ADMIN.PERMISSIONS,
+    /** Project permissions by default; `?scope=account` returns the account catalog */
+    getPermissionCatalog: build.query<ApiPermissionModule[], RoleScope>({
+      query: (scope) => (scope === 'account' ? `${ENDPOINTS.ADMIN.PERMISSIONS}?scope=account` : ENDPOINTS.ADMIN.PERMISSIONS),
       transformResponse: (res: ApiResponse<ApiPermissionModule[]>) => res.data,
       providesTags: ['PermissionCatalog'],
       // The catalog is static per deployment
       keepUnusedDataFor: 600,
     }),
 
-    getRoles: build.query<ApiRole[], void>({
-      query: () => ENDPOINTS.ADMIN.ROLES,
-      transformResponse: (res: ApiResponse<ApiRole[]>) => res.data,
+    getRoles: build.query<ApiRole[], RoleScope>({
+      query: (scope) => `${ENDPOINTS.ADMIN.ROLES}?scope=${scope}`,
+      transformResponse: (res: ApiResponse<ApiRole[]>, _meta, scope) => res.data.map((r) => ({ ...r, scope })),
       providesTags: (result) =>
         result
           ? [...result.map(({ id }) => ({ type: 'Role' as const, id })), ROLE_LIST_TAG]

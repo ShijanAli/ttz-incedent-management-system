@@ -9,6 +9,13 @@ export function RequirePermission({ permission, children }: { permission: Permis
   return <>{children}</>;
 }
 
+/** Route guard for pages that follow an account (system-wide) permission */
+export function RequireAccountPermission({ permission, children }: { permission: string; children: React.ReactNode }) {
+  const { hasAccountPermission } = useAuth();
+  if (!hasAccountPermission(permission)) return <Navigate to="/unauthorized" replace />;
+  return <>{children}</>;
+}
+
 /** Route guard for pages only super admins may open (they manage system-wide data) */
 export function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
   const { isSuperAdmin } = useAuth();

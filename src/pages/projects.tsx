@@ -294,7 +294,9 @@ function ProjectRow({ index, project, onEdit, onAction }: ProjectRowProps) {
   // Actions follow the signed-in user's permissions in this project (super admins can do everything)
   const projectCan = useProjectCan();
   const canEdit = projectCan(project, 'projects.edit');
-  const canDelete = projectCan(project, 'projects.delete');
+  // Deleting is for super admins only, whatever the project role allows
+  const { isSuperAdmin } = useAuth();
+  const canDelete = isSuperAdmin;
 
   return (
     <TableRow className="hover:bg-muted/50" {...{ [ROW_INDEX_ATTR]: index }}>

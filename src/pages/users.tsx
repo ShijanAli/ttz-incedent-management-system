@@ -4,7 +4,7 @@ import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
 import { formatDate, getAvatarColor, USER_STATUS_META } from '@/lib/shared-utils';
-import { useGetRolesQuery } from '@/redux/features/roles/roles-api';
+import { useGetAssignableRolesQuery } from '@/redux/features/roles/roles-api';
 import {
   useDisableUserMutation,
   useGetUsersInfiniteQuery,
@@ -93,7 +93,8 @@ export default function UsersPage() {
       status: statusFilter === ALL ? undefined : statusFilter,
     }),
   );
-  const { data: roles = [] } = useGetRolesQuery();
+  // GET /api/roles works for any signed-in user (the admin list is super admin only)
+  const { data: roleNames = [] } = useGetAssignableRolesQuery();
   const [disableUser] = useDisableUserMutation();
   const [updateUser] = useUpdateUserMutation();
   const [resendInvite] = useResendInviteMutation();
@@ -208,8 +209,8 @@ export default function UsersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All roles</SelectItem>
-                {roles.map((r) => (
-                  <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>
+                {roleNames.map((name) => (
+                  <SelectItem key={name} value={name}>{name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

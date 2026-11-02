@@ -193,7 +193,8 @@ export interface ChangeMemberRoleRequest {
 export interface SetMemberLabelRequest {
   projectId: number;
   userId: number;
-  labelId: number;
+  /** null removes the label */
+  labelId: number | null;
 }
 
 export interface RemoveProjectMemberRequest {

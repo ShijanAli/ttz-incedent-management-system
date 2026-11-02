@@ -7,7 +7,7 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { parseApiError } from '@/lib/api-error';
 import { getAvatarColor } from '@/lib/shared-utils';
-import { useGetUsersInfiniteQuery } from '@/redux/features/users/users-api';
+import { useGetUserDirectoryInfiniteQuery } from '@/redux/features/users/users-api';
 import type { AdminUser } from '@/redux/features/users/users-types';
 
 interface UserSearchListProps {
@@ -20,7 +20,7 @@ interface UserSearchListProps {
 }
 
 /**
- * Searchable, infinitely scrolling list of active users from the users API.
+ * Searchable, infinitely scrolling list of active users from GET /api/users (open to every signed-in user).
  * Search runs on the server, debounced.
  */
 export function UserSearchList({
@@ -29,7 +29,7 @@ export function UserSearchList({
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search.trim());
   const list = useInfiniteList(
-    useGetUsersInfiniteQuery({ status: 'active', search: debouncedSearch || undefined }),
+    useGetUserDirectoryInfiniteQuery({ status: 'active', search: debouncedSearch || undefined }),
   );
   const users = list.items.filter((u) => !excludeIds.has(u.id));
   const searching = search.trim() !== debouncedSearch || (list.isFetching && !list.trigger.isLoadingMore);

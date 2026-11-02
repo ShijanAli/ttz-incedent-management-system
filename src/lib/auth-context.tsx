@@ -31,6 +31,8 @@ interface AuthContextValue {
   register: (name: string, email: string, password: string) => { success: boolean; error?: string };
   refreshSession: () => void;
   hasPermission: (perm: Permission) => boolean;
+  /** Account (system-wide) permission such as `account.users.view`; super admins hold them all */
+  hasAccountPermission: (perm: string) => boolean;
   hasAnyPermission: (perms: Permission[]) => boolean;
   hasAllPermissions: (perms: Permission[]) => boolean;
 }
@@ -128,6 +130,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (perm: Permission) => session?.permissions.includes(perm) ?? false,
     [session],
   );
+  const hasAccountPermission = useCallback(
+    (perm: string) => isSuperAdmin || (user?.account_permissions?.includes(perm) ?? false),
+    [isSuperAdmin, user],
+  );
   const hasAnyPermission = useCallback(
     (perms: Permission[]) => (session ? perms.some((p) => session.permissions.includes(p)) : false),
     [session],
@@ -141,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         session, loading, mustChangePassword, access, isSuperAdmin, logout, register, refreshSession,
-        hasPermission, hasAnyPermission, hasAllPermissions,
+        hasPermission, hasAccountPermission, hasAnyPermission, hasAllPermissions,
       }}
     >
       {children}

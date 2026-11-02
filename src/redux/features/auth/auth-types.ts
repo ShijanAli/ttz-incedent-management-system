@@ -17,6 +17,11 @@ export interface ApiUser {
    * truth for modules and actions; DEFAULT_ROLE_PERMISSIONS covers payloads without it.
    */
   permissions?: string[];
+  /**
+   * System-wide permissions from the account role, sent by /auth/me (e.g. `account.users.view`).
+   * Separate from `permissions`, which are project-style.
+   */
+  account_permissions?: string[];
   is_super_admin: boolean;
   /** Sent on /auth/me; login sends it inside `access` instead */
   can_manage_users?: boolean;

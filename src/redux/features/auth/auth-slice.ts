@@ -53,7 +53,12 @@ const authSlice = createSlice({
       if (remember !== undefined) state.remember = remember;
       // Refresh may leave out `permissions`; keep the ones /auth/me gave for the same user
       const keptPermissions = state.user?.id === user.id ? state.user.permissions : undefined;
-      state.user = { ...user, permissions: user.permissions ?? keptPermissions };
+      const keptAccountPermissions = state.user?.id === user.id ? state.user.account_permissions : undefined;
+      state.user = {
+        ...user,
+        permissions: user.permissions ?? keptPermissions,
+        account_permissions: user.account_permissions ?? keptAccountPermissions,
+      };
       state.access = normalizeAccess(access, state.access);
       state.mustChangePassword = must_change_password || user.must_change_password;
     },

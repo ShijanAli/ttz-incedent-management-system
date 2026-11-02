@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router';
 import { Loader2 } from 'lucide-react';
 import AppLayout from '@/components/layout/app-layout';
-import { RequirePermission, RequireSuperAdmin } from '@/components/shared/require-permission';
+import { RequireAccountPermission, RequirePermission, RequireSuperAdmin } from '@/components/shared/require-permission';
 
 const Home = lazy(() => import('@/pages/home'));
 const LoginPage = lazy(() => import('@/pages/login'));
@@ -59,7 +59,7 @@ export default function App() {
           <Route path="/roles" element={<RequirePermission permission="roles.view"><RolesPage /></RequirePermission>} />
           <Route path="/roles/new" element={<RequirePermission permission="roles.create"><RoleEditorPage /></RequirePermission>} />
           <Route path="/roles/:id" element={<RequirePermission permission="roles.view"><RoleEditorPage /></RequirePermission>} />
-          <Route path="/users" element={<RequirePermission permission="users.view"><UsersPage /></RequirePermission>} />
+          <Route path="/users" element={<RequireAccountPermission permission="account.users.view"><UsersPage /></RequireAccountPermission>} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/unauthorized" element={<AccessDeniedPage />} />
         </Route>

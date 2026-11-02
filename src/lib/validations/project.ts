@@ -7,8 +7,8 @@ export const projectMemberSchema = z.object({
   user_id: z.number(),
   name: z.string(),
   designation: z.string().nullable(),
-  /** Empty string means "use the user's default role" */
-  role: z.string(),
+  /** Project label id as a string; empty string means no label */
+  label_id: z.string(),
 });
 
 export const projectFormSchema = z
