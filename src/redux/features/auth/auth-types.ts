@@ -18,13 +18,15 @@ export interface ApiUser {
    */
   permissions?: string[];
   /**
-   * System-wide permissions from the account role, sent by /auth/me (e.g. `account.users.view`).
-   * Separate from `permissions`, which are project-style.
+   * System-wide permissions from the account role (e.g. `account.users.view`). May be empty
+   * when the backend puts them inside `permissions` instead; auth-context reads both.
    */
   account_permissions?: string[];
   is_super_admin: boolean;
   /** Sent on /auth/me; login sends it inside `access` instead */
   can_manage_users?: boolean;
+  can_create_projects?: boolean;
+  account_role?: { id: number; name: string } | null;
   must_change_password: boolean;
   last_login_at: string | null;
   created_at: string;
@@ -40,6 +42,9 @@ export interface ProjectAccess {
 export interface UserAccess {
   is_super_admin: boolean;
   can_manage_users: boolean;
+  can_create_projects?: boolean;
+  /** Account role permissions (e.g. `account.groups.view`); login sends them here, /auth/me on the user */
+  account_permissions?: string[];
   projects: ProjectAccess[];
 }
 

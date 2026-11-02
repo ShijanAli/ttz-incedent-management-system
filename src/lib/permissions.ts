@@ -148,15 +148,32 @@ export function getPermissionModule(perm: Permission): PermissionModule {
 export const BASELINE_PERMISSIONS: Permission[] = ['dashboard.view', 'notifications.view', 'settings.view'];
 
 /**
- * API permission names that differ from the app's permission names. Names that
- * match an app permission (e.g. `issues.pick`, `comments.delete`) need no entry.
+ * Backend permission names (GET /admin/permissions) that unlock app permissions
+ * with a different name. Names that match an app permission (e.g. `issues.pick`,
+ * `comments.delete`) need no entry.
  */
 const API_PERMISSION_ALIASES: Record<string, Permission[]> = {
+  // ---- Project permissions ----
   'projects.edit': ['projects.update', 'projects.assign_members'],
   'issues.edit': ['issues.update'],
   'issues.status': ['issues.change_status'],
   'comments.create': ['issues.comment'],
-  'users.edit': ['users.view', 'users.update'],
+  // "Manage project members": project member list only, not the system Users page
+  'users.edit': ['projects.assign_members'],
+  // "Export audit log"
+  'reports.view': ['reports.export'],
+
+  // ---- Account (system-wide) permissions ----
+  'account.users.view': ['users.view'],
+  'account.users.create': ['users.create'],
+  'account.users.edit': ['users.update', 'users.deactivate'],
+  'account.groups.view': ['groups.view'],
+  'account.groups.create': ['groups.create'],
+  'account.groups.edit': ['groups.update', 'groups.manage_members'],
+  'account.groups.delete': ['groups.delete'],
+  'account.projects.create': ['projects.create'],
+  'account.projects.view_all': ['projects.view', 'issues.view'],
+  'account.projects.edit_all': ['projects.update', 'projects.assign_members'],
 };
 
 /**
@@ -166,7 +183,7 @@ const API_PERMISSION_ALIASES: Record<string, Permission[]> = {
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   Manager: [
-    'dashboard.view', 'projects.view', 'projects.edit', 'projects.delete',
+    'dashboard.view', 'projects.view', 'projects.edit',
     'issues.view', 'issues.create', 'issues.edit', 'issues.delete', 'issues.pick', 'issues.assign', 'issues.status',
     'users.edit', 'reports.view',
     'comments.view', 'comments.create', 'comments.edit', 'comments.delete',

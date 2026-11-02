@@ -19,7 +19,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Issues', href: '/issues', icon: TicketCheck, permission: 'issues.view' },
   { label: 'Users', href: '/users', icon: Users, permission: 'users.view', accountPermission: 'account.users.view' },
   { label: 'Roles & Permissions', href: '/roles', icon: ShieldCheck, permission: 'roles.view' },
-  { label: 'Groups', href: '/groups', icon: MessageSquare, permission: 'groups.view' },
+  { label: 'Groups', href: '/groups', icon: MessageSquare, permission: 'groups.view', accountPermission: 'account.groups.view' },
   { label: 'Reports', href: '/reports', icon: BarChart3, permission: 'reports.view' },
   { label: 'Activity Log', href: '/activity', icon: History, permission: 'activity.view' },
   { label: 'Notifications', href: '/notifications', icon: Bell, permission: 'notifications.view' },
@@ -27,9 +27,10 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * Pages only super admins see. Kept apart from NAV_ITEMS (which the role editor reads
- * to map permissions to modules); each one is shown right after the `after` link.
+ * Pages opened only by an account permission, with no app permission behind them.
+ * Kept apart from NAV_ITEMS (which the role editor reads to map permissions to
+ * modules); each one is shown right after the `after` link.
  */
-export const SUPER_ADMIN_NAV_ITEMS: (Omit<NavItem, 'permission'> & { after: string })[] = [
-  { label: 'Customers', href: '/customers', icon: Building2, after: '/groups' },
+export const ACCOUNT_NAV_ITEMS: (Omit<NavItem, 'permission' | 'accountPermission'> & { accountPermission: string; after: string })[] = [
+  { label: 'Customers', href: '/customers', icon: Building2, accountPermission: 'account.customers.view', after: '/groups' },
 ];

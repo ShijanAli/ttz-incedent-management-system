@@ -47,18 +47,37 @@ function defaultRolePermissions(user: ApiUser): string[] {
   return user.default_role ? DEFAULT_ROLE_PERMISSIONS[user.default_role] ?? [] : [];
 }
 
+const isAccountPermission = (perm: string) => perm.startsWith('account.');
+
+/**
+ * Account (system-wide) permissions. The backend may send them in `account_permissions`
+ * (user or login `access`) or mixed into the role's `permissions` list, so read all three.
+ */
+function accountPermissions(user: ApiUser | null, access: UserAccess | null): string[] {
+  return [...new Set([
+    ...(user?.account_permissions ?? []),
+    ...(access?.account_permissions ?? []),
+    ...(user?.permissions ?? []).filter(isAccountPermission),
+  ])];
+}
+
 function resolvePermissions(user: ApiUser, access: UserAccess | null): Permission[] {
   if (user.is_super_admin || access?.is_super_admin) return ALL_PERMISSIONS;
 
-  // Default role applies everywhere; project roles add to it per project
+  // Default role applies everywhere, project roles add to it per project,
+  // and the account role adds system-wide pages (users, groups, ...)
+  const accountPerms = accountPermissions(user, access);
   const result = toAppPermissions([
     ...defaultRolePermissions(user),
     ...(access?.projects?.flatMap((p) => p.permissions ?? []) ?? []),
+    ...accountPerms,
   ]);
   BASELINE_PERMISSIONS.forEach((p) => result.add(p));
-  if (user.can_manage_users || access?.can_manage_users) {
+  // Older payloads only send the flags, not the account permissions
+  if (accountPerms.length === 0 && (user.can_manage_users || access?.can_manage_users)) {
     (['users.view', 'users.create', 'users.update', 'users.deactivate'] as Permission[]).forEach((p) => result.add(p));
   }
+  if (user.can_create_projects || access?.can_create_projects) result.add('projects.create');
   return [...result];
 }
 
@@ -130,9 +149,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (perm: Permission) => session?.permissions.includes(perm) ?? false,
     [session],
   );
+  const accountPerms = useMemo(() => new Set(accountPermissions(user, access)), [user, access]);
   const hasAccountPermission = useCallback(
-    (perm: string) => isSuperAdmin || (user?.account_permissions?.includes(perm) ?? false),
-    [isSuperAdmin, user],
+    (perm: string) => isSuperAdmin || accountPerms.has(perm),
+    [isSuperAdmin, accountPerms],
   );
   const hasAnyPermission = useCallback(
     (perms: Permission[]) => (session ? perms.some((p) => session.permissions.includes(p)) : false),

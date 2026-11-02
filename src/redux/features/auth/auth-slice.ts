@@ -36,6 +36,8 @@ function normalizeAccess(access: Partial<UserAccess> | null | undefined, fallbac
   return {
     is_super_admin: access.is_super_admin ?? false,
     can_manage_users: access.can_manage_users ?? false,
+    can_create_projects: access.can_create_projects ?? fallback?.can_create_projects ?? false,
+    account_permissions: access.account_permissions ?? fallback?.account_permissions,
     projects: (access.projects ?? fallback?.projects ?? []).map((p) => ({ ...p, permissions: p.permissions ?? [] })),
   };
 }
@@ -70,6 +72,8 @@ const authSlice = createSlice({
       state.access = normalizeAccess(access, state.access) ?? {
         is_super_admin: user.is_super_admin,
         can_manage_users: user.can_manage_users ?? state.access?.can_manage_users ?? false,
+        can_create_projects: user.can_create_projects ?? state.access?.can_create_projects ?? false,
+        account_permissions: state.access?.account_permissions,
         projects: state.access?.projects ?? [],
       };
       state.mustChangePassword = user.must_change_password;

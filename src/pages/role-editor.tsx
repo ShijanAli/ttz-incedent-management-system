@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
 import { BASELINE_PERMISSIONS, getPermissionModule, toAppPermissions } from '@/lib/permissions';
-import { NAV_ITEMS } from '@/lib/nav-config';
+import { ACCOUNT_NAV_ITEMS, NAV_ITEMS } from '@/lib/nav-config';
 import {
   useCreateRoleMutation,
   useGetPermissionCatalogQuery,
@@ -34,8 +34,10 @@ type FormErrors = Partial<Record<'name' | 'description' | 'permissions', string>
 
 // Backend permissions that can cause damage or escalate privileges.
 const SENSITIVE_PERMS = new Set<string>([
-  'projects.delete', 'issues.delete', 'comments.delete', 'attachments.delete',
-  'issues.assign', 'users.edit',
+  'issues.delete', 'comments.delete', 'attachments.delete', 'issues.assign', 'users.edit',
+  'account.users.create', 'account.users.edit', 'account.groups.delete', 'account.customers.delete',
+  'account.categories.delete', 'account.statuses.delete', 'account.projects.edit_all',
+  'account.issues.force_close',
 ]);
 
 const MODULE_ICONS: Record<string, LucideIcon> = {
@@ -50,6 +52,8 @@ const isViewPerm = (perm: { action: string }) => perm.action === 'view';
 const NAV_MODULES = new Set<string>(NAV_ITEMS.map((item) => getPermissionModule(item.permission)));
 /** Modules used inside other pages (the issue detail), never as a sidebar link */
 const IN_PAGE_MODULES = new Set(['comments', 'attachments']);
+/** Account modules open sidebar pages only through NAV_ITEMS / ACCOUNT_NAV_ITEMS */
+const isAccountModule = (module: string) => module.startsWith('account.');
 
 type PreviewItem = { key: string; label: string; icon: LucideIcon };
 
@@ -228,9 +232,15 @@ function RoleEditorForm({ role, allRoles, modules }: RoleEditorFormProps) {
       .filter((item) => appPerms.has(item.permission) || (!!item.accountPermission && selectedPerms.has(item.accountPermission)))
       .map((item) => ({ key: item.href, label: item.label, icon: item.icon }));
 
+    for (const extra of ACCOUNT_NAV_ITEMS) {
+      if (!selectedPerms.has(extra.accountPermission)) continue;
+      const at = pages.findIndex((page) => page.key === extra.after);
+      pages.splice(at === -1 ? pages.length : at + 1, 0, { key: extra.href, label: extra.label, icon: extra.icon });
+    }
+
     // Catalog modules the app has no page mapping for yet still show, so new modules appear
     for (const mod of modules) {
-      if (NAV_MODULES.has(mod.module) || IN_PAGE_MODULES.has(mod.module)) continue;
+      if (NAV_MODULES.has(mod.module) || IN_PAGE_MODULES.has(mod.module) || isAccountModule(mod.module)) continue;
       const picked = mod.permissions.filter((p) => selectedPerms.has(p.name));
       if (picked.length === 0) continue;
       // A module with a view action opens only when that action is granted

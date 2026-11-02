@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router';
 import { Loader2 } from 'lucide-react';
 import AppLayout from '@/components/layout/app-layout';
-import { RequireAccountPermission, RequirePermission, RequireSuperAdmin } from '@/components/shared/require-permission';
+import { RequireAccountPermission, RequirePermission } from '@/components/shared/require-permission';
 
 const Home = lazy(() => import('@/pages/home'));
 const LoginPage = lazy(() => import('@/pages/login'));
@@ -52,7 +52,7 @@ export default function App() {
           <Route path="/issues/:id" element={<RequirePermission permission="issues.view"><IssueDetailPage /></RequirePermission>} />
           <Route path="/groups" element={<RequirePermission permission="groups.view"><GroupsPage /></RequirePermission>} />
           <Route path="/groups/:id" element={<RequirePermission permission="groups.view"><GroupDetailPage /></RequirePermission>} />
-          <Route path="/customers" element={<RequireSuperAdmin><CustomersPage /></RequireSuperAdmin>} />
+          <Route path="/customers" element={<RequireAccountPermission permission="account.customers.view"><CustomersPage /></RequireAccountPermission>} />
           <Route path="/activity" element={<RequirePermission permission="activity.view"><ActivityPage /></RequirePermission>} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/reports" element={<RequirePermission permission="reports.view"><ReportsPage /></RequirePermission>} />
