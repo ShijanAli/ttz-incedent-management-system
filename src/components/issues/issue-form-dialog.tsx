@@ -8,7 +8,7 @@ import { useGetProjectMembersQuery, useGetProjectQuery } from '@/redux/features/
 import type { ApiProject } from '@/redux/features/projects/projects-types';
 import { useCreateIssueMutation } from '@/redux/features/issues/issues-api';
 import {
-  useTriageIssueMutation, useUpdateIssueMutation, useUploadAttachmentMutation,
+  useTriageIssueMutation, useUpdateIssueMutation,
 } from '@/redux/features/issues/issue-detail-api';
 import { formatFileSize } from '@/lib/download';
 import { ISSUE_SOURCE_OPTIONS, type IssueDetail, type IssueSource } from '@/redux/features/issues/issues-types';
@@ -46,6 +46,8 @@ const API_FIELD_TO_ERROR: Record<string, string> = {
   due_date: 'dueDate',
   source: 'source',
   customer_id: 'customer',
+  // attachments.0, attachments.1 ... all land under the file picker
+  attachments: 'attachments',
 };
 
 interface IssueFormDialogProps {
@@ -76,10 +78,8 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
   const [createIssue, { isLoading: creating }] = useCreateIssueMutation();
   const [updateIssue, { isLoading: updating }] = useUpdateIssueMutation();
   const [triageIssue, { isLoading: triaging }] = useTriageIssueMutation();
-  const [uploadAttachment] = useUploadAttachmentMutation();
-  // Files picked in the create form; uploaded once the issue exists
+  // Files picked in the create form; sent with the create request
   const [files, setFiles] = useState<File[]>([]);
-  const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState('');
@@ -100,7 +100,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isEdit = !!issue;
-  const saving = creating || updating || triaging || uploading;
+  const saving = creating || updating || triaging;
   // Edits manage files from the issue's Files tab, so only the create form attaches them
   const canAttach = !isEdit && hasPermission('attachments.create');
   // In edit mode each part of the form follows what the API says this user may change.
@@ -199,22 +199,12 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
       ...list.filter((f) => f.size <= MAX_FILE_BYTES && !prev.some((p) => p.name === f.name && p.size === f.size)),
     ]);
     if (fileInput.current) fileInput.current.value = '';
+    clearError('attachments');
   };
 
-  const removeFile = (index: number) => setFiles((prev) => prev.filter((_, i) => i !== index));
-
-  /** Uploads the picked files to the new issue; a failed file never undoes the issue */
-  const uploadFiles = async (issueId: number) => {
-    setUploading(true);
-    // One request per file, so one bad file doesn't block the rest
-    const results = await Promise.allSettled(files.map((file) => uploadAttachment({ issueId, file }).unwrap()));
-    setUploading(false);
-    const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
-    if (failed.length) {
-      toast.warning(`${failed.length} of ${files.length} file${files.length !== 1 ? 's' : ''} failed to upload`, {
-        description: `${parseApiError(failed[0].reason).message} You can add them from the issue's Files tab.`,
-      });
-    }
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+    clearError('attachments');
   };
 
   const validate = (): boolean => {
@@ -250,7 +240,8 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
   const handleCreate = async () => {
     try {
       // The project goes in the URL (POST /projects/{id}/issues), not the body
-      const created = await createIssue({
+      // Files go in the same request (attachments[]), so the issue and its files save together
+      await createIssue({
         projectId: apiProjectId,
         title: title.trim(),
         description: description.trim() || null,
@@ -262,9 +253,9 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
         due_date: dueDate || null,
         source,
         ...(isComplaint && { customer_id: Number(customerId) }),
+        ...(canAttach && files.length > 0 && { attachments: files }),
       }).unwrap();
       toast.success('Issue created', { description: `"${title.trim()}" was added to ${project?.name ?? 'the project'}.` });
-      if (canAttach && files.length) await uploadFiles(created.id);
       close();
     } catch (err) {
       showApiErrors(err, 'Failed to create issue');
@@ -597,7 +588,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Up to 10 MB per file · Files upload after the issue is created
+                      Up to 10 MB per file
                     </p>
                   </div>
 
@@ -637,6 +628,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                       ))}
                     </div>
                   )}
+                  {errors.attachments && <p className="text-xs text-destructive">{errors.attachments}</p>}
                 </div>
               )}
             </>
@@ -648,7 +640,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
             </Button>
             <Button type="submit" disabled={saving || !showDetails}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isEdit ? 'Save changes' : uploading ? 'Uploading files...' : 'Create issue'}
+              {isEdit ? 'Save changes' : 'Create issue'}
             </Button>
           </DialogFooter>
         </form>

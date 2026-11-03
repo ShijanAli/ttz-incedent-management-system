@@ -143,6 +143,8 @@ export interface CreateIssueBody {
   source?: IssueSource;
   /** The complaining customer; only with source "customer_complaint" */
   customer_id?: number;
+  /** Files sent with the issue as `attachments[]` (multipart) */
+  attachments?: File[];
 }
 
 export interface CreateIssueRequest extends CreateIssueBody {

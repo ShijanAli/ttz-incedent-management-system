@@ -10,6 +10,7 @@ import {
 } from '@/redux/api/types';
 import type {
   ApiIssue,
+  CreateIssueBody,
   CreateIssueRequest,
   IssueListArgs,
   IssueListItem,
@@ -17,6 +18,21 @@ import type {
   IssueSummary,
   ProjectIssuesArgs,
 } from './issues-types';
+
+/**
+ * Multipart body for creating an issue with files. Arrays go as `key[]`, and null
+ * fields are left out (the API treats a missing field as empty).
+ */
+function toCreateFormData(body: Omit<CreateIssueBody, 'attachments'>, attachments: File[]) {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(body)) {
+    if (value === null || value === undefined) continue;
+    if (Array.isArray(value)) value.forEach((v) => form.append(`${key}[]`, String(v)));
+    else form.append(key, String(value));
+  }
+  attachments.forEach((file) => form.append('attachments[]', file));
+  return form;
+}
 
 const ISSUE_LIST_URL: Record<IssueListScope, string> = {
   admin: ENDPOINTS.ADMIN.ISSUES,
@@ -47,7 +63,12 @@ export const issuesApi = baseApi.injectEndpoints({
     }),
 
     createIssue: build.mutation<ApiIssue, CreateIssueRequest>({
-      query: ({ projectId, ...body }) => ({ url: ENDPOINTS.PROJECTS.ISSUES(projectId), method: 'POST', body }),
+      query: ({ projectId, attachments = [], ...body }) => ({
+        url: ENDPOINTS.PROJECTS.ISSUES(projectId),
+        method: 'POST',
+        // Files need a multipart body; without any, plain JSON is enough
+        body: attachments.length ? toCreateFormData(body, attachments) : body,
+      }),
       transformResponse: (res: ApiResponse<ApiIssue>) => res.data,
       // A new issue changes the project's issue counts and status breakdown
       invalidatesTags: (_result, _error, { projectId }) => [
