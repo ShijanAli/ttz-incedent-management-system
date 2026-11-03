@@ -31,8 +31,9 @@ export const ENDPOINTS = {
     /** Edit goes through the admin path; reading a user stays on USER */
     USER_EDIT: (id: number | string) => `/api/admin/users/${id}`,
     USER: (id: number | string) => `/api/users/${id}`,
+    USER_TOGGLES: (id: number | string) => `/api/admin/users/${id}`,
     USER_RESEND_INVITE: (id: number | string) =>
-      `/api/users/${id}/resend-invite`,
+      `/api/admin/users/${id}/resend-invite`,
     GROUPS: "/api/admin/groups",
     GROUP: (id: number | string) => `/api/admin/groups/${id}`,
     GROUP_MEMBERS: (id: number | string) => `/api/admin/groups/${id}/members`,

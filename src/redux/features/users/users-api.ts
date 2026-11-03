@@ -40,10 +40,6 @@ export const usersApi = baseApi.injectEndpoints({
       providesTags: (result) => provideInfiniteListTags("User", result),
     }),
 
-    /**
-     * People picker (add members, project and group forms). GET /api/users is open to every
-     * signed-in user, unlike /admin/users which is for the Users screen only.
-     */
     getUserDirectory: build.infiniteQuery<
       Paginated<AdminUser>,
       UserListParams,
@@ -96,7 +92,10 @@ export const usersApi = baseApi.injectEndpoints({
 
     /** The backend disables (soft-deletes) the account; it can be re-activated via update */
     disableUser: build.mutation<ApiResponse<unknown>, number>({
-      query: (id) => ({ url: ENDPOINTS.ADMIN.USER(id), method: "DELETE" }),
+      query: (id) => ({
+        url: ENDPOINTS.ADMIN.USER_TOGGLES(id),
+        method: "DELETE",
+      }),
       async onQueryStarted(id, api) {
         await withOptimisticUser(api, id, (user) => {
           user.status = DISABLED_STATUS;
