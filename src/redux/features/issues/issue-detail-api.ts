@@ -233,6 +233,34 @@ export const issueDetailApi = baseApi.injectEndpoints({
      * Downloads through the authenticated base query (so token refresh still works)
      * and hands the file straight to the browser; the Blob never enters the store.
      */
+    /**
+     * The file as a local object URL, for showing images and PDFs inline. The download
+     * endpoint needs the auth header, so a plain <img src> can't load it. The URL is
+     * freed when the cache entry goes away.
+     */
+    getAttachmentFile: build.query<string, Pick<IssueAttachment, 'id' | 'mime'>>({
+      async queryFn({ id, mime }, _api, _extra, baseQuery) {
+        const result = await baseQuery({
+          url: ENDPOINTS.ATTACHMENTS.DOWNLOAD(id),
+          responseHandler: (response) => response.blob(),
+        });
+        if (result.error) return { error: result.error as FetchBaseQueryError };
+        // Downloads may come back as application/octet-stream; the browser needs the real type to render it
+        const blob = new Blob([result.data as Blob], { type: mime || (result.data as Blob).type });
+        return { data: URL.createObjectURL(blob) };
+      },
+      async onCacheEntryAdded(_arg, { cacheDataLoaded, cacheEntryRemoved }) {
+        try {
+          const { data: url } = await cacheDataLoaded;
+          await cacheEntryRemoved;
+          URL.revokeObjectURL(url);
+        } catch {
+          // The fetch failed, so there is nothing to free
+        }
+      },
+      keepUnusedDataFor: 300,
+    }),
+
     downloadAttachment: build.mutation<null, Pick<IssueAttachment, 'id' | 'original_name'>>({
       async queryFn({ id, original_name }, _api, _extra, baseQuery) {
         const result = await baseQuery({
@@ -256,6 +284,7 @@ export const useGetIssueCommentsInfiniteQuery = alwaysFresh(issueDetailApi.useGe
 export const useGetIssueAttachmentsQuery = alwaysFresh(issueDetailApi.useGetIssueAttachmentsQuery);
 
 export const {
+  useGetAttachmentFileQuery,
   useUpdateIssueMutation,
   useTriageIssueMutation,
   useDeleteIssueMutation,

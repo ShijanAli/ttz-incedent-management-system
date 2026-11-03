@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
 import { useProjectCan } from '@/hooks/use-project-can';
@@ -7,7 +7,10 @@ import { MemberMultiSelect } from '@/components/members/member-multi-select';
 import { useGetProjectMembersQuery, useGetProjectQuery } from '@/redux/features/projects/projects-api';
 import type { ApiProject } from '@/redux/features/projects/projects-types';
 import { useCreateIssueMutation } from '@/redux/features/issues/issues-api';
-import { useTriageIssueMutation, useUpdateIssueMutation } from '@/redux/features/issues/issue-detail-api';
+import {
+  useTriageIssueMutation, useUpdateIssueMutation, useUploadAttachmentMutation,
+} from '@/redux/features/issues/issue-detail-api';
+import { formatFileSize } from '@/lib/download';
 import { ISSUE_SOURCE_OPTIONS, type IssueDetail, type IssueSource } from '@/redux/features/issues/issues-types';
 import { CustomerSelect } from '@/components/customers/customer-select';
 import {
@@ -22,7 +25,8 @@ import { Separator } from '@/components/ui/separator';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Loader2, X, AlertCircle, FolderKanban } from 'lucide-react';
+import { Loader2, X, AlertCircle, FolderKanban, Paperclip, UploadCloud } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { getSeverityKey, isMyReport } from '@/lib/shared-utils';
 import { useIssueOptions } from '@/redux/features/issues/issue-options-api';
@@ -53,10 +57,13 @@ interface IssueFormDialogProps {
   onSaved: () => void;
 }
 
+/** Per-file limit from the API spec; bigger files are rejected before upload */
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
 const sameList = <T,>(a: T[], b: T[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
 
 export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, onSaved }: IssueFormDialogProps) {
-  const { session } = useAuth();
+  const { session, hasPermission } = useAuth();
   const issueOptions = useIssueOptions();
   const projectCan = useProjectCan();
   // Only projects where the signed-in user may create issues. The list response has no
@@ -69,6 +76,12 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
   const [createIssue, { isLoading: creating }] = useCreateIssueMutation();
   const [updateIssue, { isLoading: updating }] = useUpdateIssueMutation();
   const [triageIssue, { isLoading: triaging }] = useTriageIssueMutation();
+  const [uploadAttachment] = useUploadAttachmentMutation();
+  // Files picked in the create form; uploaded once the issue exists
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [projectId, setProjectId] = useState('');
@@ -87,7 +100,9 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isEdit = !!issue;
-  const saving = creating || updating || triaging;
+  const saving = creating || updating || triaging || uploading;
+  // Edits manage files from the issue's Files tab, so only the create form attaches them
+  const canAttach = !isEdit && hasPermission('attachments.create');
   // In edit mode each part of the form follows what the API says this user may change.
   // The reporter may change everything they filled in when creating it.
   const reportedByMe = !!issue && isMyReport(issue, session ? Number(session.user.id) : undefined);
@@ -120,6 +135,8 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
         setCustomerId('');
       }
       setLabelInput('');
+      setFiles([]);
+      setDragging(false);
       setErrors({});
     }
   }, [open, issue, defaultProjectId]);
@@ -167,6 +184,39 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
     setLabels(labels.filter((l) => l !== label));
   };
 
+  const addFiles = (picked: FileList | null) => {
+    if (!picked?.length) return;
+    const list = Array.from(picked);
+    const tooBig = list.filter((f) => f.size > MAX_FILE_BYTES);
+    if (tooBig.length) {
+      toast.error(`${tooBig.length} file${tooBig.length !== 1 ? 's are' : ' is'} over 10 MB`, {
+        description: tooBig.map((f) => f.name).join(', '),
+      });
+    }
+    // Skip files already in the list (same name and size)
+    setFiles((prev) => [
+      ...prev,
+      ...list.filter((f) => f.size <= MAX_FILE_BYTES && !prev.some((p) => p.name === f.name && p.size === f.size)),
+    ]);
+    if (fileInput.current) fileInput.current.value = '';
+  };
+
+  const removeFile = (index: number) => setFiles((prev) => prev.filter((_, i) => i !== index));
+
+  /** Uploads the picked files to the new issue; a failed file never undoes the issue */
+  const uploadFiles = async (issueId: number) => {
+    setUploading(true);
+    // One request per file, so one bad file doesn't block the rest
+    const results = await Promise.allSettled(files.map((file) => uploadAttachment({ issueId, file }).unwrap()));
+    setUploading(false);
+    const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (failed.length) {
+      toast.warning(`${failed.length} of ${files.length} file${files.length !== 1 ? 's' : ''} failed to upload`, {
+        description: `${parseApiError(failed[0].reason).message} You can add them from the issue's Files tab.`,
+      });
+    }
+  };
+
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
     if (!projectId) errs.project = 'Project is required';
@@ -200,7 +250,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
   const handleCreate = async () => {
     try {
       // The project goes in the URL (POST /projects/{id}/issues), not the body
-      await createIssue({
+      const created = await createIssue({
         projectId: apiProjectId,
         title: title.trim(),
         description: description.trim() || null,
@@ -214,6 +264,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
         ...(isComplaint && { customer_id: Number(customerId) }),
       }).unwrap();
       toast.success('Issue created', { description: `"${title.trim()}" was added to ${project?.name ?? 'the project'}.` });
+      if (canAttach && files.length) await uploadFiles(created.id);
       close();
     } catch (err) {
       showApiErrors(err, 'Failed to create issue');
@@ -485,6 +536,109 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
                 )}
                 {errors.labels && <p className="text-xs text-destructive">{errors.labels}</p>}
               </div>
+
+              {canAttach && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="issueAttachments">Attachments</Label>
+                  <input
+                    ref={fileInput}
+                    id="issueAttachments"
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => addFiles(e.target.files)}
+                  />
+                  <div
+                    role="button"
+                    tabIndex={saving ? -1 : 0}
+                    aria-disabled={saving}
+                    aria-label="Add attachments: drop files here or press Enter to browse"
+                    onClick={() => !saving && fileInput.current?.click()}
+                    onKeyDown={(e) => {
+                      if (!saving && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); fileInput.current?.click(); }
+                    }}
+                    onDragEnter={(e) => { e.preventDefault(); if (!saving) setDragging(true); }}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = saving ? 'none' : 'copy'; }}
+                    onDragLeave={(e) => {
+                      // Ignore leaving into a child element
+                      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragging(false);
+                      if (!saving) addFiles(e.dataTransfer.files);
+                    }}
+                    className={cn(
+                      'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-all',
+                      'outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                      dragging
+                        ? 'scale-[1.01] border-primary bg-primary/5'
+                        : 'border-muted-foreground/25 bg-muted/20 hover:border-primary/50 hover:bg-muted/40',
+                      saving && 'pointer-events-none opacity-60',
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'flex h-11 w-11 items-center justify-center rounded-full transition-colors',
+                        dragging ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary',
+                      )}
+                    >
+                      <UploadCloud className="h-5 w-5" />
+                    </div>
+                    <div className="text-sm">
+                      {dragging ? (
+                        <span className="font-medium text-primary">Drop files to attach</span>
+                      ) : (
+                        <>
+                          <span className="font-medium">Drag &amp; drop files here</span>
+                          <span className="text-muted-foreground"> or </span>
+                          <span className="font-medium text-primary underline-offset-4 hover:underline">browse</span>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Up to 10 MB per file · Files upload after the issue is created
+                    </p>
+                  </div>
+
+                  {files.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        {files.length} file{files.length !== 1 ? 's' : ''} ready ·{' '}
+                        {formatFileSize(files.reduce((sum, f) => sum + f.size, 0))}
+                      </p>
+                      {files.map((file, i) => (
+                        <div
+                          key={`${file.name}-${file.size}`}
+                          className="group flex items-center gap-3 rounded-lg border bg-background p-2 pr-1 shadow-sm transition-colors hover:bg-muted/40 animate-fade-in"
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                            <Paperclip className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-medium" title={file.name}>{file.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatFileSize(file.size)}
+                              {file.name.includes('.') && ` · ${file.name.split('.').pop()!.toUpperCase()}`}
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => removeFile(i)}
+                            disabled={saving}
+                            aria-label={`Remove ${file.name}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
 
@@ -494,7 +648,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
             </Button>
             <Button type="submit" disabled={saving || !showDetails}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isEdit ? 'Save changes' : 'Create issue'}
+              {isEdit ? 'Save changes' : uploading ? 'Uploading files...' : 'Create issue'}
             </Button>
           </DialogFooter>
         </form>

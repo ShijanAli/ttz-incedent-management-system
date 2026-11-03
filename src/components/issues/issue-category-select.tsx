@@ -11,7 +11,7 @@ import { ColorSwatchPicker, SWATCH_COLORS } from '@/components/shared/color-swat
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 
 /** "UI Problem" → "ui-problem" */
@@ -28,7 +28,7 @@ interface IssueCategorySelectProps {
 
 /**
  * Category picker for the issue form, backed by GET /issue-categories (or the admin
- * list with account.categories.view). account.categories.create adds an "Add custom category" button that
+ * list with account.categories.view). account.categories.create adds a "+" button beside it that
  * opens a small inline form; the new category is selected as soon as it is created.
  */
 export function IssueCategorySelect({ id, value, onChange, disabled }: IssueCategorySelectProps) {
@@ -80,46 +80,53 @@ export function IssueCategorySelect({ id, value, onChange, disabled }: IssueCate
 
   return (
     <div className="space-y-2">
-      <Select open={menuOpen} onOpenChange={setMenuOpen} value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger id={id} className="gap-2 [&>span]:min-w-0">
-          <SelectValue placeholder={isLoading ? 'Loading categories...' : 'Select category'} />
-        </SelectTrigger>
-        <SelectContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center gap-2 px-2 py-3 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading categories...
-            </div>
-          ) : isError ? (
-            <div className="space-y-2 px-2 py-3 text-center text-xs">
-              <p className="text-destructive">{parseApiError(error, 'Failed to load categories.').message}</p>
-              <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>
-            </div>
-          ) : options.length === 0 ? (
-            <div className="px-2 py-3 text-center text-xs text-muted-foreground">No categories yet.</div>
-          ) : (
-            options.map((c) => (
-              <SelectItem key={c.id} value={String(c.id)} title={c.name}>
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
-                  <span className="truncate">{c.name}</span>
-                </span>
-              </SelectItem>
-            ))
-          )}
-          {canAdd && (
-            <>
-              <SelectSeparator />
-              <button
-                type="button"
-                onClick={openAddForm}
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-medium text-primary outline-none hover:bg-accent focus-visible:bg-accent"
-              >
-                <Plus className="h-4 w-4" /> Add custom category
-              </button>
-            </>
-          )}
-        </SelectContent>
-      </Select>
+      <div className="flex gap-2">
+        <div className="min-w-0 flex-1">
+          <Select open={menuOpen} onOpenChange={setMenuOpen} value={value} onValueChange={onChange} disabled={disabled}>
+            <SelectTrigger id={id} className="gap-2 [&>span]:min-w-0">
+              <SelectValue placeholder={isLoading ? 'Loading categories...' : 'Select category'} />
+            </SelectTrigger>
+            <SelectContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center gap-2 px-2 py-3 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading categories...
+                </div>
+              ) : isError ? (
+                <div className="space-y-2 px-2 py-3 text-center text-xs">
+                  <p className="text-destructive">{parseApiError(error, 'Failed to load categories.').message}</p>
+                  <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>
+                </div>
+              ) : options.length === 0 ? (
+                <div className="px-2 py-3 text-center text-xs text-muted-foreground">No categories yet.</div>
+              ) : (
+                options.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)} title={c.name}>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
+                      <span className="truncate">{c.name}</span>
+                    </span>
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+        {/* The only way in; the inline form below has its own cancel button */}
+        {canAdd && (
+          <Button
+            type="button"
+            variant={adding ? 'secondary' : 'outline'}
+            size="icon"
+            className="shrink-0"
+            onClick={openAddForm}
+            disabled={disabled || creating || adding}
+            aria-label="Add new category"
+            title="Add new category"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
 
       {canAdd && adding && (
         <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
