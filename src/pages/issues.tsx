@@ -129,7 +129,9 @@ const isSet = (key: keyof FilterState, value: string) => value !== EMPTY_FILTERS
 const pick = <T extends string>(value: string): T | undefined => (value === ALL ? undefined : (value as T));
 
 export default function IssuesPage() {
-  const { session, hasPermission, isSuperAdmin } = useAuth();
+  const { session, hasPermission, hasAccountPermission } = useAuth();
+  // account.projects.view_all (and super admins) read the admin list, which covers every project
+  const viewAll = hasAccountPermission('account.projects.view_all');
   const issueOptions = useIssueOptions();
   const [filters, setFilters] = useUrlFilters();
   // Lets an issue's breadcrumb come back to this exact view and filters
@@ -199,7 +201,7 @@ export default function IssuesPage() {
 
   // Super admins see every issue; everyone else sees the issues of their projects
   const tableList = useInfiniteList(
-    useGetIssuesInfiniteQuery({ scope: isSuperAdmin ? 'admin' : 'my', ...params }, { skip: boardActive }),
+    useGetIssuesInfiniteQuery({ scope: viewAll ? 'admin' : 'my', ...params }, { skip: boardActive }),
   );
   const boardList = useInfiniteList(
     useGetProjectIssuesInfiniteQuery({ projectId: boardProjectId, ...boardFilters }, { skip: !boardActive }),
@@ -234,7 +236,7 @@ export default function IssuesPage() {
     <div className="animate-fade-in">
       <PageHeader
         title="Issues"
-        description={isSuperAdmin ? 'Every issue across all projects.' : 'Issues in the projects you belong to.'}
+        description={viewAll ? 'Every issue across all projects.' : 'Issues in the projects you belong to.'}
         breadcrumbs={[{ label: 'Issues' }]}
         actions={
           <div className="flex items-center gap-2">

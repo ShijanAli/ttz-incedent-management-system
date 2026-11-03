@@ -123,7 +123,8 @@ function sortProjects(projects: DashboardProject[], sortBy: SortKey): DashboardP
 
 /** The dashboard for every role; the API scopes the numbers to what the user can see */
 export function DashboardOverview() {
-  const { session, isSuperAdmin } = useAuth();
+  const { session, isSuperAdmin, hasAccountPermission } = useAuth();
+  const viewAll = hasAccountPermission('account.projects.view_all');
   const defaultRole = useAppSelector(selectAuth).user?.default_role;
   const focus: IssueFocus = isSuperAdmin ? 'all' : defaultRole === 'Reporter' ? 'reported' : 'assigned';
   const [sortBy, setSortBy] = useState<SortKey>('open');
@@ -247,8 +248,8 @@ export function DashboardOverview() {
                   project={p}
                   myId={Number(session.user.id)}
                   focus={focus}
-                  // Super admins read the admin list, which covers projects they aren't a member of
-                  scope={isSuperAdmin ? 'admin' : 'my'}
+                  // account.projects.view_all reads the admin list, which covers projects they aren't a member of
+                  scope={viewAll ? 'admin' : 'my'}
                 />
               ))
             )}

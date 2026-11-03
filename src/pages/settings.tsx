@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 import type { IssueStatus } from '@/lib/types';
 
 export default function SettingsPage() {
-  const { session, hasPermission, isSuperAdmin } = useAuth();
+  const { session, hasPermission, hasAccountPermission, isSuperAdmin } = useAuth();
 
   const [systemSettings, setSystemSettings] = useState(() => settingsRepo.get());
 
@@ -66,8 +66,8 @@ export default function SettingsPage() {
 
         <NotificationPreferencesCard />
 
-        {/* Default workflow statuses - super admin only (the /admin/statuses API is theirs) */}
-        {isSuperAdmin && <WorkflowStatusesCard />}
+        {/* Default workflow statuses (/admin/statuses), for super admins and account.statuses.view */}
+        {hasAccountPermission('account.statuses.view') && <WorkflowStatusesCard />}
 
         {/* Project labels (Backend Developer ...) - super admin only (the /admin/project-labels API is theirs) */}
         {isSuperAdmin && <ProjectLabelsCard />}

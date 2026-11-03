@@ -93,7 +93,7 @@ export default function IssueDetailPage() {
 function IssueDetailView({ issue }: { issue: IssueDetail }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { session, isSuperAdmin, hasPermission } = useAuth();
+  const { session, isSuperAdmin, hasPermission, hasAccountPermission } = useAuth();
   const defaultRole = useAppSelector(selectAuth).user?.default_role;
   const myId = session ? Number(session.user.id) : undefined;
   // Only reporters (by default role) and super admins confirm a fix or send it back
@@ -120,8 +120,8 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
     viewFiles: hasPermission('attachments.view'),
     upload: open && abilities.can_upload && hasPermission('attachments.create'),
     deleteFiles: open && hasPermission('attachments.delete'),
-    // Super admin only; the API's own flag wins, and an open issue is the fallback when it is missing
-    forceClose: abilities.can_force_close ?? (isSuperAdmin && open),
+    // account.issues.force_close; the API's own flag wins, and an open issue is the fallback when it is missing
+    forceClose: abilities.can_force_close ?? (hasAccountPermission('account.issues.force_close') && open),
   };
   const tabs = ISSUE_TABS.filter((t) => (t === 'comments' ? can.viewComments : t === 'attachments' ? can.viewFiles : true));
   const [tab, setTab] = useTabParam(tabs, tabs[0]);
@@ -545,7 +545,7 @@ function ForceCloseDialog({
           <DialogTitle>Force close {code}</DialogTitle>
           <DialogDescription>
             This closes the issue straight away, whatever state it and its assignees are in. The reporter and
-            assignees are notified. A super admin can reopen it later.
+            assignees are notified. An admin can reopen it later.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">

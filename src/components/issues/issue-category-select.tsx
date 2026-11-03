@@ -28,13 +28,16 @@ interface IssueCategorySelectProps {
 
 /**
  * Category picker for the issue form, backed by GET /issue-categories (or the admin
- * list for super admins). Super admins also get an "Add custom category" button that
+ * list with account.categories.view). account.categories.create adds an "Add custom category" button that
  * opens a small inline form; the new category is selected as soon as it is created.
  */
 export function IssueCategorySelect({ id, value, onChange, disabled }: IssueCategorySelectProps) {
-  // Categories are managed through the admin API, so only super admins can add one
-  const { isSuperAdmin } = useAuth();
-  const { data: categories = [], isLoading, isError, error, refetch } = useGetIssueCategoriesQuery({ admin: isSuperAdmin });
+  // Categories are managed through the admin API (account.categories.* permissions)
+  const { hasAccountPermission } = useAuth();
+  const canAdd = hasAccountPermission('account.categories.create');
+  const { data: categories = [], isLoading, isError, error, refetch } = useGetIssueCategoriesQuery({
+    admin: hasAccountPermission('account.categories.view'),
+  });
   const [createCategory, { isLoading: creating }] = useCreateIssueCategoryMutation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -103,7 +106,7 @@ export function IssueCategorySelect({ id, value, onChange, disabled }: IssueCate
               </SelectItem>
             ))
           )}
-          {isSuperAdmin && (
+          {canAdd && (
             <>
               <SelectSeparator />
               <button
@@ -118,7 +121,7 @@ export function IssueCategorySelect({ id, value, onChange, disabled }: IssueCate
         </SelectContent>
       </Select>
 
-      {isSuperAdmin && adding && (
+      {canAdd && adding && (
         <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
           <div className="flex gap-2">
             <Input

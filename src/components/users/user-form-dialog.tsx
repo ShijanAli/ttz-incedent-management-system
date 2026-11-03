@@ -22,8 +22,6 @@ import {
 import type { AdminUser } from '@/redux/features/users/users-types';
 
 const FIELDS = ['name', 'email', 'designation', 'department', 'phone', 'default_role'] as const;
-/** Radix radio items cannot use an empty value */
-const NO_ROLE = '__none__';
 
 const toNullable = (value: string) => value || null;
 
@@ -37,9 +35,10 @@ interface UserFormDialogProps {
 export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps) {
   // Fetch the latest copy so the form never edits stale list data
   const { data: freshUser, isLoading: loadingUser } = useGetUserQuery(user?.id ?? 0, { skip: !open || !user });
-  // The account role list is super admin only (403 for everyone else), so others don't get the picker
-  const { isSuperAdmin } = useAuth();
-  const { data: roles = [], isLoading: loadingRoles } = useGetRolesQuery(undefined, { skip: !open || !isSuperAdmin });
+  // The role list (GET /admin/roles) needs account.roles.view, so others don't get the picker
+  const { hasAccountPermission } = useAuth();
+  const canPickRole = hasAccountPermission('account.roles.view');
+  const { data: roles = [], isLoading: loadingRoles } = useGetRolesQuery(undefined, { skip: !open || !canPickRole });
 
   const loading = loadingRoles || (Boolean(user) && loadingUser);
 
@@ -65,7 +64,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
             key={user?.id ?? 'new'}
             user={freshUser ?? user}
             roles={roles}
-            canPickRole={isSuperAdmin}
+            canPickRole={canPickRole}
             onDone={() => onOpenChange(false)}
           />
         )}
@@ -77,7 +76,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
 interface UserFormProps {
   user: AdminUser | null;
   roles: ApiRole[];
-  /** Only super admins can set the account role */
+  /** Only users who can see the role list (account.roles.view) set the default role */
   canPickRole: boolean;
   onDone: () => void;
 }
@@ -92,6 +91,7 @@ function UserForm({ user, roles, canPickRole, onDone }: UserFormProps) {
     control,
     handleSubmit,
     setError,
+    watch,
     formState: { errors },
   } = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
@@ -105,7 +105,14 @@ function UserForm({ user, roles, canPickRole, onDone }: UserFormProps) {
     },
   });
 
+  // A role is required whenever the picker is shown
+  const missingRole = canPickRole && !watch('default_role');
+
   const onSubmit = async (values: UserFormValues) => {
+    if (missingRole) {
+      setError('default_role', { message: 'Please select a default role.' });
+      return;
+    }
     const shared = {
       name: values.name,
       phone: toNullable(values.phone),
@@ -182,7 +189,9 @@ function UserForm({ user, roles, canPickRole, onDone }: UserFormProps) {
 
       {/* Role assignment section */}
       {canPickRole && <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Default Role</h3>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+          Default Role <span className="text-destructive">*</span>
+        </h3>
         <p className="text-xs text-muted-foreground">
           The role this user gets by default when added to a project.
         </p>
@@ -192,12 +201,11 @@ function UserForm({ user, roles, canPickRole, onDone }: UserFormProps) {
           render={({ field }) => (
             <div className="max-h-[260px] overflow-y-auto rounded-lg border">
               <RadioGroup
-                value={field.value || NO_ROLE}
-                onValueChange={(v) => field.onChange(v === NO_ROLE ? '' : v)}
+                value={field.value}
+                onValueChange={(v) => field.onChange(v)}
                 disabled={saving}
                 className="gap-0 divide-y"
               >
-                <RoleOption value={NO_ROLE} title="No default role" description="Assign a role per project instead." />
                 {roles.map((role) => (
                   <RoleOption
                     key={role.id}
@@ -218,7 +226,7 @@ function UserForm({ user, roles, canPickRole, onDone }: UserFormProps) {
         <Button type="button" variant="outline" onClick={onDone} disabled={saving}>
           Cancel
         </Button>
-        <Button type="submit" disabled={saving}>
+        <Button type="submit" disabled={saving || missingRole}>
           {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {user ? 'Save changes' : 'Create user'}
         </Button>

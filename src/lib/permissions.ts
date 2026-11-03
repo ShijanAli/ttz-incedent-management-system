@@ -174,6 +174,10 @@ const API_PERMISSION_ALIASES: Record<string, Permission[]> = {
   'account.projects.create': ['projects.create'],
   'account.projects.view_all': ['projects.view', 'issues.view'],
   'account.projects.edit_all': ['projects.update', 'projects.assign_members'],
+  // Read-only: creating and editing roles stays with super admins
+  'account.roles.view': ['roles.view'],
+  // account.customers.*, account.categories.*, account.statuses.* and account.issues.*
+  // have no app permission; pages check them with hasAccountPermission
 };
 
 /**

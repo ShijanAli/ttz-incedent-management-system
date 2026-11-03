@@ -22,7 +22,9 @@ type Result =
 
 export function GlobalSearch() {
   const navigate = useNavigate();
-  const { session, hasPermission, isSuperAdmin } = useAuth();
+  const { session, hasPermission, hasAccountPermission } = useAuth();
+  // account.projects.view_all (and super admins) read the admin list, which covers every project
+  const viewAll = hasAccountPermission('account.projects.view_all');
   const userId = session?.user.id;
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -51,7 +53,7 @@ export function GlobalSearch() {
     { skip: !ready || !canProjects },
   );
   const issuesQuery = useGetIssuesInfiniteQuery(
-    { scope: isSuperAdmin ? 'admin' : 'my', search: term, per_page: RESULTS_PER_GROUP },
+    { scope: viewAll ? 'admin' : 'my', search: term, per_page: RESULTS_PER_GROUP },
     { skip: !ready || !canIssues },
   );
   const projects = projectsQuery.data?.pages[0]?.items ?? [];
