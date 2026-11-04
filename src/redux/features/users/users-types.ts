@@ -19,6 +19,8 @@ export interface AdminUser extends Omit<ApiUser, 'can_manage_users' | 'status'> 
   /** Role name, e.g. "Developer" */
   default_role: string | null;
   department?: string | null;
+  /** When a pending invitation stops working; null once accepted */
+  invite_expires_at?: string | null;
 }
 
 export interface UserListParams extends InfiniteListParams {

@@ -77,6 +77,7 @@ export const ENDPOINTS = {
     STATUS: (id: number | string) => `/api/issues/${id}/status`,
     PICK: (id: number | string) => `/api/issues/${id}/pick`,
     REVIEW: (id: number | string) => `/api/issues/${id}/review`,
+    REOPEN: (id: number | string) => `/api/issues/${id}/reopen`,
     ASSIGNEES: (id: number | string) => `/api/issues/${id}/assignees`,
     ASSIGNEE: (id: number | string, userId: number | string) =>
       `/api/issues/${id}/assignees/${userId}`,

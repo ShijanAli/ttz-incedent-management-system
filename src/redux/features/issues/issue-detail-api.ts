@@ -20,6 +20,7 @@ import type {
   IssueDetail,
   IssueHistoryEntry,
   OverrideAssigneeStatusRequest,
+  ReopenIssueRequest,
   ReviewIssueRequest,
   TriageIssueRequest,
   UpdateIssueRequest,
@@ -143,6 +144,16 @@ export const issueDetailApi = baseApi.injectEndpoints({
         url: ENDPOINTS.ISSUES.REVIEW(issueId),
         method: 'POST',
         body: { decision, ...(comment && { comment }) },
+      }),
+      invalidatesTags: (_result, _error, { issueId }) => [...issueChangedTags(issueId), ...commentTags(issueId)],
+    }),
+
+    /** Reopens a closed issue */
+    reopenIssue: build.mutation<ApiResponse<unknown>, ReopenIssueRequest>({
+      query: ({ issueId, comment, endpoint }) => ({
+        url: endpoint ? endpoint.replace(/^[A-Z]+s+/, '') : ENDPOINTS.ISSUES.REOPEN(issueId),
+        method: 'POST',
+        body: comment ? { comment } : {},
       }),
       invalidatesTags: (_result, _error, { issueId }) => [...issueChangedTags(issueId), ...commentTags(issueId)],
     }),
@@ -291,6 +302,7 @@ export const {
   useChangeMyIssueStatusMutation,
   useOverrideAssigneeStatusMutation,
   useReviewIssueMutation,
+  useReopenIssueMutation,
   useForceCloseIssueMutation,
   useAssignIssueMutation,
   useUnassignIssueMutation,

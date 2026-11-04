@@ -27,13 +27,15 @@ interface IssueAssigneesProps {
   issueId: number;
   assignees: IssueAssignee[];
   canAssign: boolean;
+  /** Assignees whose status the user may set (status_actions.others); all of them when left out */
+  overridableIds?: number[];
   /** The project's members, offered when assigning */
   members: ProjectMember[];
   statuses: IssueColoredRef[];
 }
 
 /** Assignee list for the Details card, each with their own status and progress */
-export function IssueAssignees({ issueId, assignees, canAssign, members, statuses }: IssueAssigneesProps) {
+export function IssueAssignees({ issueId, assignees, canAssign, overridableIds, members, statuses }: IssueAssigneesProps) {
   const [assignIssue, { isLoading: assigning }] = useAssignIssueMutation();
   const [unassignIssue] = useUnassignIssueMutation();
   const [overrideStatus] = useOverrideAssigneeStatusMutation();
@@ -41,6 +43,7 @@ export function IssueAssignees({ issueId, assignees, canAssign, members, statuse
   const [confirmRemove, setConfirmRemove] = useState<IssueAssignee | null>(null);
   const [overriding, setOverriding] = useState<IssueAssignee | null>(null);
 
+  const canOverride = (a: IssueAssignee) => (overridableIds ? overridableIds.includes(a.user.id) : canAssign);
   const assignedIds = new Set(assignees.map((a) => a.user.id));
   const assignable = members.filter((m) => m.user.status === 'active' && !assignedIds.has(m.user.id));
 
@@ -85,7 +88,7 @@ export function IssueAssignees({ issueId, assignees, canAssign, members, statuse
                   <span className="tabular-nums">{a.progress}%</span>
                 </div>
               </div>
-              {canAssign && (
+              {(canAssign || canOverride(a)) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" aria-label={`Actions for ${a.user.name}`}>
@@ -93,12 +96,16 @@ export function IssueAssignees({ issueId, assignees, canAssign, members, statuse
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setOverriding(a)}>
-                      <RefreshCw className="mr-2 h-4 w-4" /> Set their status
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setConfirmRemove(a)} className="text-destructive">
-                      <UserMinus className="mr-2 h-4 w-4" /> Unassign
-                    </DropdownMenuItem>
+                    {canOverride(a) && (
+                      <DropdownMenuItem onClick={() => setOverriding(a)}>
+                        <RefreshCw className="mr-2 h-4 w-4" /> Set their status
+                      </DropdownMenuItem>
+                    )}
+                    {canAssign && (
+                      <DropdownMenuItem onClick={() => setConfirmRemove(a)} className="text-destructive">
+                        <UserMinus className="mr-2 h-4 w-4" /> Unassign
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}

@@ -3,17 +3,15 @@ import { Link, useLocation, useParams, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import {
   Pencil, Trash2, Paperclip, CheckCircle2, AlertCircle, History as HistoryIcon, MessageSquare, Hand,
-  LogOut, RotateCcw, Loader2, Hourglass, Activity as ActivityIcon, XCircle,
+  LogOut, RotateCcw, Loader2, Hourglass, Activity as ActivityIcon, XCircle, Undo2,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useTabParam } from '@/hooks/use-tab-param';
 import { useIssuePeople } from '@/hooks/use-issue-people';
-import { useAppSelector } from '@/redux/hooks';
-import { selectAuth } from '@/redux/features/auth/auth-slice';
 import { parseApiError } from '@/lib/api-error';
 import { lastIssuesUrl } from '@/lib/last-issues-url';
 import {
-  ISSUE_SEVERITY_OPTIONS, formatDate, getAvatarColor, getSeverityKey, isIssueClosed, isMyReport, isOverdue,
+  ISSUE_SEVERITY_OPTIONS, formatDate, getAvatarColor, getSeverityKey, isIssueClosed, isOverdue,
 } from '@/lib/shared-utils';
 import { sortStatuses } from '@/lib/project-utils';
 import {
@@ -23,6 +21,7 @@ import {
   useGetIssueAssigneesQuery,
   useGetIssueQuery,
   usePickIssueMutation,
+  useReopenIssueMutation,
   useReviewIssueMutation,
   useUnpickIssueMutation,
 } from '@/redux/features/issues/issue-detail-api';
@@ -93,35 +92,32 @@ export default function IssueDetailPage() {
 function IssueDetailView({ issue }: { issue: IssueDetail }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { session, isSuperAdmin, hasPermission } = useAuth();
-  const defaultRole = useAppSelector(selectAuth).user?.default_role;
+  const { session, hasPermission } = useAuth();
   const myId = session ? Number(session.user.id) : undefined;
-  // Only reporters (by default role) and super admins confirm a fix or send it back
-  const canReview = isSuperAdmin || defaultRole === 'Reporter' || hasPermission('account.issues.review_any');
   const closed = isIssueClosed(issue);
 
-  // An action needs the user's permission and the issue's own ability;
-  // closed issues are read-only on top of that
+  // The API decides what the user may do on this issue (`abilities`, `status_actions`);
+  // only viewing, editing comments and deleting files fall back to the user's permissions
   const open = !closed;
   const abilities = issue.abilities;
-  // The reporter can always edit or delete their own issue, whatever their role
-  const reportedByMe = isMyReport(issue, myId);
+  const statusActions = issue.status_actions;
   const can = {
-    pick: abilities.can_pick && hasPermission('issues.pick'),
-    unpick: abilities.can_unpick && hasPermission('issues.pick'),
-    edit: open && (reportedByMe || ((abilities.can_edit || abilities.can_triage) && hasPermission('issues.edit'))),
-    delete: open && (reportedByMe || (abilities.can_delete && hasPermission('issues.delete'))),
-    changeStatus: abilities.can_change_own_status && hasPermission('issues.status'),
-    assign: open && abilities.can_assign && hasPermission('issues.assign'),
+    pick: abilities.can_pick,
+    unpick: abilities.can_unpick,
+    edit: abilities.can_edit || abilities.can_triage,
+    delete: abilities.can_delete,
+    changeStatus: abilities.can_change_own_status,
+    assign: abilities.can_assign,
+    review: abilities.can_review,
+    reopen: abilities.can_reopen,
+    forceClose: abilities.can_force_close ?? false,
+    comment: abilities.can_comment,
+    upload: abilities.can_upload,
     viewComments: hasPermission('comments.view'),
-    comment: open && abilities.can_comment && hasPermission('comments.create'),
     editComment: open && hasPermission('comments.edit'),
     deleteComment: open && hasPermission('comments.delete'),
     viewFiles: hasPermission('attachments.view'),
-    upload: open && abilities.can_upload && hasPermission('attachments.create'),
     deleteFiles: open && hasPermission('attachments.delete'),
-    // The API's own flag wins, and an open issue is the fallback when it is missing
-    forceClose: abilities.can_force_close ?? (hasPermission('account.issues.force_close') && open),
   };
   const tabs = ISSUE_TABS.filter((t) => (t === 'comments' ? can.viewComments : t === 'attachments' ? can.viewFiles : true));
   const [tab, setTab] = useTabParam(tabs, tabs[0]);
@@ -131,13 +127,20 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
   const [statusDialog, setStatusDialog] = useState<{ status_id?: number } | null>(null);
   const [review, setReview] = useState<ReviewDecision | null>(null);
   const [forceCloseOpen, setForceCloseOpen] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
 
   // Fresh assignee list (the issue payload embeds one too, used until it loads)
   const { data: assignees = issue.assignees } = useGetIssueAssigneesQuery(issue.id);
-  const needsStatuses = can.changeStatus || can.assign;
-  const { data: statusList = [] } = useGetProjectStatusesQuery(issue.project.id, { skip: !needsStatuses });
+  // The statuses the API offers; the project's own list is only the fallback when it sends none
+  const ownOptions = statusActions?.own?.options;
+  const othersOptions = statusActions?.others?.options;
+  const needsProjectStatuses = (can.changeStatus && !ownOptions) || ((can.assign || statusActions?.others) && !othersOptions);
+  const { data: statusList = [] } = useGetProjectStatusesQuery(issue.project.id, { skip: !needsProjectStatuses });
   const { data: members = [] } = useGetProjectMembersQuery(issue.project.id, { skip: !can.assign });
-  const statuses = sortStatuses(statusList);
+  const projectStatuses = sortStatuses(statusList);
+  const myStatuses = ownOptions ?? projectStatuses;
+  const assigneeStatuses = othersOptions ?? projectStatuses;
+  const overridableIds = statusActions?.others?.assignees.map((a) => a.id);
 
   const [deleteIssue] = useDeleteIssueMutation();
   const [pickIssue, { isLoading: picking }] = usePickIssueMutation();
@@ -195,6 +198,11 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
             {can.unpick && (
               <Button variant="outline" onClick={() => run(() => unpickIssue(issue.id).unwrap(), 'You dropped this issue', 'Failed to drop')} disabled={unpicking}>
                 {unpicking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut className="mr-2 h-4 w-4" />} Drop
+              </Button>
+            )}
+            {can.reopen && (
+              <Button variant="outline" onClick={() => setReopenOpen(true)}>
+                <Undo2 className="mr-2 h-4 w-4" /> Reopen
               </Button>
             )}
             {can.edit && (
@@ -303,7 +311,18 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
             <CardContent className="space-y-3">
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Current status</Label>
-                <IssueStatusBadge issue={issue} />
+                {issue.display_status ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ColoredBadge item={{ id: issue.status?.id ?? 0, ...issue.display_status }} />
+                    {issue.display_status.total > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {issue.display_status.done}/{issue.display_status.total} assignees done
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <IssueStatusBadge issue={issue} />
+                )}
               </div>
 
               <div>
@@ -311,7 +330,7 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
                 <IssueProgress issue={issue} />
               </div>
 
-              {can.changeStatus && statuses.length > 0 && (
+              {can.changeStatus && myStatuses.length > 0 && (
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">
                     Change status{myAssignment?.status ? ` (yours: ${myAssignment.status.name}, ${myAssignment.progress}%)` : ''}
@@ -319,7 +338,7 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
                   <Select value="" onValueChange={(v) => setStatusDialog({ status_id: Number(v) })}>
                     <SelectTrigger><SelectValue placeholder="Move to..." /></SelectTrigger>
                     <SelectContent>
-                      {statuses.map((s) => (
+                      {myStatuses.map((s) => (
                         <SelectItem key={s.id} value={String(s.id)}>
                           <span className="flex items-center gap-2">
                             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
@@ -333,7 +352,7 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
               )}
 
               {issue.awaiting_review && (
-                canReview ? (
+                can.review ? (
                   <div className="space-y-2">
                     <p className="text-xs text-muted-foreground">All assignees are done. Check the fix and confirm it, or send it back.</p>
                     <Button onClick={() => setReview('confirm')} className="w-full">
@@ -396,6 +415,26 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
               )}
 
 
+              {issue.issue_type && (
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Type</Label>
+                  <span className="text-sm capitalize">{issue.issue_type}</span>
+                </div>
+              )}
+
+              {(issue.complainant_name || issue.complainant_contact || issue.complainant_reference) && (
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Complainant</Label>
+                  <div className="space-y-0.5 text-sm">
+                    {issue.complainant_name && <div>{issue.complainant_name}</div>}
+                    {issue.complainant_contact && <div className="text-muted-foreground">{issue.complainant_contact}</div>}
+                    {issue.complainant_reference && (
+                      <div className="font-mono text-xs text-muted-foreground">Ref: {issue.complainant_reference}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">Priority</Label>
                 <IssuePriorityBadge priority={issue.priority} />
@@ -431,8 +470,9 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
                   issueId={issue.id}
                   assignees={assignees}
                   canAssign={can.assign}
+                  overridableIds={overridableIds}
                   members={members}
-                  statuses={statuses}
+                  statuses={assigneeStatuses}
                 />
               </div>
 
@@ -488,7 +528,7 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
         onOpenChange={(open) => { if (!open) setStatusDialog(null); }}
         title="Change my status"
         description="Update where you are on this issue. The overall status follows everyone's progress."
-        statuses={statuses}
+        statuses={myStatuses}
         initial={{ status_id: statusDialog?.status_id ?? myAssignment?.status?.id }}
         // Progress follows the status on the backend
         hideProgress
@@ -505,6 +545,14 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
 
       <ReviewDialog issueId={issue.id} decision={review} onClose={() => setReview(null)} />
 
+      <ReopenDialog
+        issueId={issue.id}
+        code={issue.code}
+        endpoint={statusActions?.reopen?.endpoint}
+        open={reopenOpen}
+        onClose={() => setReopenOpen(false)}
+      />
+
       <ForceCloseDialog
         issueId={issue.id}
         code={issue.code}
@@ -512,6 +560,64 @@ function IssueDetailView({ issue }: { issue: IssueDetail }) {
         onClose={() => setForceCloseOpen(false)}
       />
     </div>
+  );
+}
+
+/** Reopens a closed issue; the comment is optional */
+function ReopenDialog({
+  issueId, code, endpoint, open, onClose,
+}: { issueId: number; code: string; endpoint?: string; open: boolean; onClose: () => void }) {
+  const [reopenIssue, { isLoading }] = useReopenIssueMutation();
+  const [comment, setComment] = useState('');
+
+  const close = () => {
+    setComment('');
+    onClose();
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await reopenIssue({ issueId, endpoint, ...(comment.trim() && { comment: comment.trim() }) }).unwrap();
+      toast.success('Issue reopened', { description: `${code} is open again.` });
+      close();
+    } catch (err) {
+      toast.error('Could not reopen the issue', { description: parseApiError(err).message });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next && !isLoading) close(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Reopen {code}</DialogTitle>
+          <DialogDescription>The issue goes back to work and its assignees are notified.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="reopenComment">
+              Comment <span className="text-muted-foreground">(optional)</span>
+            </Label>
+            <Textarea
+              id="reopenComment"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="e.g. Happens again on the latest build."
+              rows={4}
+              maxLength={5000}
+              disabled={isLoading}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={close} disabled={isLoading}>Cancel</Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reopen
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

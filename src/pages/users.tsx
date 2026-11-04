@@ -356,7 +356,7 @@ export default function UsersPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{user.department || '—'}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{formatDate(user.invite_expires_at)}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{formatDate(user.invite_expires_at ?? undefined)}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{formatDate(user.created_at)}</TableCell>
                         <TableCell>
                           {locked ? (

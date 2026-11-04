@@ -57,6 +57,11 @@ export interface IssueSummary {
   source?: { value: IssueSource | (string & {}); label: string } | null;
   /** Set on customer complaints */
   customer?: { id: number; name: string; code?: string | null } | null;
+  complainant_name?: string | null;
+  complainant_contact?: string | null;
+  complainant_reference?: string | null;
+  /** The status to show: the issue's status plus how many assignees have finished */
+  display_status?: { name: string; color: string; done: number; total: number } | null;
   comment_count: number;
   attachment_count: number;
   created_at: string;
@@ -232,6 +237,24 @@ export interface IssueAbilities {
   can_force_close?: boolean;
 }
 
+/** One status action the API offers the signed-in user; null when they have none */
+export interface IssueStatusAction {
+  /** e.g. "POST /api/issues/18/force-close" */
+  endpoint?: string;
+  options?: IssueColoredRef[];
+}
+
+/** What the user may do with statuses on this issue, as the API describes it */
+export interface IssueStatusActions {
+  /** Change my own status; `options` are the statuses I may move to */
+  own: IssueStatusAction | null;
+  /** Set other assignees' statuses */
+  others: (IssueStatusAction & { assignees: { id: number; name: string; current: IssueColoredRef | null }[] }) | null;
+  review: IssueStatusAction | null;
+  reopen: IssueStatusAction | null;
+  force_close: IssueStatusAction | null;
+}
+
 /** GET /issues/{id} */
 export interface IssueDetail extends Omit<IssueSummary, 'assignee_count' | 'assignees'> {
   description: string | null;
@@ -245,6 +268,8 @@ export interface IssueDetail extends Omit<IssueSummary, 'assignee_count' | 'assi
   comments: IssueComment[];
   status_history: IssueHistoryEntry[];
   abilities: IssueAbilities;
+  /** Absent on older payloads */
+  status_actions?: IssueStatusActions;
 }
 
 // ---- Single-issue requests ----
@@ -293,6 +318,14 @@ export interface ForceCloseIssueRequest {
   issueId: number;
   /** Optional; saved as a comment on the issue and as the note on each history row */
   comment?: string;
+}
+
+/** POST /issues/{id}/reopen: reopens a closed issue; the comment is optional */
+export interface ReopenIssueRequest {
+  issueId: number;
+  comment?: string;
+  /** The path the API listed in status_actions.reopen ("POST /api/..."); the default path is used without it */
+  endpoint?: string;
 }
 
 export type ReviewDecision = 'confirm' | 'recheck';
