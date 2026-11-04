@@ -1,9 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
-import { BASELINE_PERMISSIONS, getPermissionModule, toAppPermissions } from '@/lib/permissions';
-import { ACCOUNT_NAV_ITEMS, NAV_ITEMS } from '@/lib/nav-config';
 import {
   useCreateRoleMutation,
   useGetPermissionCatalogQuery,
@@ -23,8 +20,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  ArrowLeft, Loader2, AlertTriangle, Sparkles, Eye, ShieldAlert, Users as UsersIcon,
-  Plus, Minus, Check, Lock, MessageCircle, Paperclip, RotateCw, LayoutGrid, type LucideIcon,
+  ArrowLeft, Loader2, AlertTriangle, Sparkles, ShieldAlert, Users as UsersIcon,
+  Plus, Minus, Check, MessageCircle, Paperclip, RotateCw, type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -43,42 +40,19 @@ const SENSITIVE_PERMS = new Set<string>([
 ]);
 
 const MODULE_ICONS: Record<string, LucideIcon> = {
-  ...Object.fromEntries(NAV_ITEMS.map((item) => [getPermissionModule(item.permission), item.icon])),
   comments: MessageCircle,
   attachments: Paperclip,
 };
 
 const isViewPerm = (perm: { action: string }) => perm.action === 'view';
 
-/** Modules that already have a sidebar page */
-const NAV_MODULES = new Set<string>(NAV_ITEMS.map((item) => getPermissionModule(item.permission)));
-/** Modules used inside other pages (the issue detail), never as a sidebar link */
-const IN_PAGE_MODULES = new Set(['comments', 'attachments']);
-/** Account modules open sidebar pages only through NAV_ITEMS / ACCOUNT_NAV_ITEMS */
-const isAccountModule = (module: string) => module.startsWith('account.');
-
-type PreviewItem = { key: string; label: string; icon: LucideIcon };
-
 /** Loads the role + permission catalog, then mounts the form with real data. */
 export default function RoleEditorRoute() {
   const { id } = useParams();
-  const { hasPermission } = useAuth();
-
   const isNew = !id || id === 'new';
-  const canEdit = isNew ? hasPermission('roles.create') : hasPermission('roles.update');
 
-  const rolesQuery = useGetRolesQuery(undefined, { skip: !canEdit });
-  const catalogQuery = useGetPermissionCatalogQuery(undefined, { skip: !canEdit });
-
-  if (!canEdit) {
-    return (
-      <EmptyState
-        icon={<Lock className="h-6 w-6" />}
-        title="You don't have access"
-        description={`You need the "${isNew ? 'roles.create' : 'roles.update'}" permission to use the role editor.`}
-      />
-    );
-  }
+  const rolesQuery = useGetRolesQuery();
+  const catalogQuery = useGetPermissionCatalogQuery();
 
   if (rolesQuery.isLoading || catalogQuery.isLoading) {
     return (
@@ -223,34 +197,6 @@ function RoleEditorForm({ role, allRoles, modules }: RoleEditorFormProps) {
     sensitiveCount === 0 ? { label: 'Low', tone: 'text-emerald-600 bg-emerald-500/10' }
     : sensitiveCount <= 3 ? { label: 'Medium', tone: 'text-amber-600 bg-amber-500/10' }
     : { label: 'High', tone: 'text-destructive bg-destructive/10' };
-
-  const visibleNav = useMemo(() => {
-    // The pages the sidebar would show, worked out the same way it does
-    const appPerms = toAppPermissions(selectedPerms);
-    BASELINE_PERMISSIONS.forEach((p) => appPerms.add(p));
-
-    // Pages like Users open from either their app permission or their account permission
-    const pages: PreviewItem[] = NAV_ITEMS
-      .filter((item) => appPerms.has(item.permission) || (!!item.accountPermission && selectedPerms.has(item.accountPermission)))
-      .map((item) => ({ key: item.href, label: item.label, icon: item.icon }));
-
-    for (const extra of ACCOUNT_NAV_ITEMS) {
-      if (!selectedPerms.has(extra.accountPermission)) continue;
-      const at = pages.findIndex((page) => page.key === extra.after);
-      pages.splice(at === -1 ? pages.length : at + 1, 0, { key: extra.href, label: extra.label, icon: extra.icon });
-    }
-
-    // Catalog modules the app has no page mapping for yet still show, so new modules appear
-    for (const mod of modules) {
-      if (NAV_MODULES.has(mod.module) || IN_PAGE_MODULES.has(mod.module) || isAccountModule(mod.module)) continue;
-      const picked = mod.permissions.filter((p) => selectedPerms.has(p.name));
-      if (picked.length === 0) continue;
-      // A module with a view action opens only when that action is granted
-      if (mod.permissions.some(isViewPerm) && !picked.some(isViewPerm)) continue;
-      pages.push({ key: mod.module, label: mod.label, icon: MODULE_ICONS[mod.module] ?? LayoutGrid });
-    }
-    return pages;
-  }, [selectedPerms, modules]);
 
   const summary = modules.flatMap((mod) => {
     const level = getLevel(mod);
@@ -550,34 +496,6 @@ function RoleEditorForm({ role, allRoles, modules }: RoleEditorFormProps) {
                   <ShieldAlert className="h-3 w-3" />
                   {risk.label} risk · {sensitiveCount} sensitive
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <Eye className="h-4 w-4 text-muted-foreground" />
-                What they'll see
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-lg bg-sidebar p-2 text-sidebar-foreground">
-                {visibleNav.length === 0 ? (
-                  <div className="px-3 py-4 text-center text-xs text-sidebar-foreground/60">
-                    Empty sidebar. This role can't open any page.
-                  </div>
-                ) : (
-                  visibleNav.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <div key={item.key} className="flex items-center gap-2.5 rounded-md px-3 py-1.5 text-xs text-sidebar-foreground/80">
-                        <Icon className="h-3.5 w-3.5 shrink-0" />
-                        {item.label}
-                      </div>
-                    );
-                  })
-                )}
               </div>
             </CardContent>
           </Card>

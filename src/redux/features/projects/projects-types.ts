@@ -113,7 +113,7 @@ export interface ApiProject {
   my_role: string;
   /**
    * Backend permission names the signed-in user has in this project. Left out of the
-   * list response, where projectCan falls back to what `my_role` grants.
+   * list response.
    */
   my_permissions?: string[];
   created_at: string;

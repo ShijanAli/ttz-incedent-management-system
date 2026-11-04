@@ -4,10 +4,8 @@ import {
   AlertTriangle, Archive, FolderKanban, Loader2, MoreVertical, Pencil, Plus, RotateCcw, RotateCw,
   Search, Trash2, Users as UsersIcon, X,
 } from 'lucide-react';
-import { useAuth } from '@/lib/auth-context';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
-import { useProjectCan } from '@/hooks/use-project-can';
 import { parseApiError } from '@/lib/api-error';
 import { formatDate, isOverdue } from '@/lib/shared-utils';
 import {
@@ -45,7 +43,6 @@ const COLUMN_COUNT = 8;
 const ALL = 'all';
 
 export default function ProjectsPage() {
-  const { hasPermission } = useAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(ALL);
   const [priorityFilter, setPriorityFilter] = useState<string>(ALL);
@@ -106,8 +103,6 @@ export default function ProjectsPage() {
     setFormOpen(true);
   };
 
-  const canCreate = hasPermission('projects.create');
-
   return (
     <div className="animate-fade-in">
       <PageHeader
@@ -127,12 +122,10 @@ export default function ProjectsPage() {
                 View Archived
               </Button>
             )}
-            {canCreate && (
               <Button onClick={handleCreate}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Project
               </Button>
-            )}
           </div>
         }
       />
@@ -291,13 +284,6 @@ function ProjectRow({ index, project, onEdit, onAction }: ProjectRowProps) {
   const stateMeta = getProjectStateMeta(project.status);
   const priorityMeta = getProjectPriorityMeta(project.priority);
 
-  // Actions follow the signed-in user's permissions in this project (super admins can do everything)
-  const projectCan = useProjectCan();
-  const canEdit = projectCan(project, 'projects.edit');
-  // Deleting is for super admins only, whatever the project role allows
-  const { isSuperAdmin } = useAuth();
-  const canDelete = isSuperAdmin;
-
   return (
     <TableRow className="hover:bg-muted/50" {...{ [ROW_INDEX_ATTR]: index }}>
       <TableCell className="text-sm tabular-nums text-muted-foreground">{index + 1}</TableCell>
@@ -344,44 +330,38 @@ function ProjectRow({ index, project, onEdit, onAction }: ProjectRowProps) {
         </span>
       </TableCell>
       <TableCell>
-        {(canEdit || canDelete) && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${project.name}`}>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {canEdit && !archived && (
-                <DropdownMenuItem onClick={() => onEdit(project)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit project
-                </DropdownMenuItem>
-              )}
-              {canEdit && !archived && (
-                <DropdownMenuItem onClick={() => onAction('archive')} className="text-amber-600">
-                  <Archive className="mr-2 h-4 w-4" />
-                  Archive project
-                </DropdownMenuItem>
-              )}
-              {canEdit && archived && (
-                <DropdownMenuItem onClick={() => onAction('restore')} className="text-emerald-600">
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Restore project
-                </DropdownMenuItem>
-              )}
-              {canDelete && (
-                <>
-                  {canEdit && <DropdownMenuSeparator />}
-                  <DropdownMenuItem onClick={() => onAction('delete')} className="text-destructive">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete project
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${project.name}`}>
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {!archived && (
+              <DropdownMenuItem onClick={() => onEdit(project)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit project
+              </DropdownMenuItem>
+            )}
+            {!archived && (
+              <DropdownMenuItem onClick={() => onAction('archive')} className="text-amber-600">
+                <Archive className="mr-2 h-4 w-4" />
+                Archive project
+              </DropdownMenuItem>
+            )}
+            {archived && (
+              <DropdownMenuItem onClick={() => onAction('restore')} className="text-emerald-600">
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Restore project
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => onAction('delete')} className="text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete project
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </TableCell>
     </TableRow>
   );

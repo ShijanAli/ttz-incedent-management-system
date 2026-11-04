@@ -1,4 +1,3 @@
-import type { Permission } from "@/lib/types";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -6,7 +5,6 @@ import {
   Users,
   ShieldCheck,
   MessageSquare,
-  BarChart3,
   Bell,
   Settings,
   History,
@@ -18,9 +16,6 @@ export interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
-  permission: Permission;
-  /** When set, this account permission (not `permission`) decides if the link shows */
-  accountPermission?: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -28,75 +23,55 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,
-    permission: "dashboard.view",
   },
   {
     label: "Projects",
     href: "/projects",
     icon: FolderKanban,
-    permission: "projects.view",
   },
   {
     label: "Issues",
     href: "/issues",
     icon: TicketCheck,
-    permission: "issues.view",
   },
   {
     label: "Users",
     href: "/users",
     icon: Users,
-    permission: "users.view",
-    accountPermission: "account.users.view",
   },
   {
     label: "Roles & Permissions",
     href: "/roles",
     icon: ShieldCheck,
-    permission: "roles.view",
   },
   {
     label: "Groups",
     href: "/groups",
     icon: MessageSquare,
-    permission: "groups.view",
-    accountPermission: "account.groups.view",
   },
-  // { label: 'Reports', href: '/reports', icon: BarChart3, permission: 'reports.view' },
   {
     label: "Activity Log",
     href: "/activity",
     icon: History,
-    permission: "activity.view",
   },
   {
     label: "Notifications",
     href: "/notifications",
     icon: Bell,
-    permission: "notifications.view",
   },
   {
     label: "Settings",
     href: "/settings",
     icon: Settings,
-    permission: "settings.view",
   },
 ];
 
-/**
- * Pages opened only by an account permission, with no app permission behind them.
- * Kept apart from NAV_ITEMS (which the role editor reads to map permissions to
- * modules); each one is shown right after the `after` link.
- */
-export const ACCOUNT_NAV_ITEMS: (Omit<
-  NavItem,
-  "permission" | "accountPermission"
-> & { accountPermission: string; after: string })[] = [
+/** Extra pages, each shown right after the `after` link. */
+export const ACCOUNT_NAV_ITEMS: (NavItem & { after: string })[] = [
   {
     label: "Customers",
     href: "/customers",
     icon: Building2,
-    accountPermission: "account.customers.view",
     after: "/groups",
   },
 ];

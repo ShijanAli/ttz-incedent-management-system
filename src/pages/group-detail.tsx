@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams } from 'react-router';
 import {
   AlertCircle, Calendar, FolderKanban, Loader2, Pencil, Power, PowerOff, Trash2, Users as UsersIcon, UsersRound,
 } from 'lucide-react';
-import { useAuth } from '@/lib/auth-context';
 import { useTabParam } from '@/hooks/use-tab-param';
 import { parseApiError } from '@/lib/api-error';
 import { formatDate, isOverdue } from '@/lib/shared-utils';
@@ -69,14 +68,9 @@ export default function GroupDetailPage() {
 
 function GroupDetailView({ group }: { group: GroupDetail }) {
   const navigate = useNavigate();
-  const { hasPermission } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const actions = useGroupActions({ onDeleted: () => navigate('/groups', { replace: true }) });
   const [tab, setTab] = useTabParam(GROUP_TABS, 'members');
-
-  const canUpdate = hasPermission('groups.update');
-  const canDelete = hasPermission('groups.delete');
-  const canManageMembers = hasPermission('groups.manage_members');
 
   return (
     <div className="animate-fade-in">
@@ -89,31 +83,27 @@ function GroupDetailView({ group }: { group: GroupDetail }) {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            {canUpdate && (
-              <>
-                <Button variant="outline" onClick={() => setEditOpen(true)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
-                {group.is_active ? (
-                  <Button variant="outline" onClick={() => actions.request(group, 'deactivate')} className="text-amber-600">
-                    <PowerOff className="mr-2 h-4 w-4" />
-                    Deactivate
-                  </Button>
-                ) : (
-                  <Button variant="outline" onClick={() => actions.request(group, 'activate')} className="text-emerald-600">
-                    <Power className="mr-2 h-4 w-4" />
-                    Activate
-                  </Button>
-                )}
-              </>
-            )}
-            {canDelete && (
-              <Button variant="outline" onClick={() => actions.request(group, 'delete')} className="text-destructive">
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
+            <>
+              <Button variant="outline" onClick={() => setEditOpen(true)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
               </Button>
-            )}
+              {group.is_active ? (
+                <Button variant="outline" onClick={() => actions.request(group, 'deactivate')} className="text-amber-600">
+                  <PowerOff className="mr-2 h-4 w-4" />
+                  Deactivate
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={() => actions.request(group, 'activate')} className="text-emerald-600">
+                  <Power className="mr-2 h-4 w-4" />
+                  Activate
+                </Button>
+              )}
+            </>
+            <Button variant="outline" onClick={() => actions.request(group, 'delete')} className="text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
           </div>
         }
       />
@@ -159,7 +149,7 @@ function GroupDetailView({ group }: { group: GroupDetail }) {
         </TabsList>
 
         <TabsContent value="members">
-          <GroupMemberManager group={group} canManage={canManageMembers} />
+          <GroupMemberManager group={group} canManage />
         </TabsContent>
 
         <TabsContent value="projects">

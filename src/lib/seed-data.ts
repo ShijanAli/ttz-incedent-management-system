@@ -1,8 +1,7 @@
 import type {
   Role, User, Project, Issue, IssueComment, IssueHistoryEntry, IssueAttachment,
-  Group, GroupMessage, AppNotification, ActivityLog, Permission, ProjectMember,
+  Group, GroupMessage, AppNotification, ActivityLog, ProjectMember,
 } from '@/lib/types';
-import { ALL_PERMISSIONS } from '@/lib/permissions';
 
 function uid(prefix: string, n: number): string {
   return `${prefix}_${n}`;
@@ -22,7 +21,7 @@ export const SEED_ROLES: Role[] = [
     id: 'role_super_admin',
     name: 'Super Admin',
     description: 'Full system administration. Manages projects, users, roles, permissions, groups, and settings.',
-    permissions: [...ALL_PERMISSIONS],
+    permissions: [],
     isSystem: true,
     isActive: true,
     createdAt: daysAgo(120),

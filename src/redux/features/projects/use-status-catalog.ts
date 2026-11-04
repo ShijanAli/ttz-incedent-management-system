@@ -9,9 +9,9 @@ const NONE: never[] = [];
  * own statuses when one is given.
  */
 export function useStatusCatalog(options?: { skip?: boolean; projectId?: number }) {
-  const { hasAccountPermission } = useAuth();
+  const { isSuperAdmin } = useAuth();
   // The admin catalog doesn't depend on a project, so leave it out of the cache key
-  const args = hasAccountPermission('account.statuses.view')
+  const args = isSuperAdmin
     ? { admin: true }
     : { admin: false, projectId: options?.projectId };
   const { data, isLoading } = useGetStatusCatalogQuery(args, { skip: options?.skip });

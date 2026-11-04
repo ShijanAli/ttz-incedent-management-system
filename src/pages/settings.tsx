@@ -20,34 +20,13 @@ import { toast } from 'sonner';
 import type { IssueStatus } from '@/lib/types';
 
 export default function SettingsPage() {
-  const { session, hasPermission, hasAccountPermission, isSuperAdmin } = useAuth();
+  const { session, isSuperAdmin } = useAuth();
 
   const [systemSettings, setSystemSettings] = useState(() => settingsRepo.get());
 
   if (!session) return null;
 
-  if (!hasPermission('settings.view')) {
-    return (
-      <div className="animate-fade-in">
-        <PageHeader title="Settings" breadcrumbs={[{ label: 'Settings' }]} />
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <SettingsIcon className="mb-4 h-12 w-12 text-muted-foreground" />
-            <h3 className="text-lg font-semibold">Access restricted</h3>
-            <p className="mt-1 text-sm text-muted-foreground">You don&apos;t have permission to view settings.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const canUpdateSettings = hasPermission('settings.update');
-
   const saveSystem = () => {
-    if (!canUpdateSettings) {
-      toast.error('You do not have permission to update system settings');
-      return;
-    }
     const updated = settingsRepo.update(systemSettings);
     setSystemSettings(updated);
     toast.success('System settings saved');
@@ -66,14 +45,14 @@ export default function SettingsPage() {
 
         <NotificationPreferencesCard />
 
-        {/* Default workflow statuses (/admin/statuses), for super admins and account.statuses.view */}
-        {hasAccountPermission('account.statuses.view') && <WorkflowStatusesCard />}
+        {/* Default workflow statuses (/admin/statuses) - super admin only */}
+        {isSuperAdmin && <WorkflowStatusesCard />}
 
         {/* Project labels (Backend Developer ...) - super admin only (the /admin/project-labels API is theirs) */}
         {isSuperAdmin && <ProjectLabelsCard />}
 
         {/* System settings - super admin only */}
-        {isSuperAdmin && canUpdateSettings && (
+        {isSuperAdmin && (
           <Card className="lg:col-span-2">
             <CardHeader>
               <div className="flex items-center gap-2">

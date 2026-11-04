@@ -31,17 +31,16 @@ const UNREAD_POLL_MS = 60_000;
 
 export function Topbar() {
   const navigate = useNavigate();
-  const { session, logout, hasPermission } = useAuth();
+  const { session, logout } = useAuth();
 
-  const canViewNotifications = hasPermission('notifications.view');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   // The badge polls; the list shares the notifications page's cache and refreshes when the popover opens
   const { data: unreadCount = 0 } = useGetUnreadNotificationCountQuery(undefined, {
-    skip: !session || !canViewNotifications,
+    skip: !session,
     pollingInterval: UNREAD_POLL_MS,
     skipPollingIfUnfocused: true,
   });
-  const notificationList = useGetNotificationsInfiniteQuery(undefined, { skip: !session || !canViewNotifications });
+  const notificationList = useGetNotificationsInfiniteQuery(undefined, { skip: !session });
   const [markRead] = useMarkNotificationReadMutation();
   const [markAllRead] = useMarkAllNotificationsReadMutation();
   const notifications = flattenPages(notificationList.data).slice(0, 10);
@@ -77,89 +76,87 @@ export function Topbar() {
       <div className="flex-1" />
 
       {/* Notifications */}
-      {canViewNotifications && (
-        <Popover open={notificationsOpen} onOpenChange={handleNotificationsOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative" aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}>
-              <Bell className="h-[18px] w-[18px]" />
-              {unreadCount > 0 && (
-                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-80 p-0">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <span className="text-sm font-semibold">Notifications</span>
-              {unreadCount > 0 && (
-                <button onClick={handleMarkAllRead} className="text-xs text-primary hover:underline">
-                  Mark all read
-                </button>
-              )}
-            </div>
-            <ScrollArea className="h-[320px]">
-              <div className="divide-y">
-                {notificationList.isLoading ? (
-                  <div className="flex items-center justify-center py-8 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  </div>
-                ) : notificationList.isError ? (
-                  <div className="px-4 py-8 text-center text-sm text-destructive">
-                    {parseApiError(notificationList.error, 'Failed to load notifications.').message}
-                  </div>
-                ) : notifications.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    No notifications yet
-                  </div>
-                ) : (
-                  notifications.map((n) => {
-                    const unread = !n.read_at;
-                    const meta = getNotificationMeta(n.data.event);
-                    const content = (
-                      <div className="flex items-start gap-2">
-                        {unread && <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />}
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-medium">
-                            {meta.label}
-                            {n.data.issue_code && (
-                              <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">{n.data.issue_code}</span>
-                            )}
-                          </div>
-                          <div className="line-clamp-2 text-xs text-muted-foreground">{n.data.message}</div>
-                          <div className="mt-1 text-[10px] text-muted-foreground">{formatRelativeTime(n.created_at)}</div>
+      <Popover open={notificationsOpen} onOpenChange={handleNotificationsOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="icon" className="relative" aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}>
+            <Bell className="h-[18px] w-[18px]" />
+            {unreadCount > 0 && (
+              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-80 p-0">
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <span className="text-sm font-semibold">Notifications</span>
+            {unreadCount > 0 && (
+              <button onClick={handleMarkAllRead} className="text-xs text-primary hover:underline">
+                Mark all read
+              </button>
+            )}
+          </div>
+          <ScrollArea className="h-[320px]">
+            <div className="divide-y">
+              {notificationList.isLoading ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </div>
+              ) : notificationList.isError ? (
+                <div className="px-4 py-8 text-center text-sm text-destructive">
+                  {parseApiError(notificationList.error, 'Failed to load notifications.').message}
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  No notifications yet
+                </div>
+              ) : (
+                notifications.map((n) => {
+                  const unread = !n.read_at;
+                  const meta = getNotificationMeta(n.data.event);
+                  const content = (
+                    <div className="flex items-start gap-2">
+                      {unread && <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">
+                          {meta.label}
+                          {n.data.issue_code && (
+                            <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">{n.data.issue_code}</span>
+                          )}
                         </div>
+                        <div className="line-clamp-2 text-xs text-muted-foreground">{n.data.message}</div>
+                        <div className="mt-1 text-[10px] text-muted-foreground">{formatRelativeTime(n.created_at)}</div>
                       </div>
-                    );
-                    const className = cn('block px-4 py-3 transition-colors hover:bg-accent', unread && 'bg-primary/5');
-                    const onClick = () => {
-                      if (unread) markRead(n.id);
-                      if (n.data.path) setNotificationsOpen(false);
-                    };
-                    // A deleted issue has no path, so the row only marks it read
-                    return n.data.path ? (
-                      <Link key={n.id} to={n.data.path} onClick={onClick} className={className}>{content}</Link>
-                    ) : (
-                      <button key={n.id} type="button" onClick={onClick} className={cn(className, 'w-full text-left')}>
-                        {content}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </ScrollArea>
-            <div className="border-t p-2">
-              <Link
-                to="/notifications"
-                onClick={() => setNotificationsOpen(false)}
-                className="block rounded-md px-3 py-2 text-center text-sm font-medium text-primary hover:bg-accent"
-              >
-                View all notifications
-              </Link>
+                    </div>
+                  );
+                  const className = cn('block px-4 py-3 transition-colors hover:bg-accent', unread && 'bg-primary/5');
+                  const onClick = () => {
+                    if (unread) markRead(n.id);
+                    if (n.data.path) setNotificationsOpen(false);
+                  };
+                  // A deleted issue has no path, so the row only marks it read
+                  return n.data.path ? (
+                    <Link key={n.id} to={n.data.path} onClick={onClick} className={className}>{content}</Link>
+                  ) : (
+                    <button key={n.id} type="button" onClick={onClick} className={cn(className, 'w-full text-left')}>
+                      {content}
+                    </button>
+                  );
+                })
+              )}
             </div>
-          </PopoverContent>
-        </Popover>
-      )}
+          </ScrollArea>
+          <div className="border-t p-2">
+            <Link
+              to="/notifications"
+              onClick={() => setNotificationsOpen(false)}
+              className="block rounded-md px-3 py-2 text-center text-sm font-medium text-primary hover:bg-accent"
+            >
+              View all notifications
+            </Link>
+          </div>
+        </PopoverContent>
+      </Popover>
 
       {/* User menu */}
       <DropdownMenu>

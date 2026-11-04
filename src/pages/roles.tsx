@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router';
-import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
 import {
   useDeleteRoleMutation,
@@ -30,7 +29,6 @@ const COLUMN_COUNT = 7;
 
 export default function RolesPage() {
   const navigate = useNavigate();
-  const { hasPermission } = useAuth();
   const { data: roles = [], isLoading, isError, error, refetch, isFetching } = useGetRolesQuery();
   const { data: modules = [] } = useGetPermissionCatalogQuery();
   const [deleteRole] = useDeleteRoleMutation();
@@ -74,10 +72,6 @@ export default function RolesPage() {
     }
   };
 
-  const canCreate = hasPermission('roles.create');
-  const canUpdate = hasPermission('roles.update');
-  const canDelete = hasPermission('roles.delete');
-
   return (
     <div className="animate-fade-in">
       <PageHeader
@@ -85,12 +79,10 @@ export default function RolesPage() {
         description="Manage roles, configure permissions, and control what users can access across the system."
         breadcrumbs={[{ label: 'Roles & Permissions' }]}
         actions={
-          canCreate && (
-            <Button onClick={handleCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              New Role
-            </Button>
-          )
+          <Button onClick={handleCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Role
+          </Button>
         }
       />
 
@@ -161,8 +153,8 @@ export default function RolesPage() {
                     return (
                       <TableRow
                         key={role.id}
-                        onClick={canUpdate ? () => handleEdit(role) : undefined}
-                        className={canUpdate ? 'cursor-pointer' : undefined}
+                        onClick={() => handleEdit(role)}
+                        className="cursor-pointer"
                       >
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -194,41 +186,37 @@ export default function RolesPage() {
                           {role.updated_at ? formatDate(role.updated_at) : '—'}
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
-                          {(canUpdate || (canDelete && !role.is_system)) && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                {canUpdate && (
-                                  <DropdownMenuItem onClick={() => handleEdit(role)}>
-                                    <Pencil className="mr-2 h-4 w-4" />
-                                    Edit role & permissions
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleEdit(role)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Edit role & permissions
+                              </DropdownMenuItem>
+                              {!role.is_system && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => handleDelete(role)}
+                                    className="text-destructive"
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete role
                                   </DropdownMenuItem>
-                                )}
-                                {canDelete && !role.is_system && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      onClick={() => handleDelete(role)}
-                                      className="text-destructive"
-                                    >
-                                      <Trash2 className="mr-2 h-4 w-4" />
-                                      Delete role
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                                {role.is_system && canDelete && (
-                                  <DropdownMenuItem disabled>
-                                    <Lock className="mr-2 h-4 w-4" />
-                                    System roles cannot be deleted
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
+                                </>
+                              )}
+                              {role.is_system && (
+                                <DropdownMenuItem disabled>
+                                  <Lock className="mr-2 h-4 w-4" />
+                                  System roles cannot be deleted
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     );

@@ -4,7 +4,6 @@ import {
   AlertTriangle, Calendar, Loader2, MoreVertical, Pencil, Plus, Power, PowerOff, RotateCw, Search,
   Trash2, Users as UsersIcon, UsersRound, X,
 } from 'lucide-react';
-import { useAuth } from '@/lib/auth-context';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { parseApiError } from '@/lib/api-error';
@@ -35,7 +34,6 @@ const STATUS_FILTER_PARAM: Record<string, 0 | 1 | undefined> = { [ALL]: undefine
 
 export default function GroupsPage() {
   const navigate = useNavigate();
-  const { hasPermission } = useAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [formOpen, setFormOpen] = useState(false);
@@ -67,9 +65,6 @@ export default function GroupsPage() {
     setFormOpen(true);
   };
 
-  const canCreate = hasPermission('groups.create');
-  const canUpdate = hasPermission('groups.update');
-  const canDelete = hasPermission('groups.delete');
 
   return (
     <div className="animate-fade-in">
@@ -78,12 +73,10 @@ export default function GroupsPage() {
         description="Teams of people you can attach to projects to give everyone access at once."
         breadcrumbs={[{ label: 'Groups' }]}
         actions={
-          canCreate && (
-            <Button onClick={() => openForm(null)}>
-              <Plus className="mr-2 h-4 w-4" />
-              New Group
-            </Button>
-          )
+          <Button onClick={() => openForm(null)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Group
+          </Button>
         }
       />
 
@@ -158,7 +151,7 @@ export default function GroupsPage() {
             </div>
           ) : groups.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
-              {hasFilters ? 'No groups match your filters.' : `No groups yet.${canCreate ? ' Create one to get started.' : ''}`}
+              {hasFilters ? 'No groups match your filters.' : 'No groups yet. Create one to get started.'}
             </div>
           ) : (
             <div ref={gridRef} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -167,8 +160,6 @@ export default function GroupsPage() {
                   key={group.id}
                   index={index}
                   group={group}
-                  canUpdate={canUpdate}
-                  canDelete={canDelete}
                   onOpen={() => navigate(`/groups/${group.id}`)}
                   onEdit={() => openForm(group)}
                   onAction={(action) => actions.request(group, action)}
@@ -202,14 +193,12 @@ export default function GroupsPage() {
 interface GroupCardProps {
   index: number;
   group: ApiGroup;
-  canUpdate: boolean;
-  canDelete: boolean;
   onOpen: () => void;
   onEdit: () => void;
   onAction: (action: GroupActionType) => void;
 }
 
-function GroupCard({ index, group, canUpdate, canDelete, onOpen, onEdit, onAction }: GroupCardProps) {
+function GroupCard({ index, group, onOpen, onEdit, onAction }: GroupCardProps) {
   return (
     <div
       role="link"
@@ -235,51 +224,45 @@ function GroupCard({ index, group, canUpdate, canDelete, onOpen, onEdit, onActio
           <h3 className="truncate text-sm font-medium">{group.name}</h3>
           <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{group.description || 'No description.'}</p>
         </div>
-        {(canUpdate || canDelete) && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0"
-                onClick={(e) => e.stopPropagation()}
-                aria-label={`Actions for ${group.name}`}
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-              {canUpdate && (
-                <>
-                  <DropdownMenuItem onClick={onEdit}>
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Edit group
-                  </DropdownMenuItem>
-                  {group.is_active ? (
-                    <DropdownMenuItem onClick={() => onAction('deactivate')} className="text-amber-600">
-                      <PowerOff className="mr-2 h-4 w-4" />
-                      Deactivate
-                    </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem onClick={() => onAction('activate')} className="text-emerald-600">
-                      <Power className="mr-2 h-4 w-4" />
-                      Activate
-                    </DropdownMenuItem>
-                  )}
-                </>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Actions for ${group.name}`}
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            <>
+              <DropdownMenuItem onClick={onEdit}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit group
+              </DropdownMenuItem>
+              {group.is_active ? (
+                <DropdownMenuItem onClick={() => onAction('deactivate')} className="text-amber-600">
+                  <PowerOff className="mr-2 h-4 w-4" />
+                  Deactivate
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={() => onAction('activate')} className="text-emerald-600">
+                  <Power className="mr-2 h-4 w-4" />
+                  Activate
+                </DropdownMenuItem>
               )}
-              {canDelete && (
-                <>
-                  {canUpdate && <DropdownMenuSeparator />}
-                  <DropdownMenuItem onClick={() => onAction('delete')} className="text-destructive">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete group
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+            </>
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onAction('delete')} className="text-destructive">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete group
+              </DropdownMenuItem>
+            </>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="mt-3 flex items-center gap-3 border-t pt-3 text-xs text-muted-foreground">

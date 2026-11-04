@@ -1,8 +1,6 @@
 import { PROJECT_PRIORITY_META, PROJECT_STATUS_META, getAvatarColor } from '@/lib/shared-utils';
-import { DEFAULT_ROLE_PERMISSIONS } from '@/lib/permissions';
 import type {
   ApiProject,
-  ProjectMember,
   ProjectPriority,
   ProjectState,
   ProjectStatus,
@@ -61,21 +59,6 @@ export function getProjectColor(project: Pick<ApiProject, 'id' | 'color'>): stri
 export function getProjectProgress(project: Pick<ApiProject, 'issue_counts'>): number {
   const { total, closed } = project.issue_counts;
   return total > 0 ? Math.round((closed / total) * 100) : 0;
-}
-
-/**
- * Checks a backend permission name against what the signed-in user has in this project.
- * The list response has no `my_permissions`, so there it falls back to the role's defaults.
- */
-export function projectCan(project: Pick<ApiProject, 'my_permissions' | 'my_role'> | undefined, permission: string): boolean {
-  if (!project) return false;
-  const permissions = project.my_permissions ?? DEFAULT_ROLE_PERMISSIONS[project.my_role] ?? [];
-  return permissions.includes(permission);
-}
-
-/** Whether a member's role grants a backend permission (system roles only) */
-export function memberRoleHas(member: ProjectMember, permission: string): boolean {
-  return DEFAULT_ROLE_PERMISSIONS[member.role]?.includes(permission) ?? false;
 }
 
 export function sortStatuses<T extends Pick<ProjectStatus, 'sort_order'>>(statuses: T[]): T[] {

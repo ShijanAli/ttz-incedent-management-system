@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { parseApiError } from '@/lib/api-error';
-import { useAuth } from '@/lib/auth-context';
 import {
   useDeleteCustomerMutation, useGetCustomersInfiniteQuery, useUpdateCustomerMutation,
 } from '@/redux/features/customers/customers-api';
@@ -34,10 +33,6 @@ const COLUMN_COUNT = 6;
 
 /** The customers that complaints can be filed for; actions follow the account.customers.* permissions */
 export default function CustomersPage() {
-  const { hasAccountPermission } = useAuth();
-  const canCreate = hasAccountPermission('account.customers.create');
-  const canEdit = hasAccountPermission('account.customers.edit');
-  const canDelete = hasAccountPermission('account.customers.delete');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [formOpen, setFormOpen] = useState(false);
@@ -89,11 +84,9 @@ export default function CustomersPage() {
         description="The customers complaints come from. Pick one when an issue's source is a customer complaint."
         breadcrumbs={[{ label: 'Customers' }]}
         actions={
-          canCreate && (
-            <Button onClick={() => openForm(null)}>
-              <Plus className="mr-2 h-4 w-4" /> New Customer
-            </Button>
-          )
+          <Button onClick={() => openForm(null)}>
+            <Plus className="mr-2 h-4 w-4" /> New Customer
+          </Button>
         }
       />
 
@@ -174,7 +167,7 @@ export default function CustomersPage() {
                   ) : customers.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={COLUMN_COUNT} className="py-12 text-center text-muted-foreground">
-                        {hasFilters ? 'No customers match your filters.' : canCreate ? 'No customers yet. Add the first one.' : 'No customers yet.'}
+                        {hasFilters ? 'No customers match your filters.' : 'No customers yet. Add the first one.'}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -184,8 +177,8 @@ export default function CustomersPage() {
                         <TableCell>
                           <button
                             type="button"
-                            onClick={() => canEdit && openForm(c)}
-                            className={cn('flex items-center gap-2 text-left font-medium', canEdit ? 'hover:text-primary' : 'cursor-default')}
+                            onClick={() => openForm(c)}
+                            className={cn('flex items-center gap-2 text-left font-medium', 'hover:text-primary')}
                           >
                             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                               <Building2 className="h-4 w-4" />
@@ -222,34 +215,28 @@ export default function CustomersPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {(canEdit || canDelete) && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${c.name}`}>
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                {canEdit && (
-                                  <>
-                                    <DropdownMenuItem onClick={() => openForm(c)}>
-                                      <Pencil className="mr-2 h-4 w-4" /> Edit
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => toggleActive(c)}>
-                                      {c.is_active ? <PowerOff className="mr-2 h-4 w-4" /> : <Power className="mr-2 h-4 w-4" />}
-                                      {c.is_active ? 'Deactivate' : 'Activate'}
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                                {canEdit && canDelete && <DropdownMenuSeparator />}
-                                {canDelete && (
-                                  <DropdownMenuItem onClick={() => setConfirmDelete(c)} className="text-red-600">
-                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${c.name}`}>
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <>
+                                <DropdownMenuItem onClick={() => openForm(c)}>
+                                  <Pencil className="mr-2 h-4 w-4" /> Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => toggleActive(c)}>
+                                  {c.is_active ? <PowerOff className="mr-2 h-4 w-4" /> : <Power className="mr-2 h-4 w-4" />}
+                                  {c.is_active ? 'Deactivate' : 'Activate'}
+                                </DropdownMenuItem>
+                              </>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setConfirmDelete(c)} className="text-red-600">
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))

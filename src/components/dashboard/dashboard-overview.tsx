@@ -123,8 +123,8 @@ function sortProjects(projects: DashboardProject[], sortBy: SortKey): DashboardP
 
 /** The dashboard for every role; the API scopes the numbers to what the user can see */
 export function DashboardOverview() {
-  const { session, isSuperAdmin, hasAccountPermission } = useAuth();
-  const viewAll = hasAccountPermission('account.projects.view_all');
+  const { session, isSuperAdmin } = useAuth();
+  const viewAll = isSuperAdmin;
   const defaultRole = useAppSelector(selectAuth).user?.default_role;
   const focus: IssueFocus = isSuperAdmin ? 'all' : defaultRole === 'Reporter' ? 'reported' : 'assigned';
   const [sortBy, setSortBy] = useState<SortKey>('open');

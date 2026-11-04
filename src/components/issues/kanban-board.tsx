@@ -25,14 +25,13 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ issues, onRefresh }: KanbanBoardProps) {
-  const { session, hasPermission } = useAuth();
+  const { session } = useAuth();
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
 
-  const canChangeStatus = hasPermission('issues.change_status');
   const activeIssue = activeId ? issues.find((i) => i.id === activeId) : null;
 
   const handleDragStart = (e: DragStartEvent) => {
@@ -85,7 +84,7 @@ export function KanbanBoard({ issues, onRefresh }: KanbanBoardProps) {
               color={meta.color}
               badgeClass={meta.badgeClass}
               issues={columnIssues}
-              canDrag={canChangeStatus}
+              canDrag
             />
           );
         })}

@@ -4,16 +4,14 @@ import {
   AlertCircle, Archive, Calendar, Loader2, Pencil, RotateCcw,
   Target, Trash2, Users as UsersIcon,
 } from 'lucide-react';
-import { useAuth } from '@/lib/auth-context';
 import { useTabParam } from '@/hooks/use-tab-param';
-import { useProjectCan } from '@/hooks/use-project-can';
 import { parseApiError } from '@/lib/api-error';
 import {
   formatDate,
 } from '@/lib/shared-utils';
 import {
   getProjectPriorityMeta, getProjectProgress, getProjectStateMeta,
-  memberRoleHas, sortStatuses,
+  sortStatuses,
 } from '@/lib/project-utils';
 import { useGetProjectQuery } from '@/redux/features/projects/projects-api';
 import type { ApiProject } from '@/redux/features/projects/projects-types';
@@ -90,19 +88,12 @@ function ProjectDetail({ project }: { project: ApiProject }) {
   const [tab, setTab] = useTabParam(PROJECT_TABS, 'overview');
 
   const archived = project.status === ARCHIVED_STATE;
-  const projectCan = useProjectCan();
-  const canEdit = projectCan(project, 'projects.edit');
-  // Deleting is for super admins only, whatever the project role allows
-  const { isSuperAdmin } = useAuth();
-  const canDelete = isSuperAdmin;
-  const canManageMembers = projectCan(project, 'users.edit');
 
   const stateMeta = getProjectStateMeta(project.status);
   const priorityMeta = getProjectPriorityMeta(project.priority);
   const progress = getProjectProgress(project);
   const statuses = sortStatuses(project.statuses ?? []);
   const developers = project.members.filter((m) => m.role === 'Developer').length;
-  const assigners = project.members.filter((m) => memberRoleHas(m, 'issues.assign')).length;
   const counts = project.issue_counts;
 
   return (
@@ -116,30 +107,28 @@ function ProjectDetail({ project }: { project: ApiProject }) {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            {canEdit && !archived && (
+            {!archived && (
               <Button variant="outline" onClick={() => setEditOpen(true)}>
                 <Pencil className="mr-2 h-4 w-4" />
                 Edit
               </Button>
             )}
-            {canEdit && archived && (
+            {archived && (
               <Button variant="outline" onClick={() => actions.request(project, 'restore')} className="text-emerald-600">
                 <RotateCcw className="mr-2 h-4 w-4" />
                 Restore
               </Button>
             )}
-            {canEdit && !archived && (
+            {!archived && (
               <Button variant="outline" onClick={() => actions.request(project, 'archive')} className="text-amber-600">
                 <Archive className="mr-2 h-4 w-4" />
                 Archive
               </Button>
             )}
-            {canDelete && (
-              <Button variant="outline" onClick={() => actions.request(project, 'delete')} className="text-destructive">
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </Button>
-            )}
+            <Button variant="outline" onClick={() => actions.request(project, 'delete')} className="text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
           </div>
         }
       />
@@ -207,7 +196,6 @@ function ProjectDetail({ project }: { project: ApiProject }) {
             <StatCard label="Total Issues" value={counts.total} hint={`${counts.open} open · ${counts.closed} closed`} />
             <StatCard label="Overdue Issues" value={counts.overdue} danger={counts.overdue > 0} />
             <StatCard label="Developers" value={developers} />
-            <StatCard label="Issue Assigners" value={assigners} />
           </div>
 
           {/* Issue status breakdown */}
@@ -237,12 +225,12 @@ function ProjectDetail({ project }: { project: ApiProject }) {
 
         {/* Members */}
         <TabsContent value="members">
-          <ProjectMemberManager project={project} canManage={canManageMembers} />
+          <ProjectMemberManager project={project} canManage />
         </TabsContent>
 
         {/* Workflow */}
         <TabsContent value="workflow">
-          <StatusWorkflowEditor projectId={project.id} canEdit={canEdit && !archived} />
+          <StatusWorkflowEditor projectId={project.id} canEdit={!archived} />
         </TabsContent>
 
         {/* Issues */}
@@ -252,7 +240,7 @@ function ProjectDetail({ project }: { project: ApiProject }) {
 
         {/* Groups */}
         <TabsContent value="groups">
-          <ProjectGroupManager project={project} canManage={canManageMembers && !archived} />
+          <ProjectGroupManager project={project} canManage={!archived} />
         </TabsContent>
 
         {/* Activity */}

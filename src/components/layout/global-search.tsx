@@ -22,9 +22,9 @@ type Result =
 
 export function GlobalSearch() {
   const navigate = useNavigate();
-  const { session, hasPermission, hasAccountPermission } = useAuth();
-  // account.projects.view_all (and super admins) read the admin list, which covers every project
-  const viewAll = hasAccountPermission('account.projects.view_all');
+  const { session, isSuperAdmin } = useAuth();
+  // Super admins read the admin list, which covers every project
+  const viewAll = isSuperAdmin;
   const userId = session?.user.id;
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -45,16 +45,14 @@ export function GlobalSearch() {
 
   const term = useDebouncedValue(query.trim(), DEBOUNCE_MS);
   const ready = term.length >= MIN_CHARS;
-  const canProjects = hasPermission('projects.view');
-  const canIssues = hasPermission('issues.view');
 
   const projectsQuery = useGetProjectsInfiniteQuery(
     { search: term, per_page: RESULTS_PER_GROUP },
-    { skip: !ready || !canProjects },
+    { skip: !ready },
   );
   const issuesQuery = useGetIssuesInfiniteQuery(
     { scope: viewAll ? 'admin' : 'my', search: term, per_page: RESULTS_PER_GROUP },
-    { skip: !ready || !canIssues },
+    { skip: !ready },
   );
   const projects = projectsQuery.data?.pages[0]?.items ?? [];
   const issues = issuesQuery.data?.pages[0]?.items ?? [];
@@ -135,7 +133,7 @@ export function GlobalSearch() {
     }
     if (!open || results.length === 0) {
       // Enter with nothing to pick still searches the issues page
-      if (e.key === 'Enter' && query.trim().length >= MIN_CHARS && canIssues) go(`/issues?q=${encodeURIComponent(query.trim())}`);
+      if (e.key === 'Enter' && query.trim().length >= MIN_CHARS ) go(`/issues?q=${encodeURIComponent(query.trim())}`);
       return;
     }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {

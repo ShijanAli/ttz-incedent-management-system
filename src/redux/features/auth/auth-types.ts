@@ -12,14 +12,11 @@ export interface ApiUser {
   photo?: string | null;
   /** System-wide role name, e.g. "Developer"; drives the sidebar and dashboard */
   default_role?: string | null;
-  /**
-   * Backend permission names for the default role, sent by /auth/me. The source of
-   * truth for modules and actions; DEFAULT_ROLE_PERMISSIONS covers payloads without it.
-   */
+  /** Legacy list; permissions are read from `account_permissions` only */
   permissions?: string[];
   /**
-   * System-wide permissions from the account role (e.g. `account.users.view`). May be empty
-   * when the backend puts them inside `permissions` instead; auth-context reads both.
+   * Every permission the user holds, from /auth/me: `account.*` ones plus plain ones such
+   * as `issues.view`. The only source auth-context uses.
    */
   account_permissions?: string[];
   is_super_admin: boolean;

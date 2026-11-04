@@ -93,35 +93,34 @@ export default function IssueDetailPage() {
 function IssueDetailView({ issue }: { issue: IssueDetail }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { session, isSuperAdmin, hasPermission, hasAccountPermission } = useAuth();
+  const { session, isSuperAdmin } = useAuth();
   const defaultRole = useAppSelector(selectAuth).user?.default_role;
   const myId = session ? Number(session.user.id) : undefined;
   // Only reporters (by default role) and super admins confirm a fix or send it back
   const canReview = isSuperAdmin || defaultRole === 'Reporter';
   const closed = isIssueClosed(issue);
 
-  // An action needs the user's permission (/auth/me) and the issue's own ability;
-  // closed issues are read-only on top of that
+  // An action follows the issue's own abilities; closed issues are read-only on top of that
   const open = !closed;
   const abilities = issue.abilities;
   // The reporter can always edit or delete their own issue, whatever their role
   const reportedByMe = isMyReport(issue, myId);
   const can = {
-    pick: abilities.can_pick && hasPermission('issues.pick'),
-    unpick: abilities.can_unpick && hasPermission('issues.pick'),
-    edit: open && (reportedByMe || ((abilities.can_edit || abilities.can_triage) && hasPermission('issues.update'))),
-    delete: open && (reportedByMe || (abilities.can_delete && hasPermission('issues.delete'))),
-    changeStatus: abilities.can_change_own_status && hasPermission('issues.change_status'),
-    assign: open && abilities.can_assign && hasPermission('issues.assign'),
-    viewComments: hasPermission('comments.view'),
-    comment: open && abilities.can_comment && hasPermission('comments.create'),
-    editComment: open && hasPermission('comments.edit'),
-    deleteComment: open && hasPermission('comments.delete'),
-    viewFiles: hasPermission('attachments.view'),
-    upload: open && abilities.can_upload && hasPermission('attachments.create'),
-    deleteFiles: open && hasPermission('attachments.delete'),
-    // account.issues.force_close; the API's own flag wins, and an open issue is the fallback when it is missing
-    forceClose: abilities.can_force_close ?? (hasAccountPermission('account.issues.force_close') && open),
+    pick: abilities.can_pick,
+    unpick: abilities.can_unpick,
+    edit: open && (reportedByMe || abilities.can_edit || abilities.can_triage),
+    delete: open && (reportedByMe || abilities.can_delete),
+    changeStatus: abilities.can_change_own_status,
+    assign: open && abilities.can_assign,
+    viewComments: true,
+    comment: open && abilities.can_comment,
+    editComment: open,
+    deleteComment: open,
+    viewFiles: true,
+    upload: open && abilities.can_upload,
+    deleteFiles: open,
+    // The API's own flag wins, and an open issue is the fallback when it is missing
+    forceClose: abilities.can_force_close ?? open,
   };
   const tabs = ISSUE_TABS.filter((t) => (t === 'comments' ? can.viewComments : t === 'attachments' ? can.viewFiles : true));
   const [tab, setTab] = useTabParam(tabs, tabs[0]);

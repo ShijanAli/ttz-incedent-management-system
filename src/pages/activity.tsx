@@ -95,7 +95,7 @@ function dayLabel(iso: string): string {
 }
 
 export default function ActivityPage() {
-  const { session, hasPermission } = useAuth();
+  const { session } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const get = (key: keyof typeof PARAM) => searchParams.get(PARAM[key]) ?? '';
   const projectId = get('project');
@@ -156,22 +156,6 @@ export default function ActivityPage() {
 
   if (!session) return null;
 
-  if (!hasPermission('activity.view')) {
-    return (
-      <div className="animate-fade-in">
-        <PageHeader title="Activity Log" breadcrumbs={[{ label: 'Activity Log' }]} />
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <HistoryIcon className="mb-4 h-12 w-12 text-muted-foreground" />
-            <h3 className="text-lg font-semibold">Access restricted</h3>
-            <p className="mt-1 text-sm text-muted-foreground">You don&apos;t have permission to view the activity log.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const canExport = hasPermission('activity.export');
   const filterCount = [type, actor, issue, from, to].filter(Boolean).length;
   // The row's own code reads better than a bare id in the "Issue" chip
   const issueCode = list.items.find((e) => String(e.issue?.id) === issue)?.issue?.code ?? `#${issue}`;
@@ -193,12 +177,10 @@ export default function ActivityPage() {
         description="Who changed what, and when, in each project"
         breadcrumbs={[{ label: 'Activity Log' }]}
         actions={
-          canExport && (
-            <Button variant="outline" onClick={handleExport} disabled={!hasProject || exporting}>
-              {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-              Export CSV
-            </Button>
-          )
+          <Button variant="outline" onClick={handleExport} disabled={!hasProject || exporting}>
+            {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            Export CSV
+          </Button>
         }
       />
 

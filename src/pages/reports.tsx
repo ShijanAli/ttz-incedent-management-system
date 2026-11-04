@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BarChart3, CalendarClock, Download } from 'lucide-react';
+import { CalendarClock, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
 import { useTabParam } from '@/hooks/use-tab-param';
@@ -15,7 +15,6 @@ import { WorkloadHeatmap } from '@/components/reports/workload-heatmap';
 import { CustomersCard, OverdueAgingCard, SeverityCard, SlaCard } from '@/components/reports/report-risk';
 import { MemberDetailSheet } from '@/components/reports/member-detail-sheet';
 import { ReportScheduleDialog } from '@/components/reports/report-schedule-dialog';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -34,7 +33,7 @@ const PERIODS: { value: ReportPeriod; label: string }[] = [
 const ALL = 'all';
 
 export default function ReportsPage() {
-  const { session, hasPermission } = useAuth();
+  const { session } = useAuth();
   const [tab, setTab] = useTabParam(REPORT_TABS, 'overview');
   const [projectId, setProjectId] = useState(ALL);
   const [period, setPeriod] = useState<ReportPeriod>('30d');
@@ -48,23 +47,6 @@ export default function ReportsPage() {
   );
 
   if (!session) return null;
-
-  if (!hasPermission('reports.view')) {
-    return (
-      <div className="animate-fade-in">
-        <PageHeader title="Reports" breadcrumbs={[{ label: 'Reports' }]} />
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <BarChart3 className="mb-4 h-12 w-12 text-muted-foreground" />
-            <h3 className="text-lg font-semibold">Access restricted</h3>
-            <p className="mt-1 text-sm text-muted-foreground">You don&apos;t have permission to view reports.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const canExport = hasPermission('reports.export');
 
   const exportCSV = () => {
     const headers = [
@@ -86,7 +68,7 @@ export default function ReportsPage() {
         title="Reports & Analytics"
         description="Project delivery and team performance at a glance"
         breadcrumbs={[{ label: 'Reports' }]}
-        actions={canExport && (
+        actions={(
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => setScheduleOpen(true)}>
               <CalendarClock className="mr-2 h-4 w-4" /> Schedule email

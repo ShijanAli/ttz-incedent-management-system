@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
-import { AlertTriangle, Bell, BellOff, CheckCheck, Loader2, RotateCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, BellOff, CheckCheck, Loader2, RotateCw, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { parseApiError } from '@/lib/api-error';
@@ -27,14 +27,13 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function NotificationsPage() {
-  const { session, hasPermission } = useAuth();
+  const { session } = useAuth();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
-  const canView = hasPermission('notifications.view');
 
   const list = useInfiniteList(
-    useGetNotificationsInfiniteQuery(undefined, { skip: !canView }),
+    useGetNotificationsInfiniteQuery(undefined),
   );
-  const { data: unreadCount = 0 } = useGetUnreadNotificationCountQuery(undefined, { skip: !canView });
+  const { data: unreadCount = 0 } = useGetUnreadNotificationCountQuery();
   const [markRead] = useMarkNotificationReadMutation();
   const [markAllRead, { isLoading: markingAll }] = useMarkAllNotificationsReadMutation();
   const [markSelectedRead, { isLoading: markingSelected }] = useMarkSelectedNotificationsReadMutation();
@@ -45,21 +44,6 @@ export default function NotificationsPage() {
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
 
   if (!session) return null;
-
-  if (!canView) {
-    return (
-      <div className="animate-fade-in">
-        <PageHeader title="Notifications" breadcrumbs={[{ label: 'Notifications' }]} />
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Bell className="mb-4 h-12 w-12 text-muted-foreground" />
-            <h3 className="text-lg font-semibold">Access restricted</h3>
-            <p className="mt-1 text-sm text-muted-foreground">You don&apos;t have permission to view notifications.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   // The API has no unread filter, so "Unread" narrows the pages loaded so far (scrolling loads more)
   const visible = filter === 'unread' ? list.items.filter((n) => !n.read_at) : list.items;

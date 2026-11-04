@@ -91,7 +91,7 @@ const ACTION_CONFIG: Record<UserActionType, {
 };
 
 export default function UsersPage() {
-  const { session, hasPermission, hasAccountPermission } = useAuth();
+  const { session } = useAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(ALL);
   const [roleFilter, setRoleFilter] = useState<string>(ALL);
@@ -176,11 +176,6 @@ export default function UsersPage() {
 
   const pendingConfig = pendingAction ? ACTION_CONFIG[pendingAction.action] : null;
 
-  const canCreate = hasPermission('users.create');
-  const canUpdate = hasPermission('users.update');
-  const canDeactivate = hasPermission('users.deactivate');
-  const canDelete = hasAccountPermission('account.users.delete');
-  const canRestore = hasAccountPermission('account.users.restore');
 
   return (
     <div className="animate-fade-in">
@@ -189,12 +184,10 @@ export default function UsersPage() {
         description="Create and manage user accounts, assign roles, and control access."
         breadcrumbs={[{ label: 'Users' }]}
         actions={
-          canCreate && (
-            <Button onClick={handleCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              New User
-            </Button>
-          )
+          <Button onClick={handleCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            New User
+          </Button>
         }
       />
 
@@ -309,12 +302,12 @@ export default function UsersPage() {
                     const locked = user.is_super_admin;
                     const deleted = isUserDeleted(user.status);
                     // A deleted account can only be restored
-                    const canEdit = canUpdate && !locked && !deleted;
-                    const canToggle = canDeactivate && !self && !locked && !deleted;
+                    const canEdit = !locked && !deleted;
+                    const canToggle = !self && !locked && !deleted;
                     // Backend rejects re-inviting active accounts (USER_ALREADY_ACTIVE)
                     const canResend = canEdit && user.status === 'invited';
-                    const canDeleteRow = canDelete && !self && !locked && !deleted;
-                    const canRestoreRow = canRestore && !locked && deleted;
+                    const canDeleteRow = !self && !locked && !deleted;
+                    const canRestoreRow = !locked && deleted;
                     return (
                       <TableRow key={user.id} {...{ [ROW_INDEX_ATTR]: index }}>
                         <TableCell className="text-sm tabular-nums text-muted-foreground">{index + 1}</TableCell>

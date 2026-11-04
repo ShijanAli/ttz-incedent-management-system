@@ -1,4 +1,4 @@
-import type { Project, Group, GroupMessage, UUID, User, Permission, Issue, IssueStatus, IssueComment, IssueAttachment, IssueHistoryEntry, ProjectRole } from '@/lib/types';
+import type { Project, Group, GroupMessage, UUID, User, Issue, IssueStatus, IssueComment, IssueAttachment, IssueHistoryEntry, ProjectRole } from '@/lib/types';
 import { DEFAULT_PROJECT_ROLE, DEFAULT_PROJECT_ROLES } from '@/lib/types';
 import {
   projectRepo, groupRepo, messageRepo, userRepo, activityRepo,

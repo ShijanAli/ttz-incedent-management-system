@@ -1,6 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo } from 'react';
-import type { User, Permission } from '@/lib/types';
-import { ALL_PERMISSIONS, BASELINE_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, toAppPermissions } from '@/lib/permissions';
+import type { User } from '@/lib/types';
 import { getAvatarColor } from '@/lib/shared-utils';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import { baseApi } from '@/redux/api/base-api';
@@ -14,7 +13,6 @@ import type { ApiUser, UserAccess } from '@/redux/features/auth/auth-types';
  */
 interface AuthSession {
   user: User;
-  permissions: Permission[];
   roleNames: string[];
 }
 
@@ -30,56 +28,11 @@ interface AuthContextValue {
   logout: () => void;
   register: (name: string, email: string, password: string) => { success: boolean; error?: string };
   refreshSession: () => void;
-  hasPermission: (perm: Permission) => boolean;
-  /** Account (system-wide) permission such as `account.users.view`; super admins hold them all */
-  hasAccountPermission: (perm: string) => boolean;
-  hasAnyPermission: (perms: Permission[]) => boolean;
-  hasAllPermissions: (perms: Permission[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 
-
-/** Backend permissions granted by the user's system-wide default role */
-function defaultRolePermissions(user: ApiUser): string[] {
-  if (user.permissions) return user.permissions;
-  return user.default_role ? DEFAULT_ROLE_PERMISSIONS[user.default_role] ?? [] : [];
-}
-
-const isAccountPermission = (perm: string) => perm.startsWith('account.');
-
-/**
- * Account (system-wide) permissions. The backend may send them in `account_permissions`
- * (user or login `access`) or mixed into the role's `permissions` list, so read all three.
- */
-function accountPermissions(user: ApiUser | null, access: UserAccess | null): string[] {
-  return [...new Set([
-    ...(user?.account_permissions ?? []),
-    ...(access?.account_permissions ?? []),
-    ...(user?.permissions ?? []).filter(isAccountPermission),
-  ])];
-}
-
-function resolvePermissions(user: ApiUser, access: UserAccess | null): Permission[] {
-  if (user.is_super_admin || access?.is_super_admin) return ALL_PERMISSIONS;
-
-  // Default role applies everywhere, project roles add to it per project,
-  // and the account role adds system-wide pages (users, groups, ...)
-  const accountPerms = accountPermissions(user, access);
-  const result = toAppPermissions([
-    ...defaultRolePermissions(user),
-    ...(access?.projects?.flatMap((p) => p.permissions ?? []) ?? []),
-    ...accountPerms,
-  ]);
-  BASELINE_PERMISSIONS.forEach((p) => result.add(p));
-  // Older payloads only send the flags, not the account permissions
-  if (accountPerms.length === 0 && (user.can_manage_users || access?.can_manage_users)) {
-    (['users.view', 'users.create', 'users.update', 'users.deactivate'] as Permission[]).forEach((p) => result.add(p));
-  }
-  if (user.can_create_projects || access?.can_create_projects) result.add('projects.create');
-  return [...result];
-}
 
 function toSessionUser(user: ApiUser): User {
   return {
@@ -120,7 +73,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!accessToken || !user) return null;
     return {
       user: toSessionUser(user),
-      permissions: resolvePermissions(user, access),
       roleNames: toRoleNames(user, access),
     };
   }, [accessToken, user, access]);
@@ -145,29 +97,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const hasPermission = useCallback(
-    (perm: Permission) => session?.permissions.includes(perm) ?? false,
-    [session],
-  );
-  const accountPerms = useMemo(() => new Set(accountPermissions(user, access)), [user, access]);
-  const hasAccountPermission = useCallback(
-    (perm: string) => isSuperAdmin || accountPerms.has(perm),
-    [isSuperAdmin, accountPerms],
-  );
-  const hasAnyPermission = useCallback(
-    (perms: Permission[]) => (session ? perms.some((p) => session.permissions.includes(p)) : false),
-    [session],
-  );
-  const hasAllPermissions = useCallback(
-    (perms: Permission[]) => (session ? perms.every((p) => session.permissions.includes(p)) : false),
-    [session],
-  );
-
   return (
     <AuthContext.Provider
       value={{
         session, loading, mustChangePassword, access, isSuperAdmin, logout, register, refreshSession,
-        hasPermission, hasAccountPermission, hasAnyPermission, hasAllPermissions,
       }}
     >
       {children}

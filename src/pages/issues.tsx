@@ -12,16 +12,15 @@ import { parseApiError } from '@/lib/api-error';
 import { rememberIssuesSearch } from '@/lib/last-issues-url';
 import { lastBoardProject, rememberBoardProject } from '@/lib/last-board-project';
 import {
-  formatDate, formatRelativeTime, isIssueClosed, isMyReport,
+  formatDate, formatRelativeTime, isIssueClosed,
   isOverdue,
 } from '@/lib/shared-utils';
 import { useIssueOptions } from '@/redux/features/issues/issue-options-api';
 import { sortStatuses, toStatusInputs } from '@/lib/project-utils';
-import { useProjectCan } from '@/hooks/use-project-can';
 import { useGetIssuesInfiniteQuery, useGetProjectIssuesInfiniteQuery } from '@/redux/features/issues/issues-api';
 import type { IssueListFilters, IssueListItem } from '@/redux/features/issues/issues-types';
 import {
-  useGetProjectQuery, useGetProjectsInfiniteQuery, useGetProjectStatusesQuery, useReplaceProjectStatusesMutation,
+  useGetProjectsInfiniteQuery, useGetProjectStatusesQuery, useReplaceProjectStatusesMutation,
 } from '@/redux/features/projects/projects-api';
 import { useStatusCatalog } from '@/redux/features/projects/use-status-catalog';
 import type { IssuePriority, IssueSeverity, IssueType } from '@/lib/types';
@@ -129,9 +128,9 @@ const isSet = (key: keyof FilterState, value: string) => value !== EMPTY_FILTERS
 const pick = <T extends string>(value: string): T | undefined => (value === ALL ? undefined : (value as T));
 
 export default function IssuesPage() {
-  const { session, hasPermission, hasAccountPermission } = useAuth();
-  // account.projects.view_all (and super admins) read the admin list, which covers every project
-  const viewAll = hasAccountPermission('account.projects.view_all');
+  const { session, isSuperAdmin } = useAuth();
+  // Super admins read the admin list, which covers every project
+  const viewAll = isSuperAdmin;
   const issueOptions = useIssueOptions();
   const [filters, setFilters] = useUrlFilters();
   // Lets an issue's breadcrumb come back to this exact view and filters
@@ -208,13 +207,7 @@ export default function IssuesPage() {
   );
   const { data: boardStatuses = [] } = useGetProjectStatusesQuery(boardProjectId, { skip: !boardActive });
   const orderedBoardStatuses = useMemo(() => sortStatuses(boardStatuses), [boardStatuses]);
-  // Reordering columns rewrites the project's workflow, so it needs the same right as the workflow editor
-  const projectCan = useProjectCan();
-  const { data: boardProject } = useGetProjectQuery(boardProjectId, { skip: !boardActive });
-  const canReorderColumns = projectCan(boardProject, 'projects.edit');
   const [replaceStatuses] = useReplaceProjectStatusesMutation();
-  const canCreate = hasPermission('issues.create');
-  const canCreateOnBoard = canCreate && projectCan(boardProject, 'issues.create');
 
   // Whichever list is on screen drives the count, refresh, errors and paging
   const list = boardActive ? boardList : tableList;
@@ -223,10 +216,6 @@ export default function IssuesPage() {
   const activeCount = (Object.keys(filters) as (keyof FilterState)[]).filter((k) => isSet(k, filters[k])).length;
   const advancedCount = ADVANCED_KEYS.filter((k) => isSet(k, filters[k])).length;
 
-  // The API still checks each issue's own abilities; these only decide what the menu offers
-  const canUpdate = hasPermission('issues.update');
-  const canDelete = hasPermission('issues.delete');
-  const canChangeStatus = hasPermission('issues.change_status');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<IssueListItem | null>(null);
   const [deleteIssue] = useDeleteIssueMutation();
@@ -244,11 +233,9 @@ export default function IssuesPage() {
               {showBoard ? <ListFilter className="mr-2 h-4 w-4" /> : <KanbanSquare className="mr-2 h-4 w-4" />}
               {showBoard ? 'List View' : 'Board View'}
             </Button>
-            {canCreate && (
-              <Button onClick={() => setFormOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" /> New Issue
-              </Button>
-            )}
+            <Button onClick={() => setFormOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" /> New Issue
+            </Button>
           </div>
         }
       />
@@ -424,8 +411,8 @@ export default function IssuesPage() {
               <IssueBoard
                 issues={boardList.items}
                 statuses={orderedBoardStatuses}
-                onCreate={canCreateOnBoard ? () => setFormOpen(true) : undefined}
-                onReorderColumns={!canReorderColumns ? undefined : async (ordered) => {
+                onCreate={() => setFormOpen(true)}
+                onReorderColumns={async (ordered) => {
                   // The board hands back its own column objects; send the full statuses so flags are kept
                   const byId = new Map(orderedBoardStatuses.map((s) => [s.id, s]));
                   const statuses = ordered.map((s) => byId.get(s.id)).filter((s) => s !== undefined);
@@ -437,8 +424,7 @@ export default function IssuesPage() {
                     throw err;
                   }
                 }}
-                // Without issues.status the board is read-only (no dragging)
-                onMove={!canChangeStatus ? undefined : async (issue, to) => {
+                onMove={async (issue, to) => {
                   try {
                     // The backend works out progress from the new status
                     await changeMyStatus({ issueId: issue.id, status_id: to.id }).unwrap();
@@ -485,8 +471,6 @@ export default function IssuesPage() {
                         index={index}
                         issue={issue}
                         // Reporters may edit and delete their own issues whatever their role
-                        canUpdate={canUpdate || isMyReport(issue, myId)}
-                        canDelete={canDelete || isMyReport(issue, myId)}
                         onEdit={(i) => setEditingId(i.id)}
                         onDelete={setConfirmDelete}
                       />
@@ -541,13 +525,11 @@ export default function IssuesPage() {
 interface IssueRowProps {
   index: number;
   issue: IssueListItem;
-  canUpdate: boolean;
-  canDelete: boolean;
   onEdit: (issue: IssueListItem) => void;
   onDelete: (issue: IssueListItem) => void;
 }
 
-function IssueRow({ index, issue, canUpdate, canDelete, onEdit, onDelete }: IssueRowProps) {
+function IssueRow({ index, issue, onEdit, onDelete }: IssueRowProps) {
   const overdue = issue.progress < 100 && isOverdue(issue.due_date ?? undefined);
   // The list has no updated_at yet, so fall back to when the issue was created
   const updatedAt = issue.updated_at ?? issue.created_at;
@@ -618,12 +600,12 @@ function IssueRow({ index, issue, canUpdate, canDelete, onEdit, onDelete }: Issu
                 <Eye className="mr-2 h-4 w-4" /> View issue
               </Link>
             </DropdownMenuItem>
-            {canUpdate && !closed && (
+            {!closed && (
               <DropdownMenuItem onClick={() => onEdit(issue)}>
                 <Pencil className="mr-2 h-4 w-4" /> Edit issue
               </DropdownMenuItem>
             )}
-            {canDelete && !closed && (
+            {!closed && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => onDelete(issue)} className="text-red-600">

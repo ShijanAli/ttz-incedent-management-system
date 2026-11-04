@@ -1,11 +1,9 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
-import { useProjectCan } from '@/hooks/use-project-can';
 import { ProjectSelect } from '@/components/projects/project-select';
 import { MemberMultiSelect } from '@/components/members/member-multi-select';
 import { useGetProjectMembersQuery, useGetProjectQuery } from '@/redux/features/projects/projects-api';
-import type { ApiProject } from '@/redux/features/projects/projects-types';
 import { useCreateIssueMutation } from '@/redux/features/issues/issues-api';
 import {
   useTriageIssueMutation, useUpdateIssueMutation,
@@ -65,16 +63,8 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const sameList = <T,>(a: T[], b: T[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
 
 export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, onSaved }: IssueFormDialogProps) {
-  const { session, hasPermission } = useAuth();
+  const { session } = useAuth();
   const issueOptions = useIssueOptions();
-  const projectCan = useProjectCan();
-  // Only projects where the signed-in user may create issues. The list response has no
-  // my_permissions, and guessing from my_role is wrong (backend roles can be customised),
-  // so those stay listed; the picked project's own permissions are checked below.
-  const canCreateIssueIn = useCallback(
-    (p: ApiProject) => !p.my_permissions || projectCan(p, 'issues.create'),
-    [projectCan],
-  );
   const [createIssue, { isLoading: creating }] = useCreateIssueMutation();
   const [updateIssue, { isLoading: updating }] = useUpdateIssueMutation();
   const [triageIssue, { isLoading: triaging }] = useTriageIssueMutation();
@@ -102,7 +92,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
   const isEdit = !!issue;
   const saving = creating || updating || triaging;
   // Edits manage files from the issue's Files tab, so only the create form attaches them
-  const canAttach = !isEdit && hasPermission('attachments.create');
+  const canAttach = !isEdit;
   // In edit mode each part of the form follows what the API says this user may change.
   // The reporter may change everything they filled in when creating it.
   const reportedByMe = !!issue && isMyReport(issue, session ? Number(session.user.id) : undefined);
@@ -156,12 +146,10 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
     return [...options.values()];
   }, [members, issue]);
 
-  // Create: the signed-in user's permission in the project. Edit: the issue's own abilities.
-  const canAssign = issue ? issue.abilities.can_assign && canTriage : projectCan(project, 'issues.assign');
-  // The single project does send my_permissions, so this is the real check
-  const createBlocked = !isEdit && Boolean(project?.my_permissions) && !projectCan(project, 'issues.create');
+  // Edit: the issue's own abilities. Create: anyone may assign.
+  const canAssign = issue ? issue.abilities.can_assign && canTriage : true;
   // The rest of the form depends on the project (assignees, permissions), so it waits for one
-  const showDetails = isEdit || (Boolean(projectId) && !createBlocked);
+  const showDetails = isEdit || Boolean(projectId);
 
   const clearError = (key: string) => setErrors((e) => ({ ...e, [key]: '' }));
 
@@ -323,15 +311,9 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
               id="issueProject"
               value={projectId}
               onChange={handleProjectChange}
-              filter={canCreateIssueIn}
               disabled={isEdit || saving}
             />
             {errors.project && <p className="text-xs text-destructive">{errors.project}</p>}
-            {createBlocked && (
-              <p className="text-xs text-destructive">
-                You can&apos;t create issues in {project?.name ?? 'this project'}. Ask a project manager for access.
-              </p>
-            )}
           </div>
 
           {!showDetails ? (
