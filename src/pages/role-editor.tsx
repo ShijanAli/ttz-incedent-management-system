@@ -37,7 +37,9 @@ const SENSITIVE_PERMS = new Set<string>([
   'issues.delete', 'comments.delete', 'attachments.delete', 'issues.assign', 'users.edit',
   'account.users.create', 'account.users.edit', 'account.groups.delete', 'account.customers.delete',
   'account.categories.delete', 'account.statuses.delete', 'account.projects.edit_all',
-  'account.issues.force_close',
+  'account.issues.force_close', 'account.projects.delete', 'account.users.delete', 'account.users.restore',
+  'account.roles.create', 'account.roles.edit', 'account.roles.delete', 'account.roles.assign',
+  'account.issues.reopen', 'account.issues.final_status', 'account.issues.review_any',
 ]);
 
 const MODULE_ICONS: Record<string, LucideIcon> = {

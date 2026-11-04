@@ -160,8 +160,8 @@ const API_PERMISSION_ALIASES: Record<string, Permission[]> = {
   'comments.create': ['issues.comment'],
   // "Manage project members": project member list only, not the system Users page
   'users.edit': ['projects.assign_members'],
-  // "Export audit log"
-  'reports.view': ['reports.export'],
+  // "Export" on the activity log
+  'activity.export': ['reports.export'],
 
   // ---- Account (system-wide) permissions ----
   'account.users.view': ['users.view'],
@@ -171,13 +171,18 @@ const API_PERMISSION_ALIASES: Record<string, Permission[]> = {
   'account.groups.create': ['groups.create'],
   'account.groups.edit': ['groups.update', 'groups.manage_members'],
   'account.groups.delete': ['groups.delete'],
-  'account.projects.create': ['projects.create'],
   'account.projects.view_all': ['projects.view', 'issues.view'],
   'account.projects.edit_all': ['projects.update', 'projects.assign_members'],
-  // Read-only: creating and editing roles stays with super admins
+  'account.projects.delete': ['projects.delete'],
+  'account.issues.review_any': ['issues.approve'],
   'account.roles.view': ['roles.view'],
-  // account.customers.*, account.categories.*, account.statuses.* and account.issues.*
-  // have no app permission; pages check them with hasAccountPermission
+  'account.roles.create': ['roles.create'],
+  'account.roles.edit': ['roles.update', 'roles.assign_permissions'],
+  'account.roles.delete': ['roles.delete'],
+  // No app permission, pages check these with hasAccountPermission:
+  // account.users.delete/restore, account.roles.assign, account.customers.*,
+  // account.categories.*, account.statuses.*, account.labels.manage,
+  // account.notifications.test and account.issues.force_close/reopen/final_status
 };
 
 /**
@@ -189,7 +194,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   Manager: [
     'dashboard.view', 'projects.view', 'projects.edit',
     'issues.view', 'issues.create', 'issues.edit', 'issues.delete', 'issues.pick', 'issues.assign', 'issues.status',
-    'users.edit', 'reports.view',
+    'users.edit',
     'comments.view', 'comments.create', 'comments.edit', 'comments.delete',
     'attachments.view', 'attachments.create', 'attachments.delete',
   ],
