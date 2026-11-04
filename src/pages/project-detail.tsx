@@ -5,6 +5,7 @@ import {
   Target, Trash2, Users as UsersIcon,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import type { PermissionCode } from '@/lib/permissions';
 import { useTabParam } from '@/hooks/use-tab-param';
 import { parseApiError } from '@/lib/api-error';
 import {
@@ -37,6 +38,15 @@ import { ProjectLogo } from '@/components/projects/project-logo';
 import { useForgetMissingRecent } from '@/hooks/use-forget-missing-recent';
 
 const PROJECT_TABS = ['overview', 'members', 'workflow', 'issues', 'groups', 'activity'] as const;
+type ProjectTab = (typeof PROJECT_TABS)[number];
+
+/** A tab shows when the user holds any of these permissions; omitted tabs are always shown */
+const TAB_PERMISSIONS: Partial<Record<ProjectTab, readonly PermissionCode[]>> = {
+  members: ['account.users.view', 'users.edit'],
+  issues: ['issues.view', 'account.projects.view_all'],
+  groups: ['account.groups.view'],
+  activity: ['activity.view'],
+};
 
 export default function ProjectDetailPage() {
   const id = Number(useParams().id);
@@ -87,7 +97,11 @@ function ProjectDetail({ project }: { project: ApiProject }) {
   const [editOpen, setEditOpen] = useState(false);
   const actions = useProjectActions({ onDeleted: () => navigate('/projects', { replace: true }) });
 
-  const [tab, setTab] = useTabParam(PROJECT_TABS, 'overview');
+  const tabs = PROJECT_TABS.filter((t) => {
+    const required = TAB_PERMISSIONS[t];
+    return !required || hasAnyPermission(required);
+  });
+  const [tab, setTab] = useTabParam(tabs, 'overview');
 
   const archived = project.status === ARCHIVED_STATE;
   const canEdit = hasAnyPermission(['projects.edit', 'account.projects.edit_all']);
@@ -188,13 +202,13 @@ function ProjectDetail({ project }: { project: ApiProject }) {
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="members">Members ({project.member_count})</TabsTrigger>
-          <TabsTrigger value="workflow">Workflow ({statuses.length})</TabsTrigger>
-          <TabsTrigger value="issues">Issues ({counts.total})</TabsTrigger>
-          <TabsTrigger value="groups">Groups ({project.groups?.length ?? 0})</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
+        <TabsList className="flex h-auto w-full flex-wrap">
+          {tabs.includes('overview') && <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>}
+          {tabs.includes('members') && <TabsTrigger value="members" className="flex-1">Members ({project.member_count})</TabsTrigger>}
+          {tabs.includes('workflow') && <TabsTrigger value="workflow" className="flex-1">Workflow ({statuses.length})</TabsTrigger>}
+          {tabs.includes('issues') && <TabsTrigger value="issues" className="flex-1">Issues ({counts.total})</TabsTrigger>}
+          {tabs.includes('groups') && <TabsTrigger value="groups" className="flex-1">Groups ({project.groups?.length ?? 0})</TabsTrigger>}
+          {tabs.includes('activity') && <TabsTrigger value="activity" className="flex-1">Activity</TabsTrigger>}
         </TabsList>
 
         {/* Overview */}
@@ -231,9 +245,11 @@ function ProjectDetail({ project }: { project: ApiProject }) {
         </TabsContent>
 
         {/* Members */}
-        <TabsContent value="members">
-          <ProjectMemberManager project={project} canManage={canManageMembers} />
-        </TabsContent>
+        {tabs.includes('members') && (
+          <TabsContent value="members">
+            <ProjectMemberManager project={project} canManage={canManageMembers} />
+          </TabsContent>
+        )}
 
         {/* Workflow */}
         <TabsContent value="workflow">
@@ -241,19 +257,25 @@ function ProjectDetail({ project }: { project: ApiProject }) {
         </TabsContent>
 
         {/* Issues */}
-        <TabsContent value="issues">
-          <ProjectIssues projectId={project.id} />
-        </TabsContent>
+        {tabs.includes('issues') && (
+          <TabsContent value="issues">
+            <ProjectIssues projectId={project.id} />
+          </TabsContent>
+        )}
 
         {/* Groups */}
-        <TabsContent value="groups">
-          <ProjectGroupManager project={project} canManage={canManageMembers && !archived} />
-        </TabsContent>
+        {tabs.includes('groups') && (
+          <TabsContent value="groups">
+            <ProjectGroupManager project={project} canManage={canManageMembers && !archived} />
+          </TabsContent>
+        )}
 
         {/* Activity */}
-        <TabsContent value="activity">
-          <ProjectActivity project={project} />
-        </TabsContent>
+        {tabs.includes('activity') && (
+          <TabsContent value="activity">
+            <ProjectActivity project={project} />
+          </TabsContent>
+        )}
       </Tabs>
 
       <ProjectFormDialog open={editOpen} onOpenChange={setEditOpen} project={project} />
