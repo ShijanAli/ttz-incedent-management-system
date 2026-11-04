@@ -95,7 +95,7 @@ function dayLabel(iso: string): string {
 }
 
 export default function ActivityPage() {
-  const { session } = useAuth();
+  const { session, hasPermission } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const get = (key: keyof typeof PARAM) => searchParams.get(PARAM[key]) ?? '';
   const projectId = get('project');
@@ -177,10 +177,12 @@ export default function ActivityPage() {
         description="Who changed what, and when, in each project"
         breadcrumbs={[{ label: 'Activity Log' }]}
         actions={
-          <Button variant="outline" onClick={handleExport} disabled={!hasProject || exporting}>
-            {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            Export CSV
-          </Button>
+          hasPermission('activity.export') && (
+            <Button variant="outline" onClick={handleExport} disabled={!hasProject || exporting}>
+              {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              Export CSV
+            </Button>
+          )
         }
       />
 

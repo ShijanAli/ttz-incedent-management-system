@@ -4,6 +4,7 @@ import {
   AlertCircle, Calendar, FolderKanban, Loader2, Pencil, Power, PowerOff, Trash2, Users as UsersIcon, UsersRound,
 } from 'lucide-react';
 import { useTabParam } from '@/hooks/use-tab-param';
+import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
 import { formatDate, isOverdue } from '@/lib/shared-utils';
 import {
@@ -68,6 +69,9 @@ export default function GroupDetailPage() {
 
 function GroupDetailView({ group }: { group: GroupDetail }) {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const canEdit = hasPermission('account.groups.edit');
+  const canDelete = hasPermission('account.groups.delete');
   const [editOpen, setEditOpen] = useState(false);
   const actions = useGroupActions({ onDeleted: () => navigate('/groups', { replace: true }) });
   const [tab, setTab] = useTabParam(GROUP_TABS, 'members');
@@ -83,6 +87,7 @@ function GroupDetailView({ group }: { group: GroupDetail }) {
         ]}
         actions={
           <div className="flex items-center gap-2">
+            {canEdit && (
             <>
               <Button variant="outline" onClick={() => setEditOpen(true)}>
                 <Pencil className="mr-2 h-4 w-4" />
@@ -100,10 +105,13 @@ function GroupDetailView({ group }: { group: GroupDetail }) {
                 </Button>
               )}
             </>
-            <Button variant="outline" onClick={() => actions.request(group, 'delete')} className="text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </Button>
+            )}
+            {canDelete && (
+              <Button variant="outline" onClick={() => actions.request(group, 'delete')} className="text-destructive">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+            )}
           </div>
         }
       />
@@ -149,7 +157,7 @@ function GroupDetailView({ group }: { group: GroupDetail }) {
         </TabsList>
 
         <TabsContent value="members">
-          <GroupMemberManager group={group} canManage />
+          <GroupMemberManager group={group} canManage={canEdit} />
         </TabsContent>
 
         <TabsContent value="projects">

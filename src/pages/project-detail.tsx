@@ -4,6 +4,7 @@ import {
   AlertCircle, Archive, Calendar, Loader2, Pencil, RotateCcw,
   Target, Trash2, Users as UsersIcon,
 } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 import { useTabParam } from '@/hooks/use-tab-param';
 import { parseApiError } from '@/lib/api-error';
 import {
@@ -82,12 +83,16 @@ export default function ProjectDetailPage() {
 
 function ProjectDetail({ project }: { project: ApiProject }) {
   const navigate = useNavigate();
+  const { hasPermission, hasAnyPermission } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const actions = useProjectActions({ onDeleted: () => navigate('/projects', { replace: true }) });
 
   const [tab, setTab] = useTabParam(PROJECT_TABS, 'overview');
 
   const archived = project.status === ARCHIVED_STATE;
+  const canEdit = hasAnyPermission(['projects.edit', 'account.projects.edit_all']);
+  const canManageMembers = hasAnyPermission(['users.edit', 'account.projects.edit_all']);
+  const canDelete = hasPermission('account.projects.delete');
 
   const stateMeta = getProjectStateMeta(project.status);
   const priorityMeta = getProjectPriorityMeta(project.priority);
@@ -107,28 +112,30 @@ function ProjectDetail({ project }: { project: ApiProject }) {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            {!archived && (
+            {canEdit && !archived && (
               <Button variant="outline" onClick={() => setEditOpen(true)}>
                 <Pencil className="mr-2 h-4 w-4" />
                 Edit
               </Button>
             )}
-            {archived && (
+            {canEdit && archived && (
               <Button variant="outline" onClick={() => actions.request(project, 'restore')} className="text-emerald-600">
                 <RotateCcw className="mr-2 h-4 w-4" />
                 Restore
               </Button>
             )}
-            {!archived && (
+            {canEdit && !archived && (
               <Button variant="outline" onClick={() => actions.request(project, 'archive')} className="text-amber-600">
                 <Archive className="mr-2 h-4 w-4" />
                 Archive
               </Button>
             )}
-            <Button variant="outline" onClick={() => actions.request(project, 'delete')} className="text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </Button>
+            {canDelete && (
+              <Button variant="outline" onClick={() => actions.request(project, 'delete')} className="text-destructive">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+            )}
           </div>
         }
       />
@@ -225,12 +232,12 @@ function ProjectDetail({ project }: { project: ApiProject }) {
 
         {/* Members */}
         <TabsContent value="members">
-          <ProjectMemberManager project={project} canManage />
+          <ProjectMemberManager project={project} canManage={canManageMembers} />
         </TabsContent>
 
         {/* Workflow */}
         <TabsContent value="workflow">
-          <StatusWorkflowEditor projectId={project.id} canEdit={!archived} />
+          <StatusWorkflowEditor projectId={project.id} canEdit={canEdit && !archived} />
         </TabsContent>
 
         {/* Issues */}
@@ -240,7 +247,7 @@ function ProjectDetail({ project }: { project: ApiProject }) {
 
         {/* Groups */}
         <TabsContent value="groups">
-          <ProjectGroupManager project={project} canManage={!archived} />
+          <ProjectGroupManager project={project} canManage={canManageMembers && !archived} />
         </TabsContent>
 
         {/* Activity */}

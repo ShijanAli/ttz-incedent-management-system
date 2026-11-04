@@ -9,7 +9,7 @@ import { useSidebar } from '@/components/layout/sidebar-context';
 
 export function Sidebar() {
   const { pathname } = useLocation();
-  const { session } = useAuth();
+  const { session, hasAnyPermission } = useAuth();
   const { collapsed, toggleCollapsed } = useSidebar();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -18,8 +18,9 @@ export function Sidebar() {
   }, [pathname]);
 
   const visibleItems: { label: string; href: string; icon: (typeof NAV_ITEMS)[number]['icon'] }[] =
-    [...NAV_ITEMS];
+    NAV_ITEMS.filter((item) => !item.permission || hasAnyPermission(item.permission));
   for (const extra of ACCOUNT_NAV_ITEMS) {
+    if (extra.permission && !hasAnyPermission(extra.permission)) continue;
     const at = visibleItems.findIndex((item) => item.href === extra.after);
     visibleItems.splice(at === -1 ? visibleItems.length : at + 1, 0, extra);
   }

@@ -32,10 +32,11 @@ interface IssueCategorySelectProps {
  * opens a small inline form; the new category is selected as soon as it is created.
  */
 export function IssueCategorySelect({ id, value, onChange, disabled }: IssueCategorySelectProps) {
-  // Super admins read categories through the admin API
-  const { isSuperAdmin } = useAuth();
+  // Categories are managed through the admin API (account.categories.* permissions)
+  const { hasPermission } = useAuth();
+  const canAdd = hasPermission('account.categories.create');
   const { data: categories = [], isLoading, isError, error, refetch } = useGetIssueCategoriesQuery({
-    admin: isSuperAdmin,
+    admin: hasPermission('account.categories.view'),
   });
   const [createCategory, { isLoading: creating }] = useCreateIssueCategoryMutation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -111,21 +112,23 @@ export function IssueCategorySelect({ id, value, onChange, disabled }: IssueCate
           </Select>
         </div>
         {/* The only way in; the inline form below has its own cancel button */}
-        <Button
-          type="button"
-          variant={adding ? 'secondary' : 'outline'}
-          size="icon"
-          className="shrink-0"
-          onClick={openAddForm}
-          disabled={disabled || creating || adding}
-          aria-label="Add new category"
-          title="Add new category"
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
+        {canAdd && (
+          <Button
+            type="button"
+            variant={adding ? 'secondary' : 'outline'}
+            size="icon"
+            className="shrink-0"
+            onClick={openAddForm}
+            disabled={disabled || creating || adding}
+            aria-label="Add new category"
+            title="Add new category"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
-      {adding && (
+      {canAdd && adding && (
         <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
           <div className="flex gap-2">
             <Input

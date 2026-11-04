@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router';
+import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
 import {
   useDeleteRoleMutation,
@@ -28,6 +29,10 @@ import { formatDate } from '@/lib/shared-utils';
 const COLUMN_COUNT = 7;
 
 export default function RolesPage() {
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission('account.roles.create');
+  const canEdit = hasPermission('account.roles.edit');
+  const canDelete = hasPermission('account.roles.delete');
   const navigate = useNavigate();
   const { data: roles = [], isLoading, isError, error, refetch, isFetching } = useGetRolesQuery();
   const { data: modules = [] } = useGetPermissionCatalogQuery();
@@ -79,10 +84,12 @@ export default function RolesPage() {
         description="Manage roles, configure permissions, and control what users can access across the system."
         breadcrumbs={[{ label: 'Roles & Permissions' }]}
         actions={
-          <Button onClick={handleCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Role
-          </Button>
+          canCreate && (
+            <Button onClick={handleCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Role
+            </Button>
+          )
         }
       />
 
@@ -153,8 +160,8 @@ export default function RolesPage() {
                     return (
                       <TableRow
                         key={role.id}
-                        onClick={() => handleEdit(role)}
-                        className="cursor-pointer"
+                        onClick={canEdit ? () => handleEdit(role) : undefined}
+                        className={canEdit ? 'cursor-pointer' : undefined}
                       >
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -186,6 +193,7 @@ export default function RolesPage() {
                           {role.updated_at ? formatDate(role.updated_at) : '—'}
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
+                          {(canEdit || (canDelete && !role.is_system)) && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -193,13 +201,15 @@ export default function RolesPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleEdit(role)}>
-                                <Pencil className="mr-2 h-4 w-4" />
-                                Edit role & permissions
-                              </DropdownMenuItem>
-                              {!role.is_system && (
+                              {canEdit && (
+                                <DropdownMenuItem onClick={() => handleEdit(role)}>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  Edit role & permissions
+                                </DropdownMenuItem>
+                              )}
+                              {canDelete && !role.is_system && (
                                 <>
-                                  <DropdownMenuSeparator />
+                                  {canEdit && <DropdownMenuSeparator />}
                                   <DropdownMenuItem
                                     onClick={() => handleDelete(role)}
                                     className="text-destructive"
@@ -209,7 +219,7 @@ export default function RolesPage() {
                                   </DropdownMenuItem>
                                 </>
                               )}
-                              {role.is_system && (
+                              {canDelete && role.is_system && (
                                 <DropdownMenuItem disabled>
                                   <Lock className="mr-2 h-4 w-4" />
                                   System roles cannot be deleted
@@ -217,6 +227,7 @@ export default function RolesPage() {
                               )}
                             </DropdownMenuContent>
                           </DropdownMenu>
+                          )}
                         </TableCell>
                       </TableRow>
                     );

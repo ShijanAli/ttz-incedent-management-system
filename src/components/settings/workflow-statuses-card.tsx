@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, ListChecks, Loader2, MoreVertical, Pencil, Plus, Power, PowerOff, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
 import { cn } from '@/lib/utils';
 import {
@@ -31,6 +32,10 @@ const toSlug = (name: string) =>
  * is built from these, so this lives in Settings rather than inside a project.
  */
 export function WorkflowStatusesCard() {
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission('account.statuses.create');
+  const canEdit = hasPermission('account.statuses.edit');
+  const canDelete = hasPermission('account.statuses.delete');
   const { data: statuses = [], isLoading, isError, error, refetch } = useGetGlobalStatusesQuery();
   const [updateStatus] = useUpdateGlobalStatusMutation();
   const [deleteStatus] = useDeleteGlobalStatusMutation();
@@ -76,9 +81,11 @@ export function WorkflowStatusesCard() {
             The default statuses every project&apos;s workflow is built from. Inactive ones can&apos;t be added to a workflow.
           </CardDescription>
         </div>
-        <Button size="sm" onClick={() => openForm(null)}>
-          <Plus className="mr-1.5 h-4 w-4" /> New status
-        </Button>
+        {canCreate && (
+          <Button size="sm" onClick={() => openForm(null)}>
+            <Plus className="mr-1.5 h-4 w-4" /> New status
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -102,10 +109,10 @@ export function WorkflowStatusesCard() {
                 <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: s.color }} aria-hidden />
                 <button
                   type="button"
-                  onClick={() => openForm(s)}
-                  className="min-w-0 flex-1 text-left"
+                  onClick={() => canEdit && openForm(s)}
+                  className={cn('min-w-0 flex-1 text-left', !canEdit && 'cursor-default')}
                 >
-                  <span className={'block truncate text-sm font-medium hover:text-primary'}>{s.name}</span>
+                  <span className={cn('block truncate text-sm font-medium', canEdit && 'hover:text-primary')}>{s.name}</span>
                   <span className="block truncate font-mono text-xs text-muted-foreground">{s.slug}</span>
                 </button>
                 <Badge
@@ -116,6 +123,7 @@ export function WorkflowStatusesCard() {
                 >
                   {s.is_active ? 'Active' : 'Inactive'}
                 </Badge>
+                {(canEdit || canDelete) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${s.name}`}>
@@ -123,6 +131,7 @@ export function WorkflowStatusesCard() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    {canEdit && (
                     <>
                       <DropdownMenuItem onClick={() => openForm(s)}>
                         <Pencil className="mr-2 h-4 w-4" /> Edit
@@ -132,12 +141,16 @@ export function WorkflowStatusesCard() {
                         {s.is_active ? 'Deactivate' : 'Activate'}
                       </DropdownMenuItem>
                     </>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setConfirmDelete(s)} className="text-red-600">
-                      <Trash2 className="mr-2 h-4 w-4" /> Delete
-                    </DropdownMenuItem>
+                    )}
+                    {canEdit && canDelete && <DropdownMenuSeparator />}
+                    {canDelete && (
+                      <DropdownMenuItem onClick={() => setConfirmDelete(s)} className="text-red-600">
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
+                )}
               </div>
             ))}
           </div>

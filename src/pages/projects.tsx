@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
+import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
 import { formatDate, isOverdue } from '@/lib/shared-utils';
 import {
@@ -43,6 +44,7 @@ const COLUMN_COUNT = 8;
 const ALL = 'all';
 
 export default function ProjectsPage() {
+  const { hasPermission } = useAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(ALL);
   const [priorityFilter, setPriorityFilter] = useState<string>(ALL);
@@ -122,10 +124,12 @@ export default function ProjectsPage() {
                 View Archived
               </Button>
             )}
+            {hasPermission('projects.create') && (
               <Button onClick={handleCreate}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Project
               </Button>
+            )}
           </div>
         }
       />
@@ -278,6 +282,9 @@ interface ProjectRowProps {
 }
 
 function ProjectRow({ index, project, onEdit, onAction }: ProjectRowProps) {
+  const { hasAnyPermission, hasPermission } = useAuth();
+  const canEdit = hasAnyPermission(['projects.edit', 'account.projects.edit_all']);
+  const canDelete = hasPermission('account.projects.delete');
   const archived = project.status === ARCHIVED_STATE;
   const progress = getProjectProgress(project);
   const overdue = isOverdue(project.due_date ?? undefined, archived ? 'approved' : (project.status ?? undefined));
@@ -330,6 +337,7 @@ function ProjectRow({ index, project, onEdit, onAction }: ProjectRowProps) {
         </span>
       </TableCell>
       <TableCell>
+        {(canEdit || canDelete) && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${project.name}`}>
@@ -337,31 +345,36 @@ function ProjectRow({ index, project, onEdit, onAction }: ProjectRowProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {!archived && (
+            {canEdit && !archived && (
               <DropdownMenuItem onClick={() => onEdit(project)}>
                 <Pencil className="mr-2 h-4 w-4" />
                 Edit project
               </DropdownMenuItem>
             )}
-            {!archived && (
+            {canEdit && !archived && (
               <DropdownMenuItem onClick={() => onAction('archive')} className="text-amber-600">
                 <Archive className="mr-2 h-4 w-4" />
                 Archive project
               </DropdownMenuItem>
             )}
-            {archived && (
+            {canEdit && archived && (
               <DropdownMenuItem onClick={() => onAction('restore')} className="text-emerald-600">
                 <RotateCcw className="mr-2 h-4 w-4" />
                 Restore project
               </DropdownMenuItem>
             )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onAction('delete')} className="text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete project
-            </DropdownMenuItem>
+            {canDelete && (
+              <>
+                {canEdit && <DropdownMenuSeparator />}
+                <DropdownMenuItem onClick={() => onAction('delete')} className="text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete project
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </TableCell>
     </TableRow>
   );

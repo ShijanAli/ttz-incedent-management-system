@@ -25,7 +25,8 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ issues, onRefresh }: KanbanBoardProps) {
-  const { session } = useAuth();
+  const { session, hasPermission } = useAuth();
+  const canChangeStatus = hasPermission('issues.status');
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
@@ -84,7 +85,7 @@ export function KanbanBoard({ issues, onRefresh }: KanbanBoardProps) {
               color={meta.color}
               badgeClass={meta.badgeClass}
               issues={columnIssues}
-              canDrag
+              canDrag={canChangeStatus}
             />
           );
         })}

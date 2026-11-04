@@ -22,8 +22,10 @@ const NO_LABEL = 'No label';
 export function GroupMemberManager({ group, canManage }: GroupMemberManagerProps) {
   const { data: members = [], isLoading, error, refetch } = useGetGroupMembersQuery(group.id);
   // Labels are managed by super admins only; the label list is 403 for everyone else
-  const { isSuperAdmin } = useAuth();
-  const { data: labels = [] } = useGetProjectLabelsQuery(undefined, { skip: !isSuperAdmin });
+  const { hasPermission } = useAuth();
+  // Labels (e.g. Backend Dev) are managed with account.labels.manage
+  const canLabel = hasPermission('account.labels.manage');
+  const { data: labels = [] } = useGetProjectLabelsQuery(undefined, { skip: !canLabel });
   const [addMember] = useAddGroupMemberMutation();
   const [changeLabel] = useChangeGroupMemberLabelMutation();
   const [removeMember] = useRemoveGroupMemberMutation();
@@ -44,7 +46,7 @@ export function GroupMemberManager({ group, canManage }: GroupMemberManagerProps
       error={error}
       onRetry={refetch}
       canManage={canManage}
-      canChangeRole={canManage && isSuperAdmin}
+      canChangeRole={canManage && canLabel}
       roleOptions={roleOptions}
       roleNoun="label"
       // The API only takes a label once the person is in the group, so add first

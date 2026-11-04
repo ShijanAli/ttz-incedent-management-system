@@ -21,8 +21,9 @@ interface CustomerSelectProps {
  * shared read-only one.
  */
 export function CustomerSelect({ id, value, onChange, disabled, className }: CustomerSelectProps) {
-  const { isSuperAdmin } = useAuth();
-  const list = useInfiniteList(useGetCustomersInfiniteQuery({ admin: isSuperAdmin, is_active: 1 }));
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission('account.customers.view');
+  const list = useInfiniteList(useGetCustomersInfiniteQuery({ admin: canManage, is_active: 1 }));
   const customers = list.items;
   const selected = customers.find((c) => String(c.id) === value);
 
@@ -41,7 +42,7 @@ export function CustomerSelect({ id, value, onChange, disabled, className }: Cus
           </div>
         ) : customers.length === 0 && !list.trigger.hasMore ? (
           <div className="px-2 py-3 text-center text-xs text-muted-foreground">
-            No customers yet.{' Add them under Customers.'}
+            No customers yet.{canManage && ' Add them under Customers.'}
           </div>
         ) : (
           customers.map((c) => (

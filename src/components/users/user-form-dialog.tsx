@@ -36,8 +36,8 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
   // Fetch the latest copy so the form never edits stale list data
   const { data: freshUser, isLoading: loadingUser } = useGetUserQuery(user?.id ?? 0, { skip: !open || !user });
   // The role list (GET /admin/roles) needs account.roles.view, so others don't get the picker
-  const { isSuperAdmin } = useAuth();
-  const canPickRole = isSuperAdmin;
+  const { hasPermission } = useAuth();
+  const canPickRole = hasPermission('account.roles.view');
   const { data: roles = [], isLoading: loadingRoles } = useGetRolesQuery(undefined, { skip: !open || !canPickRole });
 
   const loading = loadingRoles || (Boolean(user) && loadingUser);

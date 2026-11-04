@@ -63,7 +63,7 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const sameList = <T,>(a: T[], b: T[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
 
 export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, onSaved }: IssueFormDialogProps) {
-  const { session } = useAuth();
+  const { session, hasPermission } = useAuth();
   const issueOptions = useIssueOptions();
   const [createIssue, { isLoading: creating }] = useCreateIssueMutation();
   const [updateIssue, { isLoading: updating }] = useUpdateIssueMutation();
@@ -92,7 +92,7 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
   const isEdit = !!issue;
   const saving = creating || updating || triaging;
   // Edits manage files from the issue's Files tab, so only the create form attaches them
-  const canAttach = !isEdit;
+  const canAttach = !isEdit && hasPermission('attachments.create');
   // In edit mode each part of the form follows what the API says this user may change.
   // The reporter may change everything they filled in when creating it.
   const reportedByMe = !!issue && isMyReport(issue, session ? Number(session.user.id) : undefined);
@@ -146,8 +146,8 @@ export function IssueFormDialog({ open, onOpenChange, issue, defaultProjectId, o
     return [...options.values()];
   }, [members, issue]);
 
-  // Edit: the issue's own abilities. Create: anyone may assign.
-  const canAssign = issue ? issue.abilities.can_assign && canTriage : true;
+  // Create: the issues.assign permission. Edit: the issue's own abilities.
+  const canAssign = issue ? issue.abilities.can_assign && canTriage : hasPermission('issues.assign');
   // The rest of the form depends on the project (assignees, permissions), so it waits for one
   const showDetails = isEdit || Boolean(projectId);
 

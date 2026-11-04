@@ -91,7 +91,7 @@ const ACTION_CONFIG: Record<UserActionType, {
 };
 
 export default function UsersPage() {
-  const { session } = useAuth();
+  const { session, hasPermission } = useAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(ALL);
   const [roleFilter, setRoleFilter] = useState<string>(ALL);
@@ -184,10 +184,12 @@ export default function UsersPage() {
         description="Create and manage user accounts, assign roles, and control access."
         breadcrumbs={[{ label: 'Users' }]}
         actions={
-          <Button onClick={handleCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            New User
-          </Button>
+          hasPermission('account.users.create') && (
+            <Button onClick={handleCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              New User
+            </Button>
+          )
         }
       />
 
@@ -302,12 +304,12 @@ export default function UsersPage() {
                     const locked = user.is_super_admin;
                     const deleted = isUserDeleted(user.status);
                     // A deleted account can only be restored
-                    const canEdit = !locked && !deleted;
-                    const canToggle = !self && !locked && !deleted;
+                    const canEdit = hasPermission('account.users.edit') && !locked && !deleted;
+                    const canToggle = hasPermission('account.users.edit') && !self && !locked && !deleted;
                     // Backend rejects re-inviting active accounts (USER_ALREADY_ACTIVE)
-                    const canResend = canEdit && user.status === 'invited';
-                    const canDeleteRow = !self && !locked && !deleted;
-                    const canRestoreRow = !locked && deleted;
+                    const canResend = hasPermission('account.users.create') && !locked && !deleted && user.status === 'invited';
+                    const canDeleteRow = hasPermission('account.users.delete') && !self && !locked && !deleted;
+                    const canRestoreRow = hasPermission('account.users.restore') && !locked && deleted;
                     return (
                       <TableRow key={user.id} {...{ [ROW_INDEX_ATTR]: index }}>
                         <TableCell className="text-sm tabular-nums text-muted-foreground">{index + 1}</TableCell>
@@ -363,7 +365,7 @@ export default function UsersPage() {
                             >
                               <Lock className="h-4 w-4" />
                             </div>
-                          ) : (canEdit || canDeleteRow || canRestoreRow || self) && (
+                          ) : (canEdit || canResend || canDeleteRow || canRestoreRow || self) && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8">

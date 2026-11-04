@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo } from 'react';
 import type { User } from '@/lib/types';
 import { getAvatarColor } from '@/lib/shared-utils';
+import { createPermissionChecker, type PermissionChecker } from '@/lib/permissions';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import { baseApi } from '@/redux/api/base-api';
 import { useGetMeQuery, useLogoutMutation } from '@/redux/features/auth/auth-api';
@@ -16,7 +17,7 @@ interface AuthSession {
   roleNames: string[];
 }
 
-interface AuthContextValue {
+interface AuthContextValue extends PermissionChecker {
   session: AuthSession | null;
   /** True while a stored token is being validated against /auth/me */
   loading: boolean;
@@ -31,7 +32,6 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
 
 
 function toSessionUser(user: ApiUser): User {
@@ -77,6 +77,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [accessToken, user, access]);
 
+  // /auth/me sends every permission the user holds in `account_permissions` (login sends it in `access`)
+  const checker = useMemo(
+    () => createPermissionChecker([...(user?.account_permissions ?? []), ...(access?.account_permissions ?? [])], isSuperAdmin),
+    [user, access, isSuperAdmin],
+  );
+
   const logout = useCallback(() => {
     const token = accessToken;
     // Clear locally first so the UI never sees a half-logged-out state
@@ -100,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        session, loading, mustChangePassword, access, isSuperAdmin, logout, register, refreshSession,
+        session, loading, mustChangePassword, access, isSuperAdmin, logout, register, refreshSession, ...checker,
       }}
     >
       {children}

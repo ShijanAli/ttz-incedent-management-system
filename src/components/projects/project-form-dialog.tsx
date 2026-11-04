@@ -149,8 +149,10 @@ const toMemberInput = (m: ProjectMemberValue) => ({ user_id: m.user_id });
 
 function ProjectForm({ project, members: loadedMembers, catalog, onDone }: ProjectFormProps) {
   // Labels are managed by super admins only; the label list is 403 for everyone else
-  const { isSuperAdmin } = useAuth();
-  const { data: labels = [] } = useGetProjectLabelsQuery(undefined, { skip: !isSuperAdmin });
+  const { hasPermission } = useAuth();
+  // Labels (e.g. Backend Dev) are managed with account.labels.manage
+  const canLabel = hasPermission('account.labels.manage');
+  const { data: labels = [] } = useGetProjectLabelsQuery(undefined, { skip: !canLabel });
   const labelOptions = useMemo(() => labels.map((l) => ({ value: String(l.id), label: l.name })), [labels]);
   const [createProject, { isLoading: creating }] = useCreateProjectMutation();
   const [updateProject, { isLoading: updating }] = useUpdateProjectMutation();
@@ -470,7 +472,7 @@ function ProjectForm({ project, members: loadedMembers, catalog, onDone }: Proje
       <div className="space-y-3">
         <SectionTitle title={`Project Members (${memberFields.length})`} error={errors.members?.message} />
         <p className="text-xs text-muted-foreground">
-          Add people to this project.{isSuperAdmin && ' Give each one a label (e.g. Backend Dev) to show what they do. Labels are optional and give no permissions.'}
+          Add people to this project.{canLabel && ' Give each one a label (e.g. Backend Dev) to show what they do. Labels are optional and give no permissions.'}
         </p>
 
         {memberFields.length > 0 && (
@@ -482,7 +484,7 @@ function ProjectForm({ project, members: loadedMembers, catalog, onDone }: Proje
                   <div className="truncate text-sm font-medium">{member.name}</div>
                   <div className="truncate text-xs text-muted-foreground">{member.designation || '—'}</div>
                 </div>
-                {isSuperAdmin && (
+                {canLabel && (
                   <RoleSelect
                     value={members[index]?.label_id ?? ''}
                     onChange={(label_id) => update(index, { ...members[index], label_id })}

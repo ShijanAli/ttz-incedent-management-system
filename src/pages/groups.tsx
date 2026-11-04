@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
+import { useAuth } from '@/lib/auth-context';
 import { parseApiError } from '@/lib/api-error';
 import { formatDate } from '@/lib/shared-utils';
 import { useGetGroupsInfiniteQuery } from '@/redux/features/groups/groups-api';
@@ -34,6 +35,7 @@ const STATUS_FILTER_PARAM: Record<string, 0 | 1 | undefined> = { [ALL]: undefine
 
 export default function GroupsPage() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [formOpen, setFormOpen] = useState(false);
@@ -73,10 +75,12 @@ export default function GroupsPage() {
         description="Teams of people you can attach to projects to give everyone access at once."
         breadcrumbs={[{ label: 'Groups' }]}
         actions={
-          <Button onClick={() => openForm(null)}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Group
-          </Button>
+          hasPermission('account.groups.create') && (
+            <Button onClick={() => openForm(null)}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Group
+            </Button>
+          )
         }
       />
 
@@ -199,6 +203,9 @@ interface GroupCardProps {
 }
 
 function GroupCard({ index, group, onOpen, onEdit, onAction }: GroupCardProps) {
+  const { hasPermission } = useAuth();
+  const canEdit = hasPermission('account.groups.edit');
+  const canDelete = hasPermission('account.groups.delete');
   return (
     <div
       role="link"
@@ -237,6 +244,7 @@ function GroupCard({ index, group, onOpen, onEdit, onAction }: GroupCardProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            {canEdit && (
             <>
               <DropdownMenuItem onClick={onEdit}>
                 <Pencil className="mr-2 h-4 w-4" />
@@ -254,13 +262,16 @@ function GroupCard({ index, group, onOpen, onEdit, onAction }: GroupCardProps) {
                 </DropdownMenuItem>
               )}
             </>
+            )}
+            {canDelete && (
             <>
-              <DropdownMenuSeparator />
+              {canEdit && <DropdownMenuSeparator />}
               <DropdownMenuItem onClick={() => onAction('delete')} className="text-destructive">
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete group
               </DropdownMenuItem>
             </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

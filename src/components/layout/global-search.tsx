@@ -22,9 +22,9 @@ type Result =
 
 export function GlobalSearch() {
   const navigate = useNavigate();
-  const { session, isSuperAdmin } = useAuth();
-  // Super admins read the admin list, which covers every project
-  const viewAll = isSuperAdmin;
+  const { session, hasPermission } = useAuth();
+  // account.projects.view_all reads the admin list, which covers every project
+  const viewAll = hasPermission('account.projects.view_all');
   const userId = session?.user.id;
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
