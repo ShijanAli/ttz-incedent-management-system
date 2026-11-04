@@ -32,6 +32,8 @@ export const ENDPOINTS = {
     USER_EDIT: (id: number | string) => `/api/admin/users/${id}`,
     USER: (id: number | string) => `/api/users/${id}`,
     USER_TOGGLES: (id: number | string) => `/api/admin/users/${id}`,
+    USER_DELETE_ACCOUNT: (id: number | string) => `/api/admin/users/${id}/account`,
+    USER_RESTORE: (id: number | string) => `/api/admin/users/${id}/restore`,
     USER_RESEND_INVITE: (id: number | string) =>
       `/api/admin/users/${id}/resend-invite`,
     GROUPS: "/api/admin/groups",

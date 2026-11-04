@@ -144,6 +144,7 @@ export const USER_STATUS_META: Record<string, { label: string; textClass: string
   active: { label: 'Active', textClass: 'text-emerald-600', dotClass: 'bg-emerald-500' },
   invited: { label: 'Invited', textClass: 'text-amber-600', dotClass: 'bg-amber-500' },
   disabled: { label: 'Disabled', textClass: 'text-slate-500', dotClass: 'bg-slate-400' },
+  deleted: { label: 'Deleted', textClass: 'text-red-600', dotClass: 'bg-red-500' },
 };
 
 /** Falls back to a neutral style for statuses the backend adds later. */

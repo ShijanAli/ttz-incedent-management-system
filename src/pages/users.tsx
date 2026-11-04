@@ -6,12 +6,14 @@ import { parseApiError } from '@/lib/api-error';
 import { formatDate, getAvatarColor, USER_STATUS_META } from '@/lib/shared-utils';
 import { useGetAssignableRolesQuery } from '@/redux/features/roles/roles-api';
 import {
+  useDeleteUserAccountMutation,
   useDisableUserMutation,
   useGetUsersInfiniteQuery,
   useResendInviteMutation,
+  useRestoreUserMutation,
   useUpdateUserMutation,
 } from '@/redux/features/users/users-api';
-import { isUserDisabled, type AdminUser } from '@/redux/features/users/users-types';
+import { isUserDeleted, isUserDisabled, type AdminUser } from '@/redux/features/users/users-types';
 import { PageHeader } from '@/components/shared/page-header';
 import { UserAvatar } from '@/components/shared/user-avatar';
 import { UserHoverCard } from '@/components/shared/user-hover-card';
@@ -38,6 +40,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   MoreVertical, Plus, Search, Pencil, Mail, Send, Lock, AlertTriangle, RotateCw, ShieldCheck, X, Loader2,
+  Trash2, Undo2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -45,7 +48,7 @@ import { cn } from '@/lib/utils';
 const COLUMN_COUNT = 8;
 const ALL = 'all';
 
-type UserActionType = 'activate' | 'deactivate' | 'resend';
+type UserActionType = 'activate' | 'deactivate' | 'resend' | 'delete' | 'restore';
 type PendingAction = { user: AdminUser; action: UserActionType };
 
 /** Confirm-dialog copy for every row action, so each one is confirmed the same way */
@@ -73,10 +76,22 @@ const ACTION_CONFIG: Record<UserActionType, {
     variant: 'default',
     describe: (u) => `Send a new invitation email to ${u.email}? Any previous invitation link will no longer be valid.`,
   },
+  delete: {
+    title: 'Delete account',
+    confirmLabel: 'Delete',
+    variant: 'destructive',
+    describe: (u) => `Are you sure you want to delete the account of ${u.name}? They will not be able to sign in. An admin can restore the account later.`,
+  },
+  restore: {
+    title: 'Restore account',
+    confirmLabel: 'Restore',
+    variant: 'default',
+    describe: (u) => `Restore the deleted account of ${u.name}?`,
+  },
 };
 
 export default function UsersPage() {
-  const { session, hasPermission } = useAuth();
+  const { session, hasPermission, hasAccountPermission } = useAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(ALL);
   const [roleFilter, setRoleFilter] = useState<string>(ALL);
@@ -98,6 +113,8 @@ export default function UsersPage() {
   const [disableUser] = useDisableUserMutation();
   const [updateUser] = useUpdateUserMutation();
   const [resendInvite] = useResendInviteMutation();
+  const [deleteUserAccount] = useDeleteUserAccountMutation();
+  const [restoreUser] = useRestoreUserMutation();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
@@ -138,6 +155,12 @@ export default function UsersPage() {
       } else if (action === 'deactivate') {
         await disableUser(user.id).unwrap();
         toast.success(`Disabled ${user.name}`);
+      } else if (action === 'delete') {
+        await deleteUserAccount(user.id).unwrap();
+        toast.success(`Deleted the account of ${user.name}`);
+      } else if (action === 'restore') {
+        await restoreUser(user.id).unwrap();
+        toast.success(`Restored the account of ${user.name}`);
       } else {
         const res = await resendInvite(user.id).unwrap();
         toast.success('Invitation sent', { description: res.message || `A new invitation was sent to ${user.email}.` });
@@ -156,6 +179,8 @@ export default function UsersPage() {
   const canCreate = hasPermission('users.create');
   const canUpdate = hasPermission('users.update');
   const canDeactivate = hasPermission('users.deactivate');
+  const canDelete = hasAccountPermission('account.users.delete');
+  const canRestore = hasAccountPermission('account.users.restore');
 
   return (
     <div className="animate-fade-in">
@@ -282,10 +307,14 @@ export default function UsersPage() {
                     const self = isSelf(user);
                     // Super admin accounts are protected from every action
                     const locked = user.is_super_admin;
-                    const canEdit = canUpdate && !locked;
-                    const canToggle = canDeactivate && !self && !locked;
+                    const deleted = isUserDeleted(user.status);
+                    // A deleted account can only be restored
+                    const canEdit = canUpdate && !locked && !deleted;
+                    const canToggle = canDeactivate && !self && !locked && !deleted;
                     // Backend rejects re-inviting active accounts (USER_ALREADY_ACTIVE)
                     const canResend = canEdit && user.status === 'invited';
+                    const canDeleteRow = canDelete && !self && !locked && !deleted;
+                    const canRestoreRow = canRestore && !locked && deleted;
                     return (
                       <TableRow key={user.id} {...{ [ROW_INDEX_ATTR]: index }}>
                         <TableCell className="text-sm tabular-nums text-muted-foreground">{index + 1}</TableCell>
@@ -341,7 +370,7 @@ export default function UsersPage() {
                             >
                               <Lock className="h-4 w-4" />
                             </div>
-                          ) : (canEdit || self) && (
+                          ) : (canEdit || canDeleteRow || canRestoreRow || self) && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -359,6 +388,21 @@ export default function UsersPage() {
                                   <DropdownMenuItem onClick={() => confirmFor(user, 'resend')}>
                                     <Send className="mr-2 h-4 w-4" />
                                     Resend invitation
+                                  </DropdownMenuItem>
+                                )}
+                                {canRestoreRow && (
+                                  <DropdownMenuItem onClick={() => confirmFor(user, 'restore')}>
+                                    <Undo2 className="mr-2 h-4 w-4" />
+                                    Restore account
+                                  </DropdownMenuItem>
+                                )}
+                                {canDeleteRow && (
+                                  <DropdownMenuItem
+                                    onClick={() => confirmFor(user, 'delete')}
+                                    className="text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete account
                                   </DropdownMenuItem>
                                 )}
                                 {self && (

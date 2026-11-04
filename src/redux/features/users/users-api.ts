@@ -12,6 +12,7 @@ import {
   type PaginatedApiResponse,
 } from "@/redux/api/types";
 import {
+  DELETED_STATUS,
   DISABLED_STATUS,
   type AdminUser,
   type CreateUserRequest,
@@ -108,6 +109,36 @@ export const usersApi = baseApi.injectEndpoints({
       ],
     }),
 
+    /** Deletes the account itself; an admin with restore access can bring it back */
+    deleteUserAccount: build.mutation<ApiResponse<unknown>, number>({
+      query: (id) => ({
+        url: ENDPOINTS.ADMIN.USER_DELETE_ACCOUNT(id),
+        method: "DELETE",
+      }),
+      async onQueryStarted(id, api) {
+        await withOptimisticUser(api, id, (user) => {
+          user.status = DELETED_STATUS;
+        });
+      },
+      invalidatesTags: (_result, _error, id) => [
+        { type: "User", id },
+        USER_LIST_TAG,
+        ROLE_LIST_TAG,
+      ],
+    }),
+
+    restoreUser: build.mutation<ApiResponse<unknown>, number>({
+      query: (id) => ({
+        url: ENDPOINTS.ADMIN.USER_RESTORE(id),
+        method: "POST",
+      }),
+      invalidatesTags: (_result, _error, id) => [
+        { type: "User", id },
+        USER_LIST_TAG,
+        ROLE_LIST_TAG,
+      ],
+    }),
+
     resendInvite: build.mutation<ApiResponse<unknown>, number>({
       query: (id) => ({
         url: ENDPOINTS.ADMIN.USER_RESEND_INVITE(id),
@@ -124,6 +155,8 @@ export const {
   useCreateUserMutation,
   useUpdateUserMutation,
   useDisableUserMutation,
+  useDeleteUserAccountMutation,
+  useRestoreUserMutation,
   useResendInviteMutation,
 } = usersApi;
 

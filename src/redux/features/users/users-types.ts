@@ -6,6 +6,11 @@ export type UserStatus = 'active' | 'invited' | 'disabled' | (string & {});
 /** Status the backend sets after DELETE /admin/users/{id} */
 export const DISABLED_STATUS: UserStatus = 'disabled';
 
+/** Status of an account removed via DELETE /admin/users/{id}/account */
+export const DELETED_STATUS: UserStatus = 'deleted';
+
+export const isUserDeleted = (status: UserStatus) => status === DELETED_STATUS;
+
 export const isUserDisabled = (status: UserStatus) => status === DISABLED_STATUS;
 
 /** A user as returned by the /admin/users endpoints */
