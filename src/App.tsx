@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router';
 import { Loader2 } from 'lucide-react';
 import AppLayout from '@/components/layout/app-layout';
 import { RequireAccountPermission, RequirePermission } from '@/components/shared/require-permission';
+import PrivacyPolicy from './pages/privacy-policy';
 
 const Home = lazy(() => import('@/pages/home'));
 const LoginPage = lazy(() => import('@/pages/login'));
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/change-password" element={<ChangePasswordPage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/projects" element={<RequirePermission permission="projects.view"><ProjectsPage /></RequirePermission>} />
