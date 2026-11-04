@@ -269,6 +269,7 @@ export default function UsersPage() {
                   <TableHead>Roles</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Department</TableHead>
+                  <TableHead>Invite Expires</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="w-[50px]" />
                 </TableRow>
@@ -355,6 +356,7 @@ export default function UsersPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{user.department || '—'}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{formatDate(user.invite_expires_at)}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{formatDate(user.created_at)}</TableCell>
                         <TableCell>
                           {locked ? (
